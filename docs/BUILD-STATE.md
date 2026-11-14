@@ -28,7 +28,7 @@ Never claim a check that was not run. If a task cannot meet its acceptance check
 | --- | --- | --- | --- |
 | 1 | T01 scaffold | Done | `1192b4a` |
 | 2 | T02 contracts, T02b design blueprint | Done | `25af9d0` |
-| 3 | T03 shell, T04 Zod schemas, T05 messages, T06 fixtures, T08 engine core | Not started | |
+| 3 | T03 shell, T04 Zod schemas, T05 messages, T06 fixtures, T08 engine core | **In progress, uncommitted** (see "Wave 3 handover") | |
 | 4 | T07 engine tests, T09 engine validation, T10 Dexie repositories | Not started | |
 | 5 | T11 version save, T12 backup export, T16 materials, T17 results panel | Not started | |
 | 6 | T13 bad backup fixtures, T14 restore checks and plan, T18 editor, T19 list, T20 formula page | Not started | |
@@ -36,6 +36,24 @@ Never claim a check that was not run. If a task cannot meet its acceptance check
 | 8 | T22 backup page | Not started | |
 | 9 | T23, T24 end-to-end tests | Not started | |
 | 10 | T25 integration review, T26 final run, T27 handoff | Not started | |
+
+## Wave 3 handover (2026-11-15)
+
+The wave 3 chat stopped partway. Its work is in the working tree, **uncommitted and not yet reviewed**. A new chat finishes the wave. State measured by the lead orchestrator:
+
+| Task | On disk | Still to do |
+| --- | --- | --- |
+| T08 engine core | `src/lib/gramguard/{fixed,format,plan,index}.ts` and `__tests__/` | Review against the spec and `tests/reference/worked-examples.mjs` |
+| T04 Zod schemas | `src/lib/schemas/*`, `tests/unit/schemas/*` | Review |
+| T06 fixtures | `tests/fixtures/worked-examples.ts` | Check every figure against section 9 of the Calculation Rules |
+| T03 shell | `components.json`, `src/lib/utils.ts`, `src/components/{ui,common,shell}/`, `tests/unit/{time,db}/`, changes to `package.json`, `package-lock.json`, `globals.css` | Confirm what is finished. `src/app/` still has only the default `page.tsx`, so route skeletons, the layout wiring and `tests/e2e/shell.spec.ts` are likely missing. Confirm shadcn left `tokens.css` as the only source of colour and added no `.dark` variant. Confirm whether Playwright's Chromium is installed |
+| T05 messages | Nothing. `src/lib/messages.ts` does not exist | The whole task |
+
+Checks run on this uncommitted tree: `npm test` passed (10 files, 232 tests). `npx tsc --noEmit` reported no errors. `npm run lint` **failed** with 5 `no-explicit-any` errors, all in `tests/unit/_tmp/cross.test.ts`, a scratch file that should be deleted or fixed. `npm run build` and `npm run test:e2e` were not run.
+
+## GitHub
+
+`origin` is set to `https://github.com/pwekpwek/candle.git` (owner's instruction, 2026-11-15). The signed-in account `jubert-natura` still gets "Repository not found" from both `gh` and `git ls-remote`, and has no pending invitation. Nothing can be pushed until the repository exists and that account is a collaborator, or `gh` is signed in as the owning account. Check again with `gh repo view pwekpwek/candle` before the push step.
 
 ## Notes for coming waves
 
