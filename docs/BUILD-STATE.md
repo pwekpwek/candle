@@ -39,7 +39,7 @@ Never claim a check that was not run. If a task cannot meet its acceptance check
 
 ## Wave 3 handover (2026-11-15)
 
-The wave 3 chat stopped partway. Its work is in the working tree, **uncommitted and not yet reviewed**. A new chat finishes the wave. State measured by the lead orchestrator:
+Snapshot taken by the lead orchestrator while the wave 3 chat was paused. **The wave 3 chat then resumed** (T03 on Sonnet and T05 on Haiku were running again), so it finishes and commits the wave itself. Do not start a second chat on wave 3 while it is running. If it is found stopped with the wave uncommitted, a new chat finishes it from this table.
 
 | Task | On disk | Still to do |
 | --- | --- | --- |
@@ -53,7 +53,7 @@ Checks run on this uncommitted tree: `npm test` passed (10 files, 232 tests). `n
 
 ## GitHub
 
-`origin` is set to `https://github.com/pwekpwek/candle.git` (owner's instruction, 2026-11-15). The signed-in account `jubert-natura` still gets "Repository not found" from both `gh` and `git ls-remote`, and has no pending invitation. Nothing can be pushed until the repository exists and that account is a collaborator, or `gh` is signed in as the owning account. Check again with `gh repo view pwekpwek/candle` before the push step.
+`origin` is set to `https://github.com/pwekpwek/candle.git`. **The owner wants the push made as the `pwekpwek` account, not `jubert-natura`** (2026-11-15). The GitHub CLI on this machine is signed in only as `jubert-natura`, which gets "Repository not found" from `gh` and `git ls-remote` and has no pending invitation. The owner has to sign the CLI in as `pwekpwek` themselves (`gh auth login`), since an assistant must not enter credentials. Before the push step run `gh auth status` and `gh repo view pwekpwek/candle`; push only when the active account is `pwekpwek` and the repository resolves.
 
 ## Notes for coming waves
 
