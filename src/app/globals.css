@@ -1,26 +1,123 @@
 @import "tailwindcss";
+@import "./tokens.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/*
+ * Maps the tokens in tokens.css to Tailwind utilities. Components use these
+ * names only (bg-card, text-muted-foreground, border-input, shadow-popover…),
+ * never raw colour values. `dark:` follows the device setting (D-15).
+ */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-text-secondary: var(--text-secondary);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-overlay: var(--overlay);
+
+  --radius-sm: calc(var(--radius) - 2px); /* 6px: chips, small controls */
+  --radius-md: var(--radius); /* 8px: buttons, inputs */
+  --radius-lg: calc(var(--radius) + 4px); /* 12px: cards */
+  --radius-xl: calc(var(--radius) + 8px); /* 16px: dialogs, sheets */
+
+  --shadow-popover: var(--shadow-popover);
+  --shadow-dialog: var(--shadow-dialog);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Type scale: six sizes, two weights (400 and 600). */
+  --text-xs: 0.75rem; /* 12px labels, captions */
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem; /* 14px secondary text, table cells */
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem; /* 16px body and every input */
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.125rem; /* 18px section headings */
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.375rem; /* 22px page titles */
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: 1.75rem; /* 28px the headline figure */
+  --text-2xl--line-height: 2rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  /* 16px minimum so iOS does not zoom on focus (FLOW-02). */
+  input,
+  select,
+  textarea {
+    font-size: 1rem;
+  }
+
+  /* One focus style everywhere (PRD-29). */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* 44px tap targets on touch devices only (FLOW-03). */
+  @media (pointer: coarse) {
+    button,
+    a[href],
+    [role="button"],
+    [role="tab"],
+    [role="menuitem"],
+    select,
+    input:not([type="checkbox"]):not([type="radio"]) {
+      min-height: 44px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  /* Numbers that are compared or update live (FLOW-04). */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
 }

@@ -1,0 +1,100 @@
+/*
+ * CandleLab Studio — design tokens (T02b). See docs/design/blueprint.md.
+ *
+ * The only place raw colour values live. Components use the Tailwind names
+ * mapped in globals.css (bg-background, text-muted-foreground, border-border…).
+ * Names follow the shadcn/ui convention so its components work unchanged.
+ *
+ * Light and dark are defined together. v0.1 follows the device setting
+ * (prefers-color-scheme) and has no in-app toggle (decision D-15).
+ * Contrast for every pair in use is recorded in the blueprint (WCAG AA).
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Surfaces */
+  --background: #faf8f4; /* page: warm paper */
+  --card: #ffffff; /* cards, tables, inputs */
+  --popover: #ffffff; /* menus, dialogs, drawers, sheets */
+  --muted: #f3efe8; /* sidebar, table header, quiet fills */
+  --secondary: #f3efe8; /* secondary button fill */
+
+  /* Text: three tiers */
+  --foreground: #1f1b16;
+  --card-foreground: #1f1b16;
+  --popover-foreground: #1f1b16;
+  --secondary-foreground: #1f1b16;
+  --text-secondary: #5a5247;
+  --muted-foreground: #746b5e;
+
+  /* The one accent: burnt amber */
+  --primary: #9a4a12;
+  --primary-foreground: #ffffff;
+  --accent: #f6e9dc; /* selected nav item, hover on menu rows */
+  --accent-foreground: #1f1b16;
+  --ring: #9a4a12;
+
+  /* Lines */
+  --border: #e3dcd1; /* hairlines on cards and between rows */
+  --input: #8c8375; /* control outlines: 3:1 against surfaces */
+
+  /* Status. Always paired with words or an icon, never colour alone. */
+  --destructive: #b3261e;
+  --destructive-foreground: #ffffff;
+  --destructive-soft: #fbeae8;
+  --warning: #7a4f00;
+  --warning-soft: #fbf0d9;
+  --success: #2c6a3a;
+  --success-soft: #e6f2e7;
+
+  /* Elevation: only on things that float */
+  --shadow-popover: 0 4px 16px rgb(31 27 22 / 0.1), 0 1px 3px rgb(31 27 22 / 0.08);
+  --shadow-dialog: 0 16px 48px rgb(31 27 22 / 0.18), 0 2px 8px rgb(31 27 22 / 0.1);
+  --overlay: rgb(31 27 22 / 0.4);
+
+  /* Shape */
+  --radius: 0.5rem; /* 8px: buttons, inputs. Cards 12px, dialogs 16px. */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Near-black, warm. Lighter surface = higher elevation. */
+    --background: #14120f;
+    --card: #1c1916;
+    --popover: #25211c;
+    --muted: #191613;
+    --secondary: #25211c;
+
+    /* Warm white at 92%, 66% and 52% */
+    --foreground: #e3ded7;
+    --card-foreground: #e4dfd7;
+    --popover-foreground: #e4dfd8;
+    --secondary-foreground: #e4dfd8;
+    --text-secondary: #aba7a1;
+    --muted-foreground: #918d86;
+
+    /* Accent: lighter and less saturated, with dark text on it */
+    --primary: #e2a06c;
+    --primary-foreground: #1a120a;
+    --accent: #33251a;
+    --accent-foreground: #e4dfd7;
+    --ring: #e2a06c;
+
+    --border: rgb(245 240 232 / 0.09);
+    --input: rgb(245 240 232 / 0.36);
+
+    --destructive: #f2877e;
+    --destructive-foreground: #1a0b09;
+    --destructive-soft: #3a1c19;
+    --warning: #e5b567;
+    --warning-soft: #33290f;
+    --success: #86c594;
+    --success-soft: #18301e;
+
+    /* Shadows barely read on dark: depth comes from surface steps and hairlines. */
+    --shadow-popover: 0 4px 16px rgb(0 0 0 / 0.4);
+    --shadow-dialog: 0 16px 48px rgb(0 0 0 / 0.55);
+    --overlay: rgb(0 0 0 / 0.6);
+  }
+}
