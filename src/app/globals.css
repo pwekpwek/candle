@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "./tokens.css";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
 /*
  * Maps the tokens in tokens.css to Tailwind utilities. Components use these

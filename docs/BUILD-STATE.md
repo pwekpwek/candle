@@ -18,7 +18,7 @@ Never claim a check that was not run. If a task cannot meet its acceptance check
 - Repository folder: `G:\Users\Jubert Cute\Downloads\jun\yalen\candle`. Branch `feat/v0.1-gramguard`. Nothing is pushed.
 - **B-1 is open:** the signed-in GitHub account `jubert-natura` cannot see `pwekpwek/candle` (checked 2026-11-15, not found). Build and test locally. The owner must be told before the push step.
 - Node v24.14.1, npm 11.11.0. Next 16.4.6, React 19.3.0, TypeScript 5.9.3, Tailwind 4.3.3, Vitest 5.1.0, Playwright 1.65.1, Dexie 4.4.7, Zod 4.6.7.
-- Playwright browsers are **not installed yet**. Wave 9 runs `npx playwright install chromium` first.
+- Playwright's Chromium **is installed** (wave 3, `npx playwright install chromium`). `npm run test:e2e` runs the shell spec.
 - `npm run typecheck` runs `next typegen` first (the `pretypecheck` script). That is expected.
 - D-1 to D-14 are accepted. D-15: light and dark tokens, follow the device setting, no toggle.
 
@@ -28,7 +28,7 @@ Never claim a check that was not run. If a task cannot meet its acceptance check
 | --- | --- | --- | --- |
 | 1 | T01 scaffold | Done | `1192b4a` |
 | 2 | T02 contracts, T02b design blueprint | Done | `25af9d0` |
-| 3 | T03 shell, T04 Zod schemas, T05 messages, T06 fixtures, T08 engine core | **In progress, uncommitted** (see "Wave 3 handover") | |
+| 3 | T03 shell, T04 Zod schemas, T05 messages, T06 fixtures, T08 engine core | Done | The commit titled "Wave 3 (T03, T04, T05, T06, T08)" (`git log --oneline`) |
 | 4 | T07 engine tests, T09 engine validation, T10 Dexie repositories | Not started | |
 | 5 | T11 version save, T12 backup export, T16 materials, T17 results panel | Not started | |
 | 6 | T13 bad backup fixtures, T14 restore checks and plan, T18 editor, T19 list, T20 formula page | Not started | |
@@ -37,19 +37,9 @@ Never claim a check that was not run. If a task cannot meet its acceptance check
 | 9 | T23, T24 end-to-end tests | Not started | |
 | 10 | T25 integration review, T26 final run, T27 handoff | Not started | |
 
-## Wave 3 handover (2026-11-15)
+## Wave 3 handover
 
-Snapshot taken by the lead orchestrator while the wave 3 chat was paused. **The wave 3 chat then resumed** (T03 on Sonnet and T05 on Haiku were running again), so it finishes and commits the wave itself. Do not start a second chat on wave 3 while it is running. If it is found stopped with the wave uncommitted, a new chat finishes it from this table.
-
-| Task | On disk | Still to do |
-| --- | --- | --- |
-| T08 engine core | `src/lib/gramguard/{fixed,format,plan,index}.ts` and `__tests__/` | Review against the spec and `tests/reference/worked-examples.mjs` |
-| T04 Zod schemas | `src/lib/schemas/*`, `tests/unit/schemas/*` | Review |
-| T06 fixtures | `tests/fixtures/worked-examples.ts` | Check every figure against section 9 of the Calculation Rules |
-| T03 shell | `components.json`, `src/lib/utils.ts`, `src/components/{ui,common,shell}/`, `tests/unit/{time,db}/`, changes to `package.json`, `package-lock.json`, `globals.css` | Confirm what is finished. `src/app/` still has only the default `page.tsx`, so route skeletons, the layout wiring and `tests/e2e/shell.spec.ts` are likely missing. Confirm shadcn left `tokens.css` as the only source of colour and added no `.dark` variant. Confirm whether Playwright's Chromium is installed |
-| T05 messages | Nothing. `src/lib/messages.ts` does not exist | The whole task |
-
-Checks run on this uncommitted tree: `npm test` passed (10 files, 232 tests). `npx tsc --noEmit` reported no errors. `npm run lint` **failed** with 5 `no-explicit-any` errors, all in `tests/unit/_tmp/cross.test.ts`, a scratch file that should be deleted or fixed. `npm run build` and `npm run test:e2e` were not run.
+Superseded. The wave 3 chat resumed and finished: all five tasks are reviewed and committed (see the log). The scratch file `tests/unit/_tmp/cross.test.ts` mentioned in the earlier snapshot was the orchestrator's own cross-check and has been deleted.
 
 ## GitHub
 
@@ -60,9 +50,16 @@ Checks run on this uncommitted tree: `npm test` passed (10 files, 232 tests). `n
 - **Wave 3, T03:** installs the UI dependencies (shadcn/ui pieces, `lucide-react`, `dexie-react-hooks`). It is the only task in that wave allowed to run `npm install`. shadcn must not overwrite the tokens: `src/app/tokens.css` stays the only source of colour values, and no `.dark` class variant is added (D-15). `next.config.ts` has `cacheComponents: true`; route skeletons with dynamic segments must build under it (read the Next 16 docs in `node_modules/next/dist/docs/`).
 - **Wave 3, T08** exports only the parsing, formatting and planning functions. The full `GramGuardEngine` check in `index.ts` is completed by T09 in wave 4.
 - **Wave 3, T06 and wave 4, T07** must be written from the spec, not from the engine code, so the tests cannot mirror the implementation.
-- **CALC-13** looks at the fragrance total only (see "Decisions made during the build" in `docs/ARCHITECTURE.md`).
+- **CALC-13** looks at the fragrance total only (see "Decisions made during the build" in `docs/ARCHITECTURE.md`). The Calculation Rules file itself still says "the fragrance total or any component"; the decision is recorded in the contract and the architecture note, not in the spec file.
+- **Wave 4, `tsconfig.json` target is ES2017**, so BigInt literals (`1n`, `10n ** 3n`) fail with TS2737. T08 used `BigInt(1)` calls instead. T09 must do the same (or the owner raises the target to ES2020). `src/lib/gramguard/fixed.ts` exports `toSafeInt`, `toBig`, `divHalfUp` and `divHalfAwayFromZero` for T09 to reuse.
+- **Wave 4, `computePlan` throws `RangeError`** for input `evaluateFormula` would reject first (non-integers, no waxes, scented with no oils, parts summing to 0, total-basis percentage of 100% or more). Call it only after validation. A `zero-component` result lists waxes first, then oils, in input order. `index.ts` ends with `_engineCoreCheck: Pick<GramGuardEngine, …16 names>`; T09 widens it to the full `GramGuardEngine`.
+- **Wave 4, T07** can use `tests/fixtures/worked-examples.ts` (`ALL_WORKED_EXAMPLES`, `ALL_SCALE_EXAMPLES`, `ALL_MEASURED_EXAMPLES`, `WE_13`). Its plan and scale entries were cross-checked against `computePlan` in wave 3 (17 of 17 match). The WE-8 comparison, the partial case and the WE-13 rows are checked against the spec text only.
+- **Schemas (T04)** are strict and add rules beyond the types: oils empty when `fragranceBp` is 0 and at least one when above 0; `totalMg = waxTotalMg + fragranceTotalMg`; component ids unique per version; vessel count × fill at most 1 000 000 g. Ids use `z.uuid()`, which checks the version and variant digits, so test data must use real v4 UUIDs (`crypto.randomUUID()`), not made-up ones such as `0000…0001`. `partsX100` is 1 to 999999 even for a single-row blend, so the editor (T18) must store 100 for a single row.
+- **Messages (T05)** wording written because the specs have none (review before release): the CALC-17 note, the total-basis `basisExplanation`, singular forms in the restore messages, the orphan-measurement clause, `editor.saveFailed`, `storage.blockedWhatToTry`, the backup draft and replace texts, the add-wick and add-vessel rows. Restore failure reasons from `RestoreResult` (busy, stale, storage, mismatch, no-safety) have no wording yet: T22 needs them. The CALC-13 sentence follows the spec exactly ("can't hit 6%"), so it names no basis after the percentage. Two strings contain "safe" because spec 3 does ("somewhere safe", "safety backup"); the messages test lists them as explicit exceptions.
+- **Shell (T03):** three nav destinations (Formulas, Materials, Backup and restore), as spec 3 and the blueprint say. "New formula" is a button in the Formulas page header. Shell strings still carry `TODO(T05)` and are not yet wired to `@/lib/messages`; the storage-blocked explanation text is written in the component. `--bottom-bar-height` is available for T18's fixed phone summary bar. Dynamic route skeletons use `use(params)` inside Suspense (Cache Components); a page that reads `useSearchParams` needs Suspense too. New dependencies: `shadcn`, `radix-ui`, `class-variance-authority`, `cn` (shadcn's own class-merge package), `tw-animate-css`, `lucide-react`, `dexie-react-hooks`. `globals.css` gained only two imports (`tw-animate-css`, `shadcn/tailwind.css`); the colour variables and `.dark` variant that shadcn injects were removed again.
 
 ## Log
 
 - **2026-11-15, wave 1.** T01 on Sonnet. `npm ci`, lint, typecheck, test (1 test), build and test:e2e (1 trivial test) all passed. `@types/node` raised to 24 for Vitest 5. `pretypecheck` added. Vitest config is `vitest.config.mts`.
 - **2026-11-15, wave 2.** T02 and T02b by the lead orchestrator. Spec pack copied to `docs/specs/`, UX Playbook and Premium Dashboard Design skills to `docs/design/`, reference script extracted to `tests/reference/worked-examples.mjs` and run: every figure matches section 9 of the Calculation Rules. Contracts: `src/lib/types.ts`, `src/lib/gramguard/contract.ts`, `src/lib/db/contract.ts`, `src/lib/backup/contract.ts`. Tokens: `src/app/tokens.css`, mapped in `src/app/globals.css`, with measured AA contrast in `docs/design/blueprint.md`. One spec gap found and resolved (CALC-13 scope).
+- **2026-11-15, wave 3.** Run in its own chat. T08 engine core (Sonnet), T03 shadcn and shell (Sonnet), T04 schemas (Haiku), T06 fixtures (Haiku), T05 messages (Haiku, after T08). No escalations: every Haiku output passed review. A usage-limit error stopped T03 and T05 part-way; both were resumed with their work intact. One review fix by the orchestrator: the WE-9d fixture's `input` carried the source amount (333.3 g) instead of the scaled 500.0 g; after the fix all 17 plan and scale fixtures matched `computePlan`. Commands on the final tree: `npm run lint` clean; `npm run typecheck` clean; `npm test` 11 files, 281 tests passed; `npm run build` passed (4 static routes, 3 partial-prerender dynamic routes); `npm run test:e2e` 10 passed (Chromium installed this wave).

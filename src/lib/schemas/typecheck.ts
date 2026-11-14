@@ -1,0 +1,62 @@
+/**
+ * Compile-time checks: each schema's inferred type must match its record type
+ * in `@/lib/types` in both directions, with the same top-level keys. A change
+ * to either side that makes them diverge fails `npx tsc --noEmit` here.
+ */
+import type { z } from "zod";
+import type {
+  BackupCounts,
+  BackupData,
+  BackupEnvelope,
+  Component,
+  Formula,
+  FormulaVersion,
+  Material,
+  MaterialSnapshot,
+  Measurement,
+  Sizing,
+  VersionInputs,
+  VersionTargets,
+} from "@/lib/types";
+import type { BackupCountsSchema, BackupDataSchema, BackupEnvelopeSchema } from "./backup";
+import type { FormulaSchema } from "./formula";
+import type { MaterialSchema, MaterialSnapshotSchema } from "./material";
+import type { MeasurementSchema } from "./measurement";
+import type {
+  ComponentSchema,
+  FormulaVersionSchema,
+  SizingSchema,
+  VersionInputsSchema,
+  VersionTargetsSchema,
+} from "./version";
+
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+type SameKeys<A, B> = Same<keyof A, keyof B>;
+type Assert<T extends true> = T;
+
+type Out<S extends z.ZodType> = z.output<S>;
+
+export type TypeChecks = [
+  Assert<Same<Out<typeof MaterialSchema>, Material>>,
+  Assert<SameKeys<Out<typeof MaterialSchema>, Material>>,
+  Assert<Same<Out<typeof MaterialSnapshotSchema>, MaterialSnapshot>>,
+  Assert<SameKeys<Out<typeof MaterialSnapshotSchema>, MaterialSnapshot>>,
+  Assert<Same<Out<typeof FormulaSchema>, Formula>>,
+  Assert<SameKeys<Out<typeof FormulaSchema>, Formula>>,
+  Assert<Same<Out<typeof SizingSchema>, Sizing>>,
+  Assert<Same<Out<typeof ComponentSchema>, Component>>,
+  Assert<SameKeys<Out<typeof ComponentSchema>, Component>>,
+  Assert<Same<Out<typeof VersionInputsSchema>, VersionInputs>>,
+  Assert<SameKeys<Out<typeof VersionInputsSchema>, VersionInputs>>,
+  Assert<Same<Out<typeof VersionTargetsSchema>, VersionTargets>>,
+  Assert<SameKeys<Out<typeof VersionTargetsSchema>, VersionTargets>>,
+  Assert<Same<Out<typeof FormulaVersionSchema>, FormulaVersion>>,
+  Assert<SameKeys<Out<typeof FormulaVersionSchema>, FormulaVersion>>,
+  Assert<Same<Out<typeof MeasurementSchema>, Measurement>>,
+  Assert<SameKeys<Out<typeof MeasurementSchema>, Measurement>>,
+  Assert<Same<Out<typeof BackupCountsSchema>, BackupCounts>>,
+  Assert<Same<Out<typeof BackupDataSchema>, BackupData>>,
+  Assert<SameKeys<Out<typeof BackupDataSchema>, BackupData>>,
+  Assert<Same<Out<typeof BackupEnvelopeSchema>, BackupEnvelope>>,
+  Assert<SameKeys<Out<typeof BackupEnvelopeSchema>, BackupEnvelope>>,
+];
