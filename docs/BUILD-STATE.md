@@ -27,7 +27,7 @@ Never claim a check that was not run. If a task cannot meet its acceptance check
 | Wave | Tasks | Status | Commit |
 | --- | --- | --- | --- |
 | 1 | T01 scaffold | Done | `1192b4a` |
-| 2 | T02 contracts, T02b design blueprint | Done | see log |
+| 2 | T02 contracts, T02b design blueprint | Done | `25af9d0` |
 | 3 | T03 shell, T04 Zod schemas, T05 messages, T06 fixtures, T08 engine core | Not started | |
 | 4 | T07 engine tests, T09 engine validation, T10 Dexie repositories | Not started | |
 | 5 | T11 version save, T12 backup export, T16 materials, T17 results panel | Not started | |
