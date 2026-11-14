@@ -384,8 +384,10 @@ export type Evaluation = {
  *     rows at all → V-10 on "waxes".
  *   - When fragrance is above 0: no oil rows → V-11 on "oils"; an oil row with
  *     no material → V-11 on "oils.<rowId>.material".
- *   - When fragrance is 0, oil rows are not validated; if any exist, add the
- *     CALC-17 note to `warnings` and leave `input.oils` empty.
+ *   - When fragrance is 0, oil rows are not validated; if any row has a
+ *     material chosen, add the CALC-17 note to `warnings`. `input.oils` is
+ *     empty either way. (A row with no material is a blank placeholder, not
+ *     an oil the maker listed. Clarified in wave 4.)
  *   - Parts are validated (V-12, or V-01 for bad format) only when that blend
  *     has two or more rows. A single row counts as 100.
  *   - V-13 goes on the second and later rows that repeat a material.

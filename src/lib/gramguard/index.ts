@@ -1,13 +1,14 @@
 /**
  * `@/lib/gramguard` — the only calculation path (TRD-03).
- *
- * T08 provides parsing, formatting and planning. T09 adds measure, scale,
- * validate and from-version exports to this file.
  */
 export * from "./contract";
 export * from "./fixed";
 export * from "./format";
 export * from "./plan";
+export * from "./measure";
+export * from "./scale";
+export * from "./validate";
+export * from "./from-version";
 
 import type { GramGuardEngine } from "./contract";
 import { parseFixed, precisionDecimals, precisionLabel } from "./fixed";
@@ -24,30 +25,13 @@ import {
   formatWeight,
 } from "./format";
 import { computePlan, convertBasis, sizingTotalMg } from "./plan";
+import { compareMeasured, parseMeasured } from "./measure";
+import { evaluateScale } from "./scale";
+import { emptyEditorFields, evaluateFormula } from "./validate";
+import { compareInputFromVersion, fieldsFromVersion, planInputFromVersion } from "./from-version";
 
-/**
- * Compile-time check that the engine core matches the contract. Wave 4 (T09)
- * widens this to the full `GramGuardEngine` and may rename it.
- */
-export const _engineCoreCheck: Pick<
-  GramGuardEngine,
-  | "parseFixed"
-  | "precisionDecimals"
-  | "precisionLabel"
-  | "formatWeight"
-  | "formatGrams"
-  | "formatMeasured"
-  | "formatSignedGrams"
-  | "formatMinimalGrams"
-  | "formatPercent2"
-  | "formatSignedPercent2"
-  | "formatRequestedPercent"
-  | "formatHundredths"
-  | "formatFactor"
-  | "computePlan"
-  | "sizingTotalMg"
-  | "convertBasis"
-> = {
+/** Compile-time check that the whole engine matches the contract. */
+export const _engineCheck: GramGuardEngine = {
   parseFixed,
   precisionDecimals,
   precisionLabel,
@@ -64,4 +48,12 @@ export const _engineCoreCheck: Pick<
   computePlan,
   sizingTotalMg,
   convertBasis,
+  evaluateFormula,
+  emptyEditorFields,
+  fieldsFromVersion,
+  planInputFromVersion,
+  parseMeasured,
+  compareMeasured,
+  compareInputFromVersion,
+  evaluateScale,
 };

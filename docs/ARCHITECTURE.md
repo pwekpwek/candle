@@ -78,3 +78,6 @@ Recorded here as they are made, then written back into the spec and the handoff 
 - **Editor notes** are stored on the version (`inputs.notes`). The formula's own notes are edited on the formula page (PRD-17).
 - **"Start from an example"** adds four example materials to the library and opens the editor pre-filled with worked example WE-5. Nothing is saved until the maker presses Save.
 - **Result-level errors (V-14, V-15)** show their message in the results panel in place of figures.
+- **CALC-17 note (wave 4):** the "oils ignored" note appears only when fragrance is 0 and at least one oil row has a material chosen. A row with no material is a blank placeholder, not an oil the maker listed.
+- **Oil rows while fragrance is invalid (wave 4):** not validated, so a fresh editor shows no oil errors before a percentage is typed.
+- **Measured weights (wave 4):** at most 2 decimals whatever the formula precision (V-16). "1.234" is refused, not rounded.
