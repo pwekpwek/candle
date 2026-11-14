@@ -8,15 +8,15 @@ The single place that says where the build is. **Each wave runs in its own chat*
 2. You are that wave's orchestrator. Give each task to a subagent on the model the plan assigns (Haiku, Sonnet). Run tasks in parallel only when their files do not overlap (see the ownership table). Brief each subagent with: its task row, the files it owns, the spec sections to read, the contracts to code against, and its acceptance check.
 3. Escalate only with a reason: Haiku to Sonnet after one failed attempt, Sonnet to the strongest model after two, or sooner when the failure exposes a gap in the spec. Record every escalation below.
 4. Review each diff against the spec yourself. Then run `npm run lint`, `npm run typecheck`, `npm test` and `npm run build` and read the output.
-5. Update the wave table and the log below. Commit on `feat/v0.1-gramguard` with a message starting with the wave and task numbers. **Do not push** (blocker B-1).
+5. Update the wave table and the log below. Commit on `feat/v0.1-gramguard` with a message starting with the wave and task numbers. Then push the branch as described under GitHub.
 6. Stop. Report: tasks done, models used, escalations, commands with real results, the commit SHA, and anything the next wave must know. Do not start the next wave.
 
 Never claim a check that was not run. If a task cannot meet its acceptance check, say so and leave it marked incomplete.
 
 ## Fixed facts
 
-- Repository folder: `G:\Users\Jubert Cute\Downloads\jun\yalen\candle`. Branch `feat/v0.1-gramguard`. Nothing is pushed.
-- **B-1 is open:** the signed-in GitHub account `jubert-natura` cannot see `pwekpwek/candle` (checked 2026-11-15, not found). Build and test locally. The owner must be told before the push step.
+- Repository folder: `G:\Users\Jubert Cute\Downloads\jun\yalen\candle`. Branch `feat/v0.1-gramguard`. Pushed to `origin` (see GitHub below).
+- **B-1 is cleared:** pushes go to `pwekpwek/candle` as the `pwekpwek` account (see GitHub below). Never push as `jubert-natura`.
 - Node v24.14.1, npm 11.11.0. Next 16.4.6, React 19.3.0, TypeScript 5.9.3, Tailwind 4.3.3, Vitest 5.1.0, Playwright 1.65.1, Dexie 4.4.7, Zod 4.6.7.
 - Playwright's Chromium **is installed** (wave 3, `npx playwright install chromium`). `npm run test:e2e` runs the shell spec.
 - `npm run typecheck` runs `next typegen` first (the `pretypecheck` script). That is expected.
@@ -43,7 +43,11 @@ Superseded. The wave 3 chat resumed and finished: all five tasks are reviewed an
 
 ## GitHub
 
-`origin` is set to `https://github.com/pwekpwek/candle.git`. **The owner wants the push made as the `pwekpwek` account, not `jubert-natura`** (2026-11-15). The GitHub CLI on this machine is signed in only as `jubert-natura`, which gets "Repository not found" from `gh` and `git ls-remote` and has no pending invitation. The owner has to sign the CLI in as `pwekpwek` themselves (`gh auth login`), since an assistant must not enter credentials. Before the push step run `gh auth status` and `gh repo view pwekpwek/candle`; push only when the active account is `pwekpwek` and the repository resolves.
+**B-1 is cleared (2026-11-15).** The GitHub CLI is signed in as `pwekpwek`, which is the active account and the one to push with. `jubert-natura` is still stored in the CLI but must not be used. `origin` is `https://github.com/pwekpwek/candle.git`, a private repository. Branch `feat/v0.1-gramguard` was first pushed at commit `90d733c810f86fdc7193ef204fdc67a0928420b5` (waves 1 to 3) and tracks `origin/feat/v0.1-gramguard`. It is the only branch, so GitHub shows it as the default branch.
+
+To push: check `gh auth status` shows `pwekpwek` as the active account, then `git -c credential.helper= -c credential.helper="!gh auth git-credential" push`. Each wave chat pushes after its commit. The `pwekpwek` token has no `workflow` scope, so a push that adds files under `.github/workflows/` will be refused.
+
+Lead orchestrator check of `90d733c` on 2026-11-15: `npm run lint`, `npm run typecheck`, `npm test` (11 files, 281 tests), `npm run build` and `npm run test:e2e` (10 tests) all passed.
 
 ## Notes for coming waves
 
