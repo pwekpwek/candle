@@ -43,7 +43,7 @@ Superseded. The wave 3 chat resumed and finished: all five tasks are reviewed an
 
 ## GitHub
 
-**B-1 is cleared (2026-11-15).** The GitHub CLI is signed in as `pwekpwek`, which is the active account and the one to push with. `jubert-natura` is still stored in the CLI but must not be used. `origin` is `https://github.com/pwekpwek/candle.git`, a private repository. Branch `feat/v0.1-gramguard` was first pushed at commit `90d733c810f86fdc7193ef204fdc67a0928420b5` (waves 1 to 3) and tracks `origin/feat/v0.1-gramguard`. It is the only branch, so GitHub shows it as the default branch.
+**B-1 is cleared (2026-11-15).** The GitHub CLI is signed in as `pwekpwek`, which is the active account and the one to push with. `jubert-natura` is still stored in the CLI but must not be used. `origin` is `https://github.com/pwekpwek/candle.git`. **The repository is public** (made public on 2026-11-15 at the owner’s request, after the owner was told it contains the spec pack, two skill notes and a local folder path). Never commit credentials, real customer data or anything else that must stay private. Branch `feat/v0.1-gramguard` was first pushed at commit `90d733c810f86fdc7193ef204fdc67a0928420b5` (waves 1 to 3) and tracks `origin/feat/v0.1-gramguard`. It is the only branch, so GitHub shows it as the default branch.
 
 To push: check `gh auth status` shows `pwekpwek` as the active account, then `git -c credential.helper= -c credential.helper="!gh auth git-credential" push`. Each wave chat pushes after its commit. The `pwekpwek` token has no `workflow` scope, so a push that adds files under `.github/workflows/` will be refused.
 
