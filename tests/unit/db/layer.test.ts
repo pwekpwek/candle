@@ -32,12 +32,12 @@ describe("@/lib/db entry point", () => {
     expect(error.code).toBe("storage");
   });
 
-  it("leaves versions and measurements to T11", async () => {
+  it("exposes working versions and measurements", async () => {
     const { createDataLayer, openDatabase } = await import("@/lib/db");
     const db = openDatabase(`candlelab-test-stub-${crypto.randomUUID()}`);
     const layer = createDataLayer(db);
-    await expect(layer.versions.get("x")).rejects.toThrow("not implemented until T11");
-    await expect(layer.measurements.getForVersion("x")).rejects.toThrow("not implemented until T11");
+    await expect(layer.versions.get("x")).resolves.toBeUndefined();
+    await expect(layer.measurements.getForVersion("x")).resolves.toBeUndefined();
     db.close();
     await db.delete();
   });

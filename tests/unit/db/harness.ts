@@ -1,7 +1,8 @@
 import "fake-indexeddb/auto";
 import { afterEach } from "vitest";
 import { createDataLayer, openDatabase } from "@/lib/db";
-import type { CandleDatabase, DataLayer } from "@/lib/db";
+import type { CandleDatabase, DataLayer, SaveVersionRequest } from "@/lib/db";
+import type { ValidatedFormulaInput } from "@/lib/gramguard/contract";
 import type { Formula, FormulaVersion, Measurement } from "@/lib/types";
 
 /** Not a test file: shared setup for the data-layer tests. */
@@ -141,4 +142,98 @@ export async function seedFormula(
   await db.formulas.add(formula);
   await db.formulaVersions.bulkAdd(rows);
   return { formula, versions: rows };
+}
+
+// ───────────── Helpers for the version and measurement tests (T11) ─────────────
+
+export type Library = {
+  waxId: string;
+  oilIds: [string, string, string];
+  wickId: string;
+  vesselId: string;
+};
+
+/** Creates one wax, three oils, a wick and a vessel in the library. */
+export async function makeLibrary(layer: DataLayer): Promise<Library> {
+  const wax = await layer.materials.create({
+    type: "wax",
+    name: "Soy wax",
+    supplier: "Acme",
+    wax: { maxFragranceBp: 1000, maxFragranceBasis: "wax" },
+  });
+  const oils = [];
+  for (const name of ["Lavender", "Vanilla", "Cedarwood"]) {
+    oils.push(await layer.materials.create({ type: "fragranceOil", name }));
+  }
+  const wick = await layer.materials.create({ type: "wick", name: "Wick A", wick: { size: "CD-8" } });
+  const vessel = await layer.materials.create({
+    type: "vessel",
+    name: "Tin 180",
+    vessel: { capacityMl: 200, defaultFillMg: 180000 },
+  });
+  return {
+    waxId: wax.id,
+    oilIds: [oils[0].id, oils[1].id, oils[2].id],
+    wickId: wick.id,
+    vesselId: vessel.id,
+  };
+}
+
+/** WE-5 by hand: 6 vessels x 180 g, 8% of wax, 0.1 g, oils 3:2:1. Wax 1000.0 g, oils 40.0 / 26.7 / 13.3 g. */
+export function we5Input(
+  lib: Library,
+  overrides: Partial<ValidatedFormulaInput> = {},
+): ValidatedFormulaInput {
+  return {
+    name: "  Lavender Vanilla Cedar  ",
+    sizing: { mode: "vessels", count: 6, fillMg: 180000 },
+    fragranceBp: 800,
+    basis: "wax",
+    precisionMg: 100,
+    waxes: [{ rowId: "row-wax", materialId: lib.waxId, partsX100: 100 }],
+    oils: [
+      { rowId: "row-o1", materialId: lib.oilIds[0], partsX100: 300 },
+      { rowId: "row-o2", materialId: lib.oilIds[1], partsX100: 200 },
+      { rowId: "row-o3", materialId: lib.oilIds[2], partsX100: 100 },
+    ],
+    wickId: lib.wickId,
+    vesselId: lib.vesselId,
+    notes: "",
+    changeNote: "",
+    ...overrides,
+  };
+}
+
+export function newFormulaRequest(
+  input: ValidatedFormulaInput,
+  overrides: Partial<SaveVersionRequest> = {},
+): SaveVersionRequest {
+  return {
+    versionId: id(),
+    target: { kind: "new", formulaId: id() },
+    origin: "initial",
+    parentVersionId: null,
+    scale: null,
+    input,
+    draftKey: null,
+    ...overrides,
+  };
+}
+
+export function revisionRequest(
+  formulaId: string,
+  parentVersionId: string,
+  input: ValidatedFormulaInput,
+  overrides: Partial<SaveVersionRequest> = {},
+): SaveVersionRequest {
+  return {
+    versionId: id(),
+    target: { kind: "existing", formulaId },
+    origin: "revision",
+    parentVersionId,
+    scale: null,
+    input,
+    draftKey: null,
+    ...overrides,
+  };
 }
