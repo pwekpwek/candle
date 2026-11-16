@@ -135,7 +135,12 @@ export type Renumbering = {
  * What a restore will do. Built without touching the database.
  *
  * Classification (Step 2), by id against this device:
- *   - materials, measurements, versions: identical when canonicalJson is equal.
+ *   - materials, measurements: identical when canonicalJson is equal.
+ *   - versions: identical when canonicalJson is equal after leaving out
+ *     `number` and `originalNumber`. Both are display labels that a restore
+ *     may change (DATA-22), so restoring the same file again after a
+ *     renumbering still finds every version identical (DATA-19). Clarified in
+ *     wave 6.
  *   - formulas: compared on name, notes and archivedAt only.
  *     `latestVersionNumber`, `createdAt` and `updatedAt` are bookkeeping and do
  *     not make a conflict.

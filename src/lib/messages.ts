@@ -368,6 +368,25 @@ export const MESSAGES = {
     },
     archivedNone: "Show active formulas",
     lastBackupNudge: (when: string) => `Last backup: ${when} · Back up now`,
+    /** Never backed up: same link as the nudge. */
+    neverBackedUp: "No backup yet · Back up now",
+    loading: "Loading your formulas…",
+    loadFailedTitle: "Could not load your formulas.",
+    loadFailed: "Your data is still on this device. Try again.",
+    retry: "Try again",
+    showLabel: "Show",
+    /** Active view while every formula is archived. */
+    allArchived: {
+      title: "All your formulas are archived.",
+      action: "Show archived formulas",
+    },
+    columnName: "Name",
+    columnVersion: "Version",
+    columnFragrance: "Fragrance",
+    columnTotal: "Total",
+    columnUpdated: "Updated",
+    /** Phone card label before the total weight. */
+    totalLabel: "Total",
   },
 
   /** Formula editor, new and revise (F1, F4). */
@@ -415,6 +434,24 @@ export const MESSAGES = {
     /** F1 step 2: picker first row when the library is empty. */
     addWaxRow: "Add a wax",
     addOilRow: "Add an oil",
+    /** T18: editor page text, written here (the specs name the elements, not the words). */
+    newDescription: "Work out wax and fragrance weights.",
+    reviseTitle: "Revise formula",
+    reviseDescription: "Save changes as a new version.",
+    loading: "Loading…",
+    loadFailedTitle: "Could not open the editor.",
+    loadFailed: "This browser could not read your saved formulas. Try again.",
+    notFoundTitle: "Formula not found",
+    notFoundBody:
+      "This formula is not saved in this browser. It may have been deleted, or saved on another device.",
+    amountLabel: { total: "Total mixture weight (g)", wax: "Wax weight (g)" },
+    vesselCountLabel: "Number of vessels",
+    fillWeightLabel: "Fill weight per vessel (g)",
+    /** Follows "= 1080.0 g". */
+    derivedTotalSuffix: "total mixture",
+    fragrancePctLabel: "Fragrance percentage (%)",
+    basisLabel: "Basis",
+    oilLabel: "Oil",
   },
 
   /** Planned weights panel (blueprint and F1). */
@@ -464,6 +501,94 @@ export const MESSAGES = {
       `Scaled x${factor} from v${fromVersion}`,
     /** DATA-11: "now called …" hint. */
     nowCalled: (name: string) => `now called ${name}`,
+
+    // ── Formula page and version view (T20). WRITTEN HERE: the specs give
+    // the wireframe wording only, so the rest is new text to review.
+    loadingTitle: "Formula",
+    loading: "Loading formula…",
+    loadFailedTitle: "This formula could not be loaded.",
+    loadFailed: "Your data is still on this device. Try again.",
+    tryAgain: "Try again",
+    notFoundTitle: "Formula not found",
+    notFoundVersionTitle: "Version not found",
+    notFoundBody:
+      "It may have been deleted, or the link may be wrong. Your other formulas are not affected.",
+    archivedBadge: "Archived",
+    detailSeparator: " · ",
+    headerVersion: (version: number) => `Version ${version}`,
+    originFirstHeader: "first version",
+    originRevisedHeader: (fromVersion: number) => `revised from v${fromVersion}`,
+    originRevisedPlain: "revised",
+    originScaledHeader: (factor: string, fromVersion: number) =>
+      `scaled x${factor} from v${fromVersion}`,
+    originScaledPlain: "scaled",
+    sizingVessels: (count: number, fill: string) =>
+      `${count} ${count === 1 ? "vessel" : "vessels"} × ${fill}`,
+    sizingTotal: (amount: string) => `${amount} total mixture`,
+    sizingWax: (amount: string) => `${amount} of wax`,
+    notLatestNotice: (version: number, latest: number) =>
+      `You are viewing version ${version}. The latest is version ${latest}.`,
+    openLatest: "Open the latest version",
+    moreActions: "More actions",
+    editDetails: "Edit name and notes",
+    archive: "Archive",
+    unarchive: "Unarchive",
+    archivedDone: "Archived. It no longer shows in your active formulas.",
+    unarchivedDone: "Moved back to your active formulas.",
+    archiveFailed: "The archive setting was not changed. Try again.",
+    deletePermanently: "Delete permanently",
+    gramUnit: "g",
+
+    // Edit name and notes (PRD-17)
+    editTitle: "Edit name and notes",
+    editDescription: "This does not create a new version.",
+    nameLabel: "Name",
+    notesLabel: "Notes",
+    nameTooLong: "Use 80 characters or fewer.",
+    saveDetails: "Save",
+    savingDetails: "Saving",
+    cancel: "Cancel",
+    detailsSaved: "Name and notes saved.",
+    detailsSaveFailed: "The name and notes were not saved. Try again.",
+
+    // Delete permanently (PRD-18, D-8, FLOW-09)
+    deleteTitle: "Delete this formula permanently?",
+    deleteBody: (name: string, versions: number, measurements: number) =>
+      `This removes ${name}, its ${countOf(versions, "version")} and ${
+        measurements === 0
+          ? "no measured-weights records"
+          : `${countOf(measurements, "measured-weights record")}`
+      }. This cannot be undone.`,
+    deleteChecking: "Checking what this removes…",
+    deleteImpactFailed:
+      "Could not check what this removes. Close this and try again.",
+    deleteConfirm: "Delete permanently",
+    deleteKeep: "Keep formula",
+    deleteFailed: "The formula was not deleted. Try again.",
+
+    // Measured weights
+    measuredHeading: "Measured weights",
+    measuredHint:
+      "Weigh what you actually used. Planned weights stay as saved with this version.",
+    componentColumn: "Component",
+    measuredFieldLabel: (name: string) => `Measured weight for ${name}`,
+    notMeasured: "Not measured",
+    saveFailedHint: "Your typed weights are still in the fields.",
+    actualSharesHeading: "Share of each oil",
+
+    // Details
+    detailsHeading: "Details",
+    versionNotesLabel: "Version notes",
+    changeNoteLabel: "What changed",
+    formulaNotesLabel: "Formula notes",
+    noneSet: "None",
+
+    // Versions list (PRD-16)
+    versionNumber: (version: number) => `v${version}`,
+    originFirstRow: "First version",
+    originRevisionRow: (note: string | null) =>
+      note ? `Revision: ${note}` : "Revision",
+    viewing: "Viewing",
   },
 
   /** Scale dialog (F5). */

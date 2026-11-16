@@ -81,3 +81,7 @@ Recorded here as they are made, then written back into the spec and the handoff 
 - **CALC-17 note (wave 4):** the "oils ignored" note appears only when fragrance is 0 and at least one oil row has a material chosen. A row with no material is a blank placeholder, not an oil the maker listed.
 - **Oil rows while fragrance is invalid (wave 4):** not validated, so a fresh editor shows no oil errors before a percentage is typed.
 - **Measured weights (wave 4):** at most 2 decimals whatever the formula precision (V-16). "1.234" is refused, not rounded.
+- **Page state across navigations (wave 6):** Next.js keeps a route's component state when the maker navigates away (`cacheComponents`, React Activity). Pages that must start from what is saved (the editor, the formula page, the version view) key their root on `useRouter().bfcacheId`. Details in `docs/BUILD-STATE.md`.
+- **Routing after a save (wave 6):** the editor lands on `/formulas/{id}?saved={n}`; the formula page shows "Saved as version n" and removes the parameter.
+- **Version identity on restore (wave 6):** two copies of a version are the same version when they match apart from `number` and `originalNumber`, which are display labels a restore may change.
+- **Where formula actions live (wave 6):** rename, notes, archive, unarchive and permanent delete are on the formula page's more-actions menu. The saved formulas list only filters.

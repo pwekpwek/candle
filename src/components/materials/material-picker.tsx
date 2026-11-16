@@ -84,8 +84,10 @@ export function MaterialPicker({
   const current = value === null ? undefined : known.find((m) => m.id === value);
   const currentHidden = value !== null && !options.some((m) => m.id === value);
   const loading = loaded === undefined;
-  // With none of this type, the quick-add is the first thing shown.
-  const addOpen = adding ?? (loaded?.ok === true && unarchived.length === 0);
+  // With none of this type, the quick-add is the first thing shown (F1 step 2).
+  // Not for an optional picker (wick, vessel): "None" is a complete answer
+  // there, so the quick-add waits behind its button.
+  const addOpen = adding ?? (loaded?.ok === true && unarchived.length === 0 && !allowNone);
 
   return (
     <div className={cn("flex flex-col gap-1", className)} data-testid="material-picker">
@@ -129,7 +131,9 @@ export function MaterialPicker({
       {addOpen ? (
         <QuickAdd
           type={type}
-          onCancel={unarchived.length === 0 ? undefined : () => setAdding(false)}
+          onCancel={
+            unarchived.length === 0 && !allowNone ? undefined : () => setAdding(false)
+          }
           onCreated={(material) => {
             setCreated(material);
             setAdding(false);

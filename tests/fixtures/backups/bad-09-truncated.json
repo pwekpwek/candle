@@ -1,0 +1,243 @@
+{
+  "format": "candlelab-backup",
+  "formatVersion": 1,
+  "schemaVersion": 1,
+  "appVersion": "0.1.0",
+  "exportedAt": "2026-11-14T06:05:12.000Z",
+  "counts": {
+    "materials": 7,
+    "formulas": 2,
+    "formulaVersions": 3,
+    "measurements": 1
+  },
+  "checksum": {
+    "algorithm": "SHA-256",
+    "value": "4297dad1f4113fa0e6699cfb4f4c8d06f0f38bb89e0c3326d7267b52bcd28302"
+  },
+  "data": {
+    "materials": [
+      {
+        "id": "166d9402-e39b-4360-bddb-c8068b404c21",
+        "type": "vessel",
+        "name": "Tin 180",
+        "vessel": {
+          "capacityMl": 200,
+          "defaultFillMg": 180000
+        },
+        "createdAt": "2026-11-14T05:00:05.000Z",
+        "updatedAt": "2026-11-14T05:00:05.000Z",
+        "archivedAt": null
+      },
+      {
+        "id": "33646d43-d4b3-4c05-9759-22f280ce0249",
+        "type": "fragranceOil",
+        "name": "Cedarwood",
+        "createdAt": "2026-11-14T05:00:03.000Z",
+        "updatedAt": "2026-11-14T05:00:03.000Z",
+        "archivedAt": null
+      },
+      {
+        "id": "6b166d61-1308-4713-bd32-00e760fd807c",
+        "type": "wax",
+        "name": "Soy wax",
+        "supplier": "Acme",
+        "wax": {
+          "maxFragranceBp": 1000,
+          "maxFragranceBasis": "wax"
+        },
+        "createdAt": "2026-11-14T05:00:00.000Z",
+        "updatedAt": "2026-11-14T05:00:00.000Z",
+        "archivedAt": null
+      },
+      {
+        "id": "cf31c24a-1251-4314-b225-af8ed8f313f3",
+        "type": "fragranceOil",
+        "name": "Vanilla",
+        "createdAt": "2026-11-14T05:00:02.000Z",
+        "updatedAt": "2026-11-14T05:00:02.000Z",
+        "archivedAt": null
+      },
+      {
+        "id": "d2f9c333-6738-43b2-8e8f-a063a136f46a",
+        "type": "fragranceOil",
+        "name": "Lavender",
+        "createdAt": "2026-11-14T05:00:01.000Z",
+        "updatedAt": "2026-11-14T05:00:01.000Z",
+        "archivedAt": null
+      },
+      {
+        "id": "f767f519-d33b-4613-a4dc-4aa012b9c4cf",
+        "type": "wick",
+        "name": "Wick A",
+        "wick": {
+          "size": "CD-8"
+        },
+        "createdAt": "2026-11-14T05:00:04.000Z",
+        "updatedAt": "2026-11-14T05:00:04.000Z",
+        "archivedAt": null
+      },
+      {
+        "id": "fc4b35d4-054c-48ef-be4a-fa823854de1b",
+        "type": "fragranceOil",
+        "name": "Old Rose",
+        "notes": "Discontinued",
+        "createdAt": "2026-11-14T05:00:06.000Z",
+        "updatedAt": "2026-11-14T05:00:07.000Z",
+        "archivedAt": "2026-11-14T05:00:07.000Z"
+      }
+    ],
+    "formulas": [
+      {
+        "id": "4642387c-3916-4adf-84e1-4d83075dc7ac",
+        "name": "Lavender Vanilla Cedar",
+        "latestVersionNumber": 2,
+        "createdAt": "2026-11-14T05:00:08.000Z",
+        "updatedAt": "2026-11-14T05:00:10.000Z",
+        "archivedAt": null
+      },
+      {
+        "id": "9e3007a5-12d1-4f36-93bb-fb2a0b9ec5d0",
+        "name": "Unscented Pillar",
+        "latestVersionNumber": 1,
+        "createdAt": "2026-11-14T05:00:11.000Z",
+        "updatedAt": "2026-11-14T05:00:12.000Z",
+        "archivedAt": "2026-11-14T05:00:12.000Z"
+      }
+    ],
+    "formulaVersions": [
+      {
+        "id": "23c4840a-8d56-4a4e-88f8-8850f3eee238",
+        "formulaId": "4642387c-3916-4adf-84e1-4d83075dc7ac",
+        "number": 1,
+        "origin": "initial",
+        "parentVersionId": null,
+        "scale": null,
+        "createdAt": "2026-11-14T05:00:08.000Z",
+        "inputs": {
+          "sizing": {
+            "mode": "vessels",
+            "count": 6,
+            "fillMg": 180000
+          },
+          "fragranceBp": 800,
+          "basis": "wax",
+          "precisionMg": 100,
+          "waxes": [
+            {
+              "componentId": "77a8d248-bd1d-45a7-93a0-83f1252e01df",
+              "materialId": "6b166d61-1308-4713-bd32-00e760fd807c",
+              "snapshot": {
+                "type": "wax",
+                "name": "Soy wax",
+                "supplier": "Acme",
+                "wax": {
+                  "maxFragranceBp": 1000,
+                  "maxFragranceBasis": "wax"
+                }
+              },
+              "partsX100": 100
+            }
+          ],
+          "oils": [
+            {
+              "componentId": "11da18ce-279e-4e64-85b5-626665358b63",
+              "materialId": "d2f9c333-6738-43b2-8e8f-a063a136f46a",
+              "snapshot": {
+                "type": "fragranceOil",
+                "name": "Lavender"
+              },
+              "partsX100": 300
+            },
+            {
+              "componentId": "26dfc6af-e55e-41a1-9dab-51a2ed332af6",
+              "materialId": "cf31c24a-1251-4314-b225-af8ed8f313f3",
+              "snapshot": {
+                "type": "fragranceOil",
+                "name": "Vanilla"
+              },
+              "partsX100": 200
+            },
+            {
+              "componentId": "9ba6f76e-87d8-4b4a-b5f3-6c3a07ebd39c",
+              "materialId": "33646d43-d4b3-4c05-9759-22f280ce0249",
+              "snapshot": {
+                "type": "fragranceOil",
+                "name": "Cedarwood"
+              },
+              "partsX100": 100
+            }
+          ],
+          "wick": {
+            "materialId": "f767f519-d33b-4613-a4dc-4aa012b9c4cf",
+            "snapshot": {
+              "type": "wick",
+              "name": "Wick A",
+              "wick": {
+                "size": "CD-8"
+              }
+            }
+          },
+          "vessel": {
+            "materialId": "166d9402-e39b-4360-bddb-c8068b404c21",
+            "snapshot": {
+              "type": "vessel",
+              "name": "Tin 180",
+              "vessel": {
+                "capacityMl": 200,
+                "defaultFillMg": 180000
+              }
+            }
+          },
+          "notes": "First pour"
+        },
+        "targets": {
+          "totalMg": 1080000,
+          "waxTotalMg": 1000000,
+          "fragranceTotalMg": 80000,
+          "components": [
+            {
+              "componentId": "77a8d248-bd1d-45a7-93a0-83f1252e01df",
+              "targetMg": 1000000
+            },
+            {
+              "componentId": "11da18ce-279e-4e64-85b5-626665358b63",
+              "targetMg": 40000
+            },
+            {
+              "componentId": "26dfc6af-e55e-41a1-9dab-51a2ed332af6",
+              "targetMg": 26700
+            },
+            {
+              "componentId": "9ba6f76e-87d8-4b4a-b5f3-6c3a07ebd39c",
+              "targetMg": 13300
+            }
+          ]
+        },
+        "calcVersion": 1
+      },
+      {
+        "id": "5b1fc97e-8a9c-47f3-bf2e-1c591419e0e1",
+        "formulaId": "4642387c-3916-4adf-84e1-4d83075dc7ac",
+        "number": 2,
+        "origin": "scaled",
+        "parentVersionId": "23c4840a-8d56-4a4e-88f8-8850f3eee238",
+        "scale": {
+          "method": "vesselCount",
+          "factorX10000": 16667
+        },
+        "changeNote": "Bigger run",
+        "createdAt": "2026-11-14T05:00:10.000Z",
+        "inputs": {
+          "sizing": {
+            "mode": "vessels",
+            "count": 10,
+            "fillMg": 180000
+          },
+          "fragranceBp": 800,
+          "basis": "wax",
+          "precisionMg": 100,
+          "waxes": [
+            {
+              "componentId": "30cec0a9-8210-4fa6-9337-0d2c7e286059",
+              "materialId": "6b166d61-1308-4713-bd32-00e760fd807c",
+              "s

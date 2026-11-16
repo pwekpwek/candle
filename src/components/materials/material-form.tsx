@@ -118,7 +118,10 @@ export function MaterialForm({ target, usedIn, onDone, onCancel }: MaterialFormP
     const first = FIELD_ORDER.find((key) => found[key]);
     if (first) {
       setShowFix(true);
-      refs.current[first]?.focus();
+      const field = refs.current[first];
+      field?.focus();
+      // focus() does not scroll when the field already has focus.
+      field?.scrollIntoView?.({ block: "nearest" });
       return;
     }
     setShowFix(false);
