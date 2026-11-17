@@ -3,16 +3,23 @@ import { canonicalJson, sha256Hex } from "./canonical";
 import { backupFileName, exportBackup } from "./export";
 import { checkBackupText } from "./check";
 import { planRestore } from "./plan";
+import { applyRestore, readDeviceData } from "./apply";
 
 export * from "./contract";
 export { canonicalJson, sha256Hex } from "./canonical";
 export { backupFileName, exportBackup } from "./export";
 export { checkBackupText } from "./check";
 export { planRestore } from "./plan";
+export { applyRestore, deviceIdsOf, readDeviceData } from "./apply";
 
-// T15 adds apply (readDeviceData, applyRestore) and widens this to the whole BackupModule.
-const _implemented: Pick<
-  BackupModule,
-  "canonicalJson" | "sha256Hex" | "backupFileName" | "exportBackup" | "checkBackupText" | "planRestore"
-> = { canonicalJson, sha256Hex, backupFileName, exportBackup, checkBackupText, planRestore };
+const _implemented: BackupModule = {
+  canonicalJson,
+  sha256Hex,
+  backupFileName,
+  exportBackup,
+  checkBackupText,
+  planRestore,
+  readDeviceData,
+  applyRestore,
+};
 void _implemented;

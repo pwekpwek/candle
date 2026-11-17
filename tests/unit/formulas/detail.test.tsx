@@ -435,7 +435,8 @@ describe("snapshots and history", () => {
       "href",
       `/formulas/${s.formulaId}/revise?from=${s.v3.id}`,
     );
-    expect(screen.queryByRole("button", { name: F.scale })).not.toBeInTheDocument();
+    // T21: Scale is a button that opens the scale dialog, not a link.
+    expect(screen.getByRole("button", { name: F.scale })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: F.scale })).not.toBeInTheDocument();
   });
 

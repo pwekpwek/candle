@@ -190,6 +190,12 @@ export type RestorePlan = {
   missingMaterialIds: string[];
   /** What each store must hold after commit (DATA-26). */
   expectedCounts: BackupCounts;
+  /**
+   * What the plan was built from, for the stale check in `applyRestore`
+   * (DATA-24): the checked envelope (by reference) and a copy of the device
+   * data taken when the plan was made. Added in wave 7.
+   */
+  basis: { envelope: BackupEnvelope; device: DeviceData };
 };
 
 /** Everything in the four data stores, read in one transaction. */
@@ -243,6 +249,19 @@ export type ApplyRestoreOptions = {
    */
   afterStoreWritten?: (store: DataStoreName) => void;
 };
+
+// How "stale" is decided (settled in wave 7):
+//   merge    planRestore(plan.basis.envelope, <device read inside the
+//            transaction>, same mode, policy and fileName) must give the same
+//            puts, clear, renumbered and expectedCounts as `plan`, compared
+//            with canonicalJson. Otherwise the device changed in a way that
+//            matters and the maker must plan again.
+//   replace  the device data read inside the transaction must equal
+//            safetyBackup.envelope.data (every store sorted by id, compared
+//            with canonicalJson). Otherwise the safety backup no longer holds
+//            everything that is about to be erased.
+// Step 4 below: lastRestoreAt is always set; changesSinceBackup goes up by 1
+// only when the restore wrote or cleared something.
 
 /**
  * DATA-23 to DATA-28. One read-write transaction over the four data stores

@@ -604,6 +604,18 @@ export const MESSAGES = {
     cancel: "Cancel",
     multiplierLabel: "Multiplier",
     amountLabel: "Amount",
+    // Added in T21. WRITTEN HERE: the spec gives the wireframe wording only.
+    description: "Change the batch size. The recipe stays the same.",
+    methodGroupLabel: "How to scale",
+    newAmountOption: "New amount",
+    multiplierOption: "Multiplier",
+    fillFieldLabel: "Fill (g)",
+    amountFieldLabel: "Amount (g)",
+    multiplierFieldLabel: "Multiplier (×)",
+    newWax: (amount: string) => `New wax weight: ${amount}`,
+    saving: "Saving",
+    saveFailed: "The new version was not saved. Nothing was changed.",
+    retry: "Retry",
   },
 
   /** Material library and picker (F8, blueprint section 5). */

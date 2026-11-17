@@ -69,7 +69,9 @@ export function Notice({
       role={role}
       data-variant={variant}
       className={cn(
-        "flex items-start gap-3 rounded-lg border p-3 text-sm text-foreground sm:p-4",
+        // flex-wrap: on a narrow screen the action moves under the text
+        // instead of pushing the page sideways (found at 375px in wave 7).
+        "flex flex-wrap items-start gap-x-3 gap-y-2 rounded-lg border p-3 text-sm text-foreground sm:p-4",
         box,
         className,
       )}
@@ -79,13 +81,13 @@ export function Notice({
         strokeWidth={1.75}
         className={cn("mt-0.5 size-5 shrink-0", accent)}
       />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-40">
         {title ? (
           <span className={cn("font-semibold", accent)}>{title} </span>
         ) : null}
         {children}
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {action ? <div className="max-w-full min-w-0 shrink-0">{action}</div> : null}
     </div>
   );
 }

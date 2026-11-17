@@ -136,6 +136,7 @@ function planReplace(
       new Set(data.materials.map((material) => material.id)),
     ),
     expectedCounts: { ...fileCounts },
+    basis: { envelope, device: structuredClone(device) },
   };
 }
 
@@ -321,5 +322,7 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
     renumbered,
     missingMaterialIds: missingMaterials(data.formulaVersions, present),
     expectedCounts,
+    // The stale check in applyRestore re-plans against this (contract).
+    basis: { envelope, device: structuredClone(device) },
   };
 };

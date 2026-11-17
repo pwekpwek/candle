@@ -571,6 +571,7 @@ const MESSAGE_SAMPLES: Record<string, unknown[]> = {
   "scale.title": [2],
   "scale.newTotal": ["1800.0 g"],
   "scale.savesAs": [3],
+  "scale.newWax": ["1000.0 g"],
   "backup.lastBackup": ["3 days ago", 4],
   "backup.exportedLine": ["Nov 14, 14:05", 12, 31],
   "backup.previewAdd": [{ formulas: 9, formulaVersions: 22, materials: 14, measurements: 0 }],

@@ -7,6 +7,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { MoreHorizontalIcon } from "lucide-react";
 import { Notice, type NoticeVariant } from "@/components/common/notice";
 import { PageHeader } from "@/components/common/page-header";
+import { ScaleDialog } from "@/components/scale";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -173,7 +174,7 @@ function FormulaBody({
   const rootRef = useRef<HTMLDivElement>(null);
   const [now] = useState(() => new Date());
   const [note, setNote] = useState<Note>(null);
-  const [dialog, setDialog] = useState<"edit" | "delete" | null>(null);
+  const [dialog, setDialog] = useState<"edit" | "delete" | "scale" | null>(null);
 
   const latest = versions[0];
   const here = isVersionView
@@ -181,7 +182,7 @@ function FormulaBody({
     : `/formulas/${formula.id}`;
 
   // F1 step 6: "?saved=N" shows the confirmation once, then leaves the URL clean.
-  const [savedVersion] = useState<number | null>(() => {
+  const [savedVersion, setSavedVersion] = useState<number | null>(() => {
     const n = Number(searchParams.get("saved"));
     return searchParams.get("saved") !== null && Number.isInteger(n) && n > 0 ? n : null;
   });
@@ -270,7 +271,9 @@ function FormulaBody({
                 {F.revise}
               </Link>
             </Button>
-            {/* T21: the Scale button goes here, between Revise and the menu. */}
+            <Button variant="outline" onClick={() => setDialog("scale")}>
+              {F.scale}
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" aria-label={F.moreActions}>
@@ -304,7 +307,8 @@ function FormulaBody({
       </div>
 
       <div className="flex flex-col gap-3">
-        {savedVersion !== null ? (
+        {/* Only for the version on screen: after a scale the earlier confirmation must not linger. */}
+        {savedVersion !== null && savedVersion === version.number ? (
           <Notice
             variant="success"
             title={E.savedAsVersion(savedVersion)}
@@ -382,6 +386,25 @@ function FormulaBody({
         onSaved={() => {
           setNote({ variant: "success", text: F.detailsSaved });
           onChanged();
+        }}
+      />
+      <ScaleDialog
+        formula={formula}
+        source={version}
+        nextNumber={formula.latestVersionNumber + 1}
+        open={dialog === "scale"}
+        onOpenChange={(open) => setDialog(open ? "scale" : null)}
+        onSaved={(saved) => {
+          if (isVersionView) {
+            // A different route: the formula page mounts fresh and reads ?saved=N.
+            router.push(`/formulas/${formula.id}?saved=${saved.number}`);
+          } else {
+            // The live query switches to the new latest version by itself; show
+            // the same confirmation a save from the editor gets (F1 step 6, F5).
+            setNote(null);
+            setSavedVersion(saved.number);
+            onChanged();
+          }
         }}
       />
       <DeleteFormulaDialog
