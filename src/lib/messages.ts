@@ -786,6 +786,73 @@ export const MESSAGES = {
     typeReplace: "Type REPLACE to confirm.",
     dontCloseTab: "Don't close this tab.",
     openSaved: "Open saved formulas",
+
+    // ── Added in T22. All wording WRITTEN HERE; the specs give none. ──
+    cancel: "Cancel",
+    loadingStatus: "Reading what is saved on this device…",
+    exportFailed:
+      "Nothing was exported. Try again. If it keeps failing, check that this browser can store data.",
+    exporting: "Exporting…",
+    cantRestoreTitle: "This file can't be restored",
+    nothingChanged: "Nothing on this device was changed.",
+    checking: "Checking the file…",
+    modeLegend: "What to do with this backup",
+    policyLegend: "When an item exists in both places but differs",
+    previewReplace: (counts: BackupCounts) => {
+      const list = countsList(counts);
+      return list.length === 0
+        ? "Will leave this device empty."
+        : `Will replace everything on this device with ${joinList(list)}`;
+    },
+    previewVersionConflicts: (n: number) =>
+      `${countOf(n, "version")} in the file differ${n === 1 ? "s" : ""} from the copy on this device. Versions are never overwritten, so this device's ${n === 1 ? "copy stays" : "copies stay"}.`,
+    previewRenumbered: (n: number) =>
+      `${countOf(n, "version")} will get a new number because ${n === 1 ? "its number is" : "their numbers are"} already used on this device.`,
+    previewMissingMaterials: (n: number) =>
+      `${countOf(n, "material")} used by these versions ${n === 1 ? "is" : "are"} not in the library. Saved versions keep their own copy of the material details, so nothing is lost.`,
+    replaceTitle: "Replace everything on this device?",
+    replaceAffects: (counts: BackupCounts) => {
+      const list = countsList(counts);
+      return list.length === 0
+        ? "Nothing is saved on this device right now."
+        : `This device currently holds ${joinList(list)}. All of it will be removed.`;
+    },
+    replaceBeforeNote:
+      "Keep the file that downloads first until you have checked the result.",
+    replaceConfirm: "Replace everything",
+    replaceNeedsWord: "Type REPLACE in capital letters to continue.",
+    restoring: "Restoring…",
+    resultTitle: "Restore finished.",
+    replacedSentence: (counts: BackupCounts) => {
+      const list = countsList(counts);
+      return list.length === 0 ? "" : `Used the backup's copy of ${joinList(list)}.`;
+    },
+    renumberedSentence: (formulaName: string, from: number, to: number) =>
+      `Version ${from} of ${formulaName} is now version ${to}.`,
+    renumberedMany: (n: number) =>
+      `${countOf(n, "version")} got a new number because the old number was already used on this device.`,
+    replaceSummary: (fileName: string, counts: BackupCounts) => {
+      const list = countsList(counts);
+      return list.length === 0
+        ? `Replaced everything with the contents of ${fileName}: the file held no records, so this device is now empty.`
+        : `Replaced everything with the contents of ${fileName}: ${joinList(list)}.`;
+    },
+    safetyExportFailed:
+      "The backup made before replacing could not be downloaded, so nothing was replaced. Try again.",
+    failTitle: "The restore did not finish.",
+    failBusy:
+      "A restore is already running in this tab. Wait for it to finish, then try again.",
+    failStale:
+      "Your saved data changed after the preview. Nothing was changed. Check the file again to see what will happen now.",
+    failStorage:
+      "This browser could not save the restore, so nothing was changed. Try again, or free up some browser storage first.",
+    failMismatch:
+      "The restore finished, but the records on this device do not add up to what the file holds. Do not rely on this device's data yet. The backup file still holds your data. Restore it again to fix this.",
+    failMismatchReplace:
+      "The restore finished, but the records on this device do not add up to what the file holds. Do not rely on this device's data yet. The backup file and the file that downloaded first still hold your data. Restore again to fix this.",
+    failNoSafety:
+      "Something went wrong inside the app, and nothing was changed. Please try again, and report it if it keeps happening.",
+    recheck: "Check the file again",
   },
 
   /** Storage blocked (blueprint section 5, F7 storage row). */

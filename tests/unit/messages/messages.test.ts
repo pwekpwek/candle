@@ -577,6 +577,18 @@ const MESSAGE_SAMPLES: Record<string, unknown[]> = {
   "backup.previewAdd": [{ formulas: 9, formulaVersions: 22, materials: 14, measurements: 0 }],
   "backup.previewAlreadyHere": [{ formulas: 3, formulaVersions: 9, materials: 0, measurements: 0 }],
   "backup.previewConflicts": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0 }],
+  "backup.previewReplace": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1 }],
+  "backup.previewVersionConflicts": [2],
+  "backup.previewRenumbered": [1],
+  "backup.previewMissingMaterials": [3],
+  "backup.replaceAffects": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1 }],
+  "backup.replacedSentence": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0 }],
+  "backup.renumberedSentence": ["Lavender Vanilla", 3, 4],
+  "backup.renumberedMany": [5],
+  "backup.replaceSummary": [
+    "candlelab-backup-20261114-140512.json",
+    { formulas: 2, formulaVersions: 3, materials: 7, measurements: 1 },
+  ],
 };
 
 /**

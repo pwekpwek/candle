@@ -1,18 +1,13 @@
 "use client";
 
-import { PageHeader } from "@/components/common/page-header";
+import { useRouter } from "next/navigation";
+import { BackupView } from "@/components/backup";
 
-// Skeleton (T03). T22 builds backup and restore here.
+// Cache Components keeps a route's state alive when the maker navigates away.
+// Keying on `bfcacheId` gives a fresh page on every new navigation, so a
+// finished restore, an open confirmation or a chosen file never comes back
+// stale; browser back/forward still restores what was on screen.
 export default function BackupPage() {
-  return (
-    <>
-      <PageHeader
-        title="Backup and restore"
-        description="Keep a copy of your formulas outside this browser."
-      />
-      <p className="text-sm text-text-secondary">
-        Backup and restore are coming in a later step.
-      </p>
-    </>
-  );
+  const { bfcacheId } = useRouter();
+  return <BackupView key={bfcacheId} />;
 }

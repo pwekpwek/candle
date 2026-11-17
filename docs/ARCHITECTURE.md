@@ -87,3 +87,4 @@ Recorded here as they are made, then written back into the spec and the handoff 
 - **Where formula actions live (wave 6):** rename, notes, archive, unarchive and permanent delete are on the formula page's more-actions menu. The saved formulas list only filters.
 - **Restore staleness (wave 7):** a restore plan keeps what it was built from. Applying it re-plans inside the transaction (merge) or compares the device with the safety backup (replace), and refuses as "stale" when the result would differ. Nothing is written in that case.
 - **Scaling (wave 7):** the Scale dialog opens from the formula page and from any version view, for the version on screen. A scaled version records its source version and factor; the source is never changed.
+- **Replace everything (wave 8):** the backup of current data is exported and downloaded before anything is written; if that download fails, nothing is replaced. The confirmation requires typing REPLACE.
