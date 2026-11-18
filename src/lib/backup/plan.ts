@@ -12,7 +12,7 @@ import type { DeviceData, PlanRestore, Renumbering, RestorePlan, StoreTally } fr
 type Class = "new" | "identical" | "conflict";
 
 function zeroCounts(): BackupCounts {
-  return { materials: 0, formulas: 0, formulaVersions: 0, measurements: 0 };
+  return { materials: 0, formulas: 0, formulaVersions: 0, measurements: 0, batches: 0 };
 }
 
 function emptyTally(): Record<DataStoreName, StoreTally> {
@@ -21,6 +21,7 @@ function emptyTally(): Record<DataStoreName, StoreTally> {
     formulas: { new: 0, identical: 0, conflict: 0 },
     formulaVersions: { new: 0, identical: 0, conflict: 0 },
     measurements: { new: 0, identical: 0, conflict: 0 },
+    batches: { new: 0, identical: 0, conflict: 0 },
   };
 }
 
@@ -67,6 +68,7 @@ function countsOf(data: BackupData): BackupCounts {
     formulas: data.formulas.length,
     formulaVersions: data.formulaVersions.length,
     measurements: data.measurements.length,
+    batches: data.batches.length,
   };
 }
 
@@ -93,6 +95,7 @@ function tallyAgainst(envelopeData: BackupData, device: DeviceData): Record<Data
     formulas: sameFormula as (a: never, b: never) => boolean,
     formulaVersions: sameVersion as (a: never, b: never) => boolean,
     measurements: sameByCanonical,
+    batches: sameByCanonical,
   };
   for (const store of DATA_STORES) {
     const deviceMap = byId(device[store] as { id: string }[]);
@@ -123,6 +126,7 @@ function planReplace(
       formulas: [...data.formulas],
       formulaVersions: [...data.formulaVersions],
       measurements: [...data.measurements],
+      batches: [...data.batches],
     },
     clear: true,
     added: { ...fileCounts },
@@ -150,9 +154,15 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
   const added = zeroCounts();
   const replaced = zeroCounts();
   const kept = zeroCounts();
-  const puts: BackupData = { materials: [], formulas: [], formulaVersions: [], measurements: [] };
+  const puts: BackupData = {
+    materials: [],
+    formulas: [],
+    formulaVersions: [],
+    measurements: [],
+    batches: [],
+  };
 
-  // Materials and measurements: new, identical or conflict.
+  // Materials, measurements and batches: new, identical or conflict.
   const deviceMaterials = byId(device.materials);
   for (const record of data.materials) {
     const { cls } = classify(record, deviceMaterials, sameByCanonical);
@@ -179,6 +189,24 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
         puts.measurements.push(record);
         replaced.measurements += 1;
       } else kept.measurements += 1;
+    }
+  }
+
+  // Batches are editable records like measurements (v0.2). Their source link
+  // never differs between two copies made by the app, so a conflict is about
+  // the date, label, notes or measured weights.
+  const deviceBatches = byId(device.batches);
+  for (const record of data.batches) {
+    const { cls } = classify(record, deviceBatches, sameByCanonical);
+    tally.batches[cls] += 1;
+    if (cls === "new") {
+      puts.batches.push(record);
+      added.batches += 1;
+    } else if (cls === "conflict") {
+      if (policy === "useBackup") {
+        puts.batches.push(record);
+        replaced.batches += 1;
+      } else kept.batches += 1;
     }
   }
 
@@ -299,6 +327,7 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
     formulas: device.formulas.length + added.formulas,
     formulaVersions: device.formulaVersions.length + added.formulaVersions,
     measurements: device.measurements.length + added.measurements,
+    batches: device.batches.length + added.batches,
   };
   const present = new Set([
     ...device.materials.map((material) => material.id),

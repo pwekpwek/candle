@@ -17,8 +17,8 @@
  *   - `DataError`
  *
  * Rules every write follows:
- *   - DATA-13: each committed write to materials, formulas, formulaVersions or
- *     measurements adds 1 to meta `changesSinceBackup`, inside the same
+ *   - DATA-13: each committed write to materials, formulas, formulaVersions,
+ *     measurements or batches adds 1 to meta `changesSinceBackup`, inside the same
  *     transaction as the write.
  *   - Timestamps come from the injected clock (`createDataLayer(db, { now })`),
  *     default `() => new Date().toISOString()`. IDs come from the injected
@@ -32,6 +32,7 @@ import type Dexie from "dexie";
 import type { EntityTable } from "dexie";
 import type { EditorFields, ValidatedFormulaInput } from "@/lib/gramguard/contract";
 import type {
+  Batch,
   Formula,
   FormulaVersion,
   Material,
@@ -53,7 +54,9 @@ export type DataErrorCode =
   /** IndexedDB is unavailable, blocked or out of space. */
   | "storage"
   /** The calculation engine refused the input (V-14, V-15). */
-  | "calculation";
+  | "calculation"
+  /** Another record refers to this one, so it cannot be removed (v0.2: a formula with batches). */
+  | "in-use";
 
 /**
  * Shape of the error every data-layer function throws. `@/lib/db` exports
@@ -69,11 +72,12 @@ export interface DataErrorLike extends Error {
 export type MetaRow = { key: string; value: unknown };
 
 /**
- * The Dexie database. Stores and indexes (schema version 1):
+ * The Dexie database. Stores and indexes (schema version 2; batches added in 2):
  *   materials        id, type, archivedAt
  *   formulas         id, updatedAt, archivedAt
  *   formulaVersions  id, formulaId, &[formulaId+number]
  *   measurements     id, versionId, formulaId
+ *   batches          id, formulaId, versionId, producedOn
  *   drafts           key
  *   meta             key
  */
@@ -82,6 +86,7 @@ export type CandleDatabase = Dexie & {
   formulas: EntityTable<Formula, "id">;
   formulaVersions: EntityTable<FormulaVersion, "id">;
   measurements: EntityTable<Measurement, "id">;
+  batches: EntityTable<Batch, "id">;
   drafts: EntityTable<Draft, "key">;
   meta: EntityTable<MetaRow, "key">;
 };
@@ -135,9 +140,13 @@ export type FormulasRepo = {
   /** PRD-17. Does not create a version. Name is validated as V-02. */
   updateDetails(id: string, details: { name: string; notes?: string }): Promise<Formula>;
   setArchived(id: string, archived: boolean): Promise<Formula>;
-  /** For the delete confirmation (D-8). */
-  deletionImpact(id: string): Promise<{ versions: number; measurements: number }>;
-  /** DATA-12: formula, versions, measurements and its draft, in one transaction. */
+  /** For the delete confirmation (D-8). `batches` > 0 means deletion is refused. */
+  deletionImpact(id: string): Promise<{ versions: number; measurements: number; batches: number }>;
+  /**
+   * DATA-12: formula, versions, measurements and its draft, in one transaction.
+   * From v0.2 it throws DataError("in-use") and deletes nothing while any batch
+   * refers to the formula, so a batch never loses the version it was made from.
+   */
   deletePermanently(id: string): Promise<void>;
 };
 
@@ -219,6 +228,56 @@ export type MeasurementsRepo = {
   saveEntries(versionId: string, entries: MeasurementEntry[]): Promise<Measurement>;
 };
 
+// ───────────────────────────── Batches (v0.2) ─────────────────────────────
+
+/** What the maker can set on a batch. */
+export type BatchInput = {
+  /** YYYY-MM-DD. Required. */
+  producedOn: string;
+  /** Trimmed; blank means no label. At most 40 characters after trimming. */
+  label?: string;
+  /** Trimmed; blank means no notes. */
+  notes?: string;
+  /** Measured weights. Each componentId must be a wax or oil row of the source version, once. */
+  entries: MeasurementEntry[];
+};
+
+export type CreateBatchRequest = BatchInput & {
+  /**
+   * Chosen by the caller before the first attempt and reused on retry. If a
+   * batch with this id already exists, `create` returns it and writes nothing.
+   */
+  batchId: string;
+  /** The saved version the batch is made from. Its formula is looked up. */
+  versionId: string;
+};
+
+export type BatchListItem = {
+  batch: Batch;
+  /** The source formula as it is now (its name may have changed; it may be archived). */
+  formula: Formula;
+  /** The exact version the batch was made from. */
+  version: FormulaVersion;
+};
+
+export type BatchesRepo = {
+  /** Every batch with its formula and version: latest production date first, then newest created. */
+  list(): Promise<BatchListItem[]>;
+  /** Batches made from any version of one formula, same order as `list`. */
+  listByFormula(formulaId: string): Promise<Batch[]>;
+  get(id: string): Promise<BatchListItem | undefined>;
+  /**
+   * One read-write transaction over batches, formulaVersions, formulas and
+   * meta. Throws "not-found" if the version (or its formula) is missing and
+   * "invalid" for a bad date, label or entry. Bumps the change counter.
+   */
+  create(request: CreateBatchRequest): Promise<{ batch: Batch; created: boolean }>;
+  /** Replaces the editable fields. `formulaId`, `versionId`, `id` and `createdAt` never change. */
+  update(id: string, input: BatchInput): Promise<Batch>;
+  /** Removes one batch, after the maker confirmed. */
+  delete(id: string): Promise<void>;
+};
+
 // ───────────────────────────── Drafts ─────────────────────────────
 
 /**
@@ -285,6 +344,7 @@ export type DataLayer = {
   formulas: FormulasRepo;
   versions: VersionsRepo;
   measurements: MeasurementsRepo;
+  batches: BatchesRepo;
   drafts: DraftsRepo;
   meta: MetaRepo;
   example: ExampleRepo;

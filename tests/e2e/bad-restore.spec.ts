@@ -56,7 +56,7 @@ const CASES: { file: string; refusal: string; expected: string | RegExp }[] = [
   {
     file: "bad-11-orphaned-version.json",
     refusal: "orphans",
-    expected: messageForCheckFailure({ code: "orphans", versions: 1, measurements: 0 }),
+    expected: messageForCheckFailure({ code: "orphans", versions: 1, measurements: 0, batches: 0 }),
   },
 ];
 

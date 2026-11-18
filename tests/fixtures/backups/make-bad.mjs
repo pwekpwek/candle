@@ -77,7 +77,7 @@ add("bad-01-not-json.json", "this is not a backup file {\n");
 // 03: newer formatVersion than this app understands.
 {
   const e = fresh();
-  e.formatVersion = 2;
+  e.formatVersion = 3;
   add("bad-03-newer-version.json", serialize(e));
 }
 

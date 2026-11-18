@@ -88,6 +88,7 @@ function deviceCountsOf(device: DeviceData): BackupCounts {
     formulas: device.formulas.length,
     formulaVersions: device.formulaVersions.length,
     measurements: device.measurements.length,
+    batches: device.batches.length,
   };
 }
 
@@ -97,11 +98,12 @@ function tallyCounts(plan: RestorePlan, field: "identical" | "conflict"): Backup
     formulas: plan.tally.formulas[field],
     formulaVersions: plan.tally.formulaVersions[field],
     measurements: plan.tally.measurements[field],
+    batches: plan.tally.batches[field],
   };
 }
 
 const total = (c: BackupCounts) =>
-  c.materials + c.formulas + c.formulaVersions + c.measurements;
+  c.materials + c.formulas + c.formulaVersions + c.measurements + c.batches;
 
 /** The result sentences (PRD-26, Step 5), one per line. */
 function resultLines(plan: RestorePlan): string[] {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { BACKUP_FORMAT } from "@/lib/types";
+import { BatchSchema } from "./batch";
 import { FormulaSchema } from "./formula";
 import { MaterialSchema } from "./material";
 import { MeasurementSchema } from "./measurement";
@@ -12,14 +13,16 @@ export const BackupCountsSchema = z.strictObject({
   formulas: z.int().min(0),
   formulaVersions: z.int().min(0),
   measurements: z.int().min(0),
+  batches: z.int().min(0),
 });
 
-/** The four exported stores (DATA-15). Drafts and meta are not exported (DATA-17). */
+/** The exported stores (DATA-15), current format (2). Drafts and meta are not exported (DATA-17). */
 export const BackupDataSchema = z.strictObject({
   materials: z.array(MaterialSchema),
   formulas: z.array(FormulaSchema),
   formulaVersions: z.array(FormulaVersionSchema),
   measurements: z.array(MeasurementSchema),
+  batches: z.array(BatchSchema),
 });
 
 /** SHA-256 of the data section, lowercase hex (DATA-16). */

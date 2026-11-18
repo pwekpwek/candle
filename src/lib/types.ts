@@ -1,5 +1,5 @@
 /**
- * CandleLab Studio v0.1 — record types (T02 contract).
+ * CandleLab Studio — record types (T02 contract; batches added in v0.2).
  *
  * Source of truth: docs/specs/4 Data Model.md. Changing a shape here is a
  * schema change (DATA-29). Only the orchestrator edits this file.
@@ -147,12 +147,35 @@ export type Measurement = {
   updatedAt: string;
 };
 
-/** The four exported stores, in dependency order. */
+/**
+ * Store `batches` (v0.2, BatchTrace). One production run made from one saved
+ * formula version. `formulaId` and `versionId` are set when the batch is
+ * created and never change, so the batch always refers to the exact version
+ * it was made from. Planned weights are read from that version's stored
+ * `targets` (versions are write-once). The other fields are editable.
+ */
+export type Batch = {
+  id: string;
+  formulaId: string;
+  versionId: string;
+  /** The maker's own code for the batch, 1–40 characters. Optional. */
+  label?: string;
+  /** Production date (YYYY-MM-DD), in the maker's local calendar. */
+  producedOn: string;
+  /** Measured weights for the version's components. Only entered ones. */
+  entries: MeasurementEntry[];
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** The exported stores, in dependency order. `batches` was added in v0.2. */
 export const DATA_STORES = [
   "materials",
   "formulas",
   "formulaVersions",
   "measurements",
+  "batches",
 ] as const;
 export type DataStoreName = (typeof DATA_STORES)[number];
 
@@ -161,15 +184,20 @@ export type BackupData = {
   formulas: Formula[];
   formulaVersions: FormulaVersion[];
   measurements: Measurement[];
+  batches: Batch[];
 };
 
 export type BackupCounts = Record<DataStoreName, number>;
 
 export const BACKUP_FORMAT = "candlelab-backup" as const;
-export const BACKUP_FORMAT_VERSION = 1 as const;
-export const SCHEMA_VERSION = 1 as const;
+/** 2 since v0.2 (adds `batches`). Format 1 files are migrated on restore. */
+export const BACKUP_FORMAT_VERSION = 2 as const;
+/** IndexedDB schema. 2 since v0.2 (adds the `batches` store). */
+export const SCHEMA_VERSION = 2 as const;
 export const CALC_VERSION = 1 as const;
-export const APP_VERSION = "0.1.0" as const;
+export const APP_VERSION = "0.2.0" as const;
+/** Longest batch label after trimming. */
+export const MAX_BATCH_LABEL_LENGTH = 40 as const;
 export const DB_NAME = "candlelab" as const;
 
 /** The backup file (docs/specs/4 Data Model.md, "Backup file"). */

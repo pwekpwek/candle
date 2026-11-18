@@ -37,6 +37,14 @@ Never claim a check that was not run. If a task cannot meet its acceptance check
 | 9 | T23, T24 end-to-end tests | Done | The commit titled "Wave 9 (T23, T24)" (`git log --oneline`) |
 | 10 | T25 integration review, T26 final run, T27 handoff | Done | The commit titled "Wave 10 (T25)" is the tested candidate; T26 results and the T27 handoff note are in the vault (see the log) |
 
+## v0.2 — BatchTrace first slice (2026-11-18)
+
+Branch `feat/v0.2-batchtrace`, from the v0.1 candidate `8b0c32c`. Scope, plan and compatibility: `docs/v0.2-batchtrace.md`. Results and the commit SHA are in the vault handoff `Projects/apps/candle/Sessions/2026-11-18 - v0.2 BatchTrace - Development Handoff.md`.
+
+Models: lead (Opus) wrote the batch record, schema 2, backup format 2 and their unit tests, reviewed every diff and ran the checks; Sonnet wrote the batch screens and their unit tests, and the browser tests. Two app issues found by the browser tests (a 1px overflow on the formula page at 375px, and a first click swallowed by a blur error) were fixed by the lead.
+
+Next in v0.2: CurePilot, then BurnMatrix (see the vault Tasks note).
+
 ## Wave 3 handover
 
 Superseded. The wave 3 chat resumed and finished: all five tasks are reviewed and committed (see the log). The scratch file `tests/unit/_tmp/cross.test.ts` mentioned in the earlier snapshot was the orchestrator's own cross-check and has been deleted.

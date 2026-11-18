@@ -53,6 +53,8 @@ Read this before any task. The specs are in `docs/specs/`. The task list is `doc
 | `src/components/scale/*` | T21 | Scale dialog, revise wiring |
 | `src/components/backup/*`, `src/app/backup/page.tsx` | T22 | Backup and restore page |
 | `tests/e2e/*` | T23, T24 | Playwright flows |
+| `src/lib/db/batches.ts`, batch parts of `src/lib/{types.ts,db,backup,schemas}` | v0.2 BatchTrace | Batch record, schema 2, backup format 2 |
+| `src/components/batches/*`, `src/app/batches/**` | v0.2 BatchTrace | Batch screens |
 
 ## Routes
 
@@ -65,6 +67,9 @@ Read this before any task. The specs are in `docs/specs/`. The task list is `doc
 | `/formulas/[formulaId]/revise?from=[versionId]` | Editor (revise) |
 | `/materials` | Material library |
 | `/backup` | Backup and restore |
+| `/batches` | Batches list (v0.2) |
+| `/batches/new?version=[versionId]` | Create batch from a saved version (v0.2) |
+| `/batches/[batchId]` | Batch detail and edit (v0.2) |
 
 ## Decisions made during the build
 
@@ -88,3 +93,16 @@ Recorded here as they are made, then written back into the spec and the handoff 
 - **Restore staleness (wave 7):** a restore plan keeps what it was built from. Applying it re-plans inside the transaction (merge) or compares the device with the safety backup (replace), and refuses as "stale" when the result would differ. Nothing is written in that case.
 - **Scaling (wave 7):** the Scale dialog opens from the formula page and from any version view, for the version on screen. A scaled version records its source version and factor; the source is never changed.
 - **Replace everything (wave 8):** the backup of current data is exported and downloaded before anything is written; if that download fails, nothing is replaced. The confirmation requires typing REPLACE.
+
+## v0.2 BatchTrace decisions (2026-11-18)
+
+Full plan and compatibility notes: `docs/v0.2-batchtrace.md`.
+
+- **Batch identity:** UUID; display title is the optional label or `Batch` + first 8 id characters. No batch numbers, so restore never renumbers batches.
+- **Source link:** `formulaId` and `versionId` are fixed at creation; planned weights are read from the version's stored `targets`, never copied or recalculated.
+- **Archived formula:** batches stay visible and editable, with a "Formula archived" badge; new batches are still allowed.
+- **Deleting a formula with batches is refused** (`DataError("in-use")`, DATA-12). Deleting the batches first allows it.
+- **Schema 2** adds only the `batches` store. **Backup format 2** adds `batches`; format 1 files are migrated in memory after their own checksum is verified.
+- **Production date** is a local calendar date; the screens refuse future dates, the data layer only checks the format.
+- **Page header actions wrap** on narrow screens (`PageHeader`), since the formula page now has four actions.
+- **Dev indicator off** (`devIndicators: false`): in development it covered the phone bar's first item. Development only.

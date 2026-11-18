@@ -59,7 +59,7 @@ function SideNavLinks({ pathname }: { pathname: string | null }) {
 
 function BottomNavLinks({ pathname }: { pathname: string | null }) {
   return (
-    <ul className="grid h-16 grid-cols-3 gap-1 px-2 py-1">
+    <ul className="grid h-16 grid-cols-4 gap-1 px-2 py-1">
       {NAV_ITEMS.map((item) => {
         const active = isNavItemActive(item, pathname);
         const Icon = item.icon;

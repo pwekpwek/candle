@@ -26,19 +26,23 @@ async function readStores(db: CandleDatabase): Promise<DeviceData> {
   const formulas = await db.formulas.toArray();
   const formulaVersions = await db.formulaVersions.toArray();
   const measurements = await db.measurements.toArray();
+  const batches = await db.batches.toArray();
   return {
     materials: byId(materials),
     formulas: byId(formulas),
     formulaVersions: byId(formulaVersions),
     measurements: byId(measurements),
+    batches: byId(batches),
   };
 }
 
-/** One read-only transaction over the four data stores. Failures are DataError("storage"). */
+/** One read-only transaction over the five data stores. Failures are DataError("storage"). */
 export const readDeviceData: ReadDeviceData = (db) =>
   guard(() =>
-    db.transaction("r", [db.materials, db.formulas, db.formulaVersions, db.measurements], () =>
-      readStores(db),
+    db.transaction(
+      "r",
+      [db.materials, db.formulas, db.formulaVersions, db.measurements, db.batches],
+      () => readStores(db),
     ),
   );
 
@@ -110,7 +114,7 @@ export const applyRestore: ApplyRestore = async (db, plan, options = {}) => {
     try {
       await db.transaction(
         "rw",
-        [db.materials, db.formulas, db.formulaVersions, db.measurements, db.meta],
+        [db.materials, db.formulas, db.formulaVersions, db.measurements, db.batches, db.meta],
         async () => {
           const fresh = await readStores(db);
           staleCheck(plan, fresh, options.safetyBackup?.envelope.data);
@@ -120,6 +124,7 @@ export const applyRestore: ApplyRestore = async (db, plan, options = {}) => {
             await db.formulas.clear();
             await db.formulaVersions.clear();
             await db.measurements.clear();
+            await db.batches.clear();
           }
           for (const store of DATA_STORES) {
             await writeStore(db, store, plan);
@@ -176,15 +181,19 @@ async function writeStore(db: CandleDatabase, store: DataStoreName, plan: Restor
     case "measurements":
       await db.measurements.bulkPut(plan.puts.measurements);
       return;
+    case "batches":
+      await db.batches.bulkPut(plan.puts.batches);
+      return;
   }
 }
 
 async function readCounts(db: CandleDatabase): Promise<BackupCounts> {
-  const [materials, formulas, formulaVersions, measurements] = await Promise.all([
+  const [materials, formulas, formulaVersions, measurements, batches] = await Promise.all([
     db.materials.count(),
     db.formulas.count(),
     db.formulaVersions.count(),
     db.measurements.count(),
+    db.batches.count(),
   ]);
-  return { materials, formulas, formulaVersions, measurements };
+  return { materials, formulas, formulaVersions, measurements, batches };
 }

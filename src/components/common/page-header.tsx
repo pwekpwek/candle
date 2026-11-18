@@ -32,7 +32,10 @@ export function PageHeader({
           <p className="mt-1 text-sm text-text-secondary">{description}</p>
         ) : null}
       </div>
-      {action ? <div className="flex shrink-0 items-center gap-2">{action}</div> : null}
+      {action ? (
+        // max-w-full lets the actions wrap on a phone instead of widening the page.
+        <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">{action}</div>
+      ) : null}
     </header>
   );
 }

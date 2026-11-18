@@ -131,15 +131,16 @@ export const backupData = {
   formulas: [formula],
   formulaVersions: [version],
   measurements: [measurement],
+  batches: [],
 };
 
 export const backupEnvelope: BackupEnvelope = {
   format: "candlelab-backup",
-  formatVersion: 1,
-  schemaVersion: 1,
-  appVersion: "0.1.0",
+  formatVersion: 2,
+  schemaVersion: 2,
+  appVersion: "0.2.0",
   exportedAt: T1,
-  counts: { materials: 4, formulas: 1, formulaVersions: 1, measurements: 1 },
+  counts: { materials: 4, formulas: 1, formulaVersions: 1, measurements: 1, batches: 0 },
   checksum: { algorithm: "SHA-256", value: "a".repeat(64) },
   data: backupData,
 };

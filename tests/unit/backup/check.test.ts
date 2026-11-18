@@ -21,8 +21,19 @@ async function failure(text: string, device: DeviceIds = none): Promise<CheckFai
   return result.failure;
 }
 
-function good(): BackupEnvelope {
+/** good.json is a v0.1 export (format 1, no batches). */
+function goodV1(): BackupEnvelope {
   return JSON.parse(read("good.json")) as BackupEnvelope;
+}
+
+/** good.json as the current format (2): the same records plus an empty `batches`. */
+function good(): BackupEnvelope {
+  const env = goodV1();
+  env.formatVersion = 2;
+  env.schemaVersion = 2;
+  env.data = { ...env.data, batches: [] };
+  env.counts = { ...env.counts, batches: 0 };
+  return env;
 }
 
 /** Edit a copy of good.json; recompute counts and checksum unless told not to. */
@@ -38,6 +49,7 @@ async function build(
       formulas: env.data.formulas.length,
       formulaVersions: env.data.formulaVersions.length,
       measurements: env.data.measurements.length,
+      batches: env.data.batches.length,
     };
   }
   if (options.checksum !== false) {
@@ -51,10 +63,17 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 describe("TEST-23 fixtures", () => {
-  it("accepts good.json and returns the parsed file", async () => {
+  it("accepts good.json (format 1) and returns it migrated: no batches, file's version and checksum kept", async () => {
     const result = await run(read("good.json"));
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.envelope).toEqual(JSON.parse(read("good.json")));
+    const parsed = goodV1();
+    if (result.ok) {
+      expect(result.envelope).toEqual({
+        ...parsed,
+        counts: { ...parsed.counts, batches: 0 },
+        data: { ...parsed.data, batches: [] },
+      });
+    }
   });
 
   it.each([
@@ -68,7 +87,7 @@ describe("TEST-23 fixtures", () => {
     ["bad-08-checksum-mismatch.json", { code: "checksum" }],
     ["bad-09-truncated.json", { code: "not-backup" }],
     ["bad-10-duplicate-ids.json", { code: "duplicates" }],
-    ["bad-11-orphaned-version.json", { code: "orphans", versions: 1, measurements: 0 }],
+    ["bad-11-orphaned-version.json", { code: "orphans", versions: 1, measurements: 0, batches: 0 }],
   ])("%s is refused", async (name, expected) => {
     const f = await failure(read(name));
     expect(f).toMatchObject(expected);
@@ -217,7 +236,7 @@ describe("later checks", () => {
     const text = await build((env) => {
       env.data.measurements[0]!.versionId = UUID;
     });
-    expect(await failure(text)).toEqual({ code: "orphans", versions: 0, measurements: 1 });
+    expect(await failure(text)).toEqual({ code: "orphans", versions: 0, measurements: 1, batches: 0 });
   });
 
   it("orphans: both kinds are counted", async () => {
@@ -225,7 +244,7 @@ describe("later checks", () => {
       env.data.formulaVersions[0]!.formulaId = UUID;
       env.data.measurements[0]!.versionId = UUID;
     });
-    expect(await failure(text)).toEqual({ code: "orphans", versions: 1, measurements: 1 });
+    expect(await failure(text)).toEqual({ code: "orphans", versions: 1, measurements: 1, batches: 0 });
   });
 
   it("orphans are satisfied by ids already on the device", async () => {
@@ -274,6 +293,6 @@ describe("order of checks", () => {
     env.counts.formulas += 1;
     delete asRecord(env.data.formulaVersions[0]).targets;
     expect((await failure(JSON.stringify(env))).code).toBe("invalid");
-    expect((await failure(JSON.stringify({ ...env, formatVersion: 2 }))).code).toBe("newer");
+    expect((await failure(JSON.stringify({ ...env, formatVersion: 3 }))).code).toBe("newer");
   });
 });
