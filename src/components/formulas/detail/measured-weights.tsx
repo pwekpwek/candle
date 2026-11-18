@@ -144,7 +144,8 @@ export function MeasuredSection({
         await getDataLayer().measurements.saveEntries(version.id, latest.entries);
         wrote = true;
       }
-      setSaveState(wrote ? "saved" : "idle");
+      // A value typed during this save still waits for its pause: not "Saved" yet.
+      setSaveState(timer.current !== null ? "saving" : wrote ? "saved" : "idle");
     } catch {
       setSaveState("error");
     } finally {
@@ -159,17 +160,22 @@ export function MeasuredSection({
     }
   };
 
-  // Leaving the page with a typed value still waiting: save it now.
-  useEffect(
-    () => () => {
+  // Leaving the page (unmount, reload or tab close) with a typed value still
+  // waiting: save it now.
+  useEffect(() => {
+    const flush = () => {
       if (timer.current !== null) {
         clearTimeout(timer.current);
         timer.current = null;
         void persist();
       }
-    },
-    [persist],
-  );
+    };
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, [persist]);
 
   function onChange(componentId: string, value: string) {
     const next = { ...textsRef.current, [componentId]: value };
@@ -191,6 +197,8 @@ export function MeasuredSection({
       timer.current = null;
       void persist();
     }, AUTOSAVE_DELAY_MS);
+    // PRD-20: the pill never says "Saved" while a typed value waits to be saved.
+    setSaveState("saving");
   }
 
   function onBlur(componentId: string) {

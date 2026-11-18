@@ -234,6 +234,33 @@ describe("autosave", () => {
     expect(record?.entries).toEqual([{ componentId: s.wax, actualMg: 1003200 }]);
   });
 
+  it("shows Saving while a typed value waits for its pause, never Saved early (PRD-20)", async () => {
+    const s = await seedWE5();
+    await renderDetail(s.formulaId);
+    enterAndBlur("Soy wax", "1003.2");
+    expect(await screen.findByText("Saved")).toBeInTheDocument();
+    // A second value typed without a blur: its save is still waiting.
+    enter("Lavender", "40.4");
+    expect(screen.getByText("Saving…")).toBeInTheDocument();
+    expect(screen.queryByText("Saved")).not.toBeInTheDocument();
+    await waitFor(async () => {
+      const record = await layer().measurements.getForVersion(s.v1.id);
+      expect(record?.entries).toHaveLength(2);
+    });
+    expect(await screen.findByText("Saved")).toBeInTheDocument();
+  });
+
+  it("saves a value still waiting for its pause when the page is closed", async () => {
+    const s = await seedWE5();
+    await renderDetail(s.formulaId);
+    enter("Soy wax", "1003.2");
+    window.dispatchEvent(new Event("pagehide"));
+    await waitFor(async () => {
+      const record = await layer().measurements.getForVersion(s.v1.id);
+      expect(record?.entries).toEqual([{ componentId: s.wax, actualMg: 1003200 }]);
+    });
+  });
+
   it("saves after a pause in typing, without a blur", async () => {
     const s = await seedWE5();
     await renderDetail(s.formulaId);
