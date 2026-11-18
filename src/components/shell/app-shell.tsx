@@ -3,14 +3,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { probeStorage } from "@/lib/db/probe";
 import { Notice } from "@/components/common/notice";
+import { MESSAGES } from "@/lib/messages";
 import { BottomNav, SideNav } from "./nav";
 import { StorageBlocked } from "./storage-blocked";
 
-// TODO(T05): move to @/lib/messages
-const NOT_SAVING_TITLE = "Not saving.";
-// TODO(T05): move to @/lib/messages
-const NOT_SAVING_BODY =
-  "This browser is not letting the site store data, so nothing you enter will be kept.";
 
 type StorageStatus = "pending" | "ok" | "blocked";
 
@@ -55,8 +51,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           className="mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[calc(var(--bottom-bar-height)_+_1rem)] sm:px-6 sm:pt-8 sm:pb-8 lg:px-8"
         >
           {status === "blocked" ? (
-            <Notice variant="warning" title={NOT_SAVING_TITLE} className="mb-6">
-              {NOT_SAVING_BODY}
+            <Notice variant="warning" title={MESSAGES.app.notSavingTitle} className="mb-6">
+              {MESSAGES.app.notSavingBody}
             </Notice>
           ) : null}
           {children}

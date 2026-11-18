@@ -1,7 +1,10 @@
 "use client";
 
 import { CheckIcon, CircleAlertIcon, Loader2Icon } from "lucide-react";
+import { MESSAGES } from "@/lib/messages";
 import { cn } from "@/lib/utils";
+
+const F = MESSAGES.formula;
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -31,13 +34,13 @@ export function StatusPill({ state, onRetry, className }: StatusPillProps) {
             strokeWidth={1.75}
             className="size-4 animate-spin"
           />
-          Saving…
+          {F.pillSaving}
         </span>
       ) : null}
       {state === "saved" ? (
         <span className="inline-flex items-center gap-1.5 text-success">
           <CheckIcon aria-hidden="true" strokeWidth={1.75} className="size-4" />
-          Saved
+          {F.pillSaved}
         </span>
       ) : null}
       {state === "error" ? (
@@ -47,14 +50,14 @@ export function StatusPill({ state, onRetry, className }: StatusPillProps) {
             strokeWidth={1.75}
             className="size-4"
           />
-          Error
+          {F.pillError}
           {onRetry ? (
             <button
               type="button"
               onClick={onRetry}
               className="rounded-sm px-1 font-semibold text-primary underline-offset-4 hover:underline"
             >
-              Retry
+              {F.pillRetry}
             </button>
           ) : null}
         </span>

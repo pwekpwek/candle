@@ -67,6 +67,7 @@ Exact (unrounded) fragrance weight:
 - **CALC-11 — Display.** Weights show fixed decimals for the precision (0, 1 or 2) and always carry "g". Percentages show 2 decimals. No thousands separators anywhere, so display and entry look the same.
 - **CALC-12 — Effective blend.** Because of rounding, the planned weights can give a slightly different percentage than requested. Results show the requested percentage and, when it differs at 2 decimals, the effective one ("Planned weights give 7.99% of wax weight").
 - **CALC-13 — Rounding warning (Proposed threshold, D-6).** If rounding moves the fragrance total or any component by more than 2.0% of its exact value, show: "At 1 g precision this small batch can't hit 6%. Planned weights give 6.38% of wax weight. Use 0.1 g or 0.01 g precision, or a larger batch." This is a warning and does not block saving.
+  - **Build note (2026-11-15, written back 2026-11-18):** v0.1 checks the fragrance total only. Worked example WE-7 at 0.1 g has an oil that moved 3.6% and shows no warning, and the warning's wording only fits the fragrance total, so the build follows the worked examples. If components should also trigger the warning, change this rule and WE-7 together.
 - **CALC-14 — Zero component.** If any component with parts above zero rounds to 0 g, saving is blocked with: "Lavender rounds to 0 g at this precision. Use a finer precision or a larger batch."
 
 **Proposed default precision (D-2):** 0.1 g, with 1 g and 0.01 g selectable per formula.

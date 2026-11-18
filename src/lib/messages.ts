@@ -114,7 +114,9 @@ export function roundingRuleText(
   upper: string,
   finerPrecisionMg: PrecisionMg | null,
 ): string {
-  const base = `This formula rounds to ${precisionLabel(precisionMg)}. Enter ${lower} or ${upper}`;
+  // A weight must be above 0 g (V-03), so a lower neighbour of 0 is not offered (T25).
+  const choices = /^0(\.0+)?$/.test(lower) ? upper : `${lower} or ${upper}`;
+  const base = `This formula rounds to ${precisionLabel(precisionMg)}. Enter ${choices}`;
   if (finerPrecisionMg === null) return `${base}.`;
   return `${base}, or switch precision to ${precisionLabel(finerPrecisionMg)}.`;
 }
@@ -344,6 +346,12 @@ export const MESSAGES = {
     navFormulas: "Formulas",
     navMaterials: "Materials",
     navBackup: "Backup and restore",
+    /** Phone bottom bar (spec 3 phone wireframe: "Formulas  Materials  Backup"). The link keeps the full name for screen readers. */
+    navBackupShort: "Backup",
+    /** Shown above every page when storage is blocked and the maker carried on. WRITTEN HERE. */
+    notSavingTitle: "Not saving.",
+    notSavingBody:
+      "This browser is not letting the site store data, so nothing you enter will be kept.",
   },
 
   /** Saved formulas (F2, blueprint section 5). */
@@ -487,9 +495,10 @@ export const MESSAGES = {
     differenceLabel: "Difference",
     versionsHeading: "Versions",
     noMeasurements: "Enter all measured weights to see the actual blend.",
-    pillSaving: "Saving",
+    pillSaving: "Saving…",
     pillSaved: "Saved",
     pillError: "Error",
+    pillRetry: "Retry",
     /** CALC-21 wording. `amount` is formatted, e.g. "0.6 g". */
     offTarget: (
       direction: "under" | "over",
@@ -863,5 +872,10 @@ export const MESSAGES = {
     /** What to try. WRITTEN HERE: the spec says "with what to try" but gives no text. */
     blockedWhatToTry:
       "Try a normal browser window, allow this site to store data, or free up some browser storage.",
+    /** Full-page explanation at start. WRITTEN HERE: the spec names the screen but gives no text. */
+    blockedCauses:
+      "Your browser is not letting this site keep data. A private or incognito window, a full device, or a browser setting that blocks site data can cause this. Try a regular window, free up some space, or allow site data for this page, then reload.",
+    blockedNotKept: "Nothing you enter will be kept when you close or reload the page.",
+    carryOn: "Carry on without saving",
   },
 } as const;

@@ -68,6 +68,8 @@ function BottomNavLinks({ pathname }: { pathname: string | null }) {
             <Link
               href={item.href}
               aria-current={active ? "page" : undefined}
+              // The short visible text ("Backup") is part of the full name (label in name).
+              aria-label={item.shortLabel ? item.label : undefined}
               className={cn(
                 "flex h-full flex-col items-center justify-center gap-1 rounded-md px-1 text-xs transition-colors duration-150",
                 active
@@ -80,7 +82,7 @@ function BottomNavLinks({ pathname }: { pathname: string | null }) {
                 strokeWidth={1.75}
                 className={cn("size-5 shrink-0", active && "text-primary")}
               />
-              <span className="max-w-full truncate">{item.label}</span>
+              <span className="max-w-full truncate">{item.shortLabel ?? item.label}</span>
             </Link>
           </li>
         );

@@ -69,6 +69,21 @@ describe("messageForIssue: section 8 table, word for word", () => {
     );
   });
 
+  it("V-04 does not offer 0 g as a choice (T25)", () => {
+    const issue: Issue = {
+      rule: "V-04",
+      field: "amount",
+      severity: "error",
+      precisionMg: 100,
+      lower: "0.0",
+      upper: "0.1",
+      finerPrecisionMg: 10,
+    };
+    expect(messageForIssue(issue)).toBe(
+      "This formula rounds to 0.1 g. Enter 0.1, or switch precision to 0.01 g.",
+    );
+  });
+
   it("V-05", () => {
     expect(
       messageForIssue({ rule: "V-05", field: "vesselCount", severity: "error" }),
