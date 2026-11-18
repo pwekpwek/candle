@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { MoreHorizontalIcon } from "lucide-react";
+import { FormulaBatches } from "@/components/batches";
 import { Notice, type NoticeVariant } from "@/components/common/notice";
 import { PageHeader } from "@/components/common/page-header";
 import { ScaleDialog } from "@/components/scale";
@@ -27,6 +28,7 @@ import { VersionHistory } from "./version-history";
 
 const F = MESSAGES.formula;
 const E = MESSAGES.editor;
+const B = MESSAGES.batches;
 
 export type FormulaDetailProps = {
   formulaId: string;
@@ -274,6 +276,9 @@ function FormulaBody({
             <Button variant="outline" onClick={() => setDialog("scale")}>
               {F.scale}
             </Button>
+            <Button asChild variant="outline">
+              <Link href={`/batches/new?version=${version.id}`}>{B.formulaCreateBatch}</Link>
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" aria-label={F.moreActions}>
@@ -363,6 +368,8 @@ function FormulaBody({
           {F.loading}
         </p>
       )}
+
+      <FormulaBatches formulaId={formula.id} versions={versions} className="mt-8" />
 
       <DetailsSection
         formula={formula}

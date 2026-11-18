@@ -303,14 +303,14 @@ describe("restore, add to what is here (PRD-26)", () => {
     fireEvent.click(restoreButton());
     const summary = restoreSummary({
       fileName: GOOD_NAME,
-      added: { formulas: 2, formulaVersions: 3, materials: 7, measurements: 1 },
+      added: { formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0 },
       skippedIdentical: 0,
-      kept: { formulas: 0, formulaVersions: 0, materials: 0, measurements: 0 },
+      kept: { formulas: 0, formulaVersions: 0, materials: 0, measurements: 0, batches: 0 },
     });
     expect(await screen.findByText(summary)).toBeTruthy();
     const link = screen.getByRole("link", { name: B.openSaved });
     expect(link.getAttribute("href")).toBe("/");
-    expect(await deviceData()).toEqual(good.data);
+    expect(await deviceData()).toEqual({ ...(good.data as object), batches: [] });
     // The chosen file and the preview are gone.
     expect(screen.queryByText(B.addToWhatsHere)).toBeNull();
     expect(calls.download).not.toHaveBeenCalled();
@@ -369,10 +369,10 @@ describe("restore, add to what is here (PRD-26)", () => {
     await waitFor(() => expect(restoreButton().hasAttribute("disabled")).toBe(false));
     fireEvent.click(restoreButton());
     expect(
-      await screen.findByText(B.replacedSentence({ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0 })),
+      await screen.findByText(B.replacedSentence({ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0 })),
     ).toBeTruthy();
     expect((await layer().materials.get(cedar.id))?.name).toBe("Cedarwood");
-    expect(await deviceData()).toEqual(good.data);
+    expect(await deviceData()).toEqual({ ...(good.data as object), batches: [] });
   });
 
   it("Cancel clears the chosen file and the preview", async () => {
@@ -459,7 +459,7 @@ describe("restore, replace everything (DATA-23, FLOW-09)", () => {
     expect(dialog.textContent).toContain(B.replaceTitle);
     expect(dialog.textContent).toContain(B.replaceWarning);
     expect(dialog.textContent).toContain(
-      B.replaceAffects({ materials: 6, formulas: 1, formulaVersions: 1, measurements: 0 }),
+      B.replaceAffects({ materials: 6, formulas: 1, formulaVersions: 1, measurements: 0, batches: 0 }),
     );
 
     // Pressing confirm without the word explains what is missing and does nothing.
@@ -480,7 +480,7 @@ describe("restore, replace everything (DATA-23, FLOW-09)", () => {
     expect(await screen.findByText(B.resultTitle)).toBeTruthy();
     expect(
       screen.getByText(
-        B.replaceSummary(GOOD_NAME, { formulas: 2, formulaVersions: 3, materials: 7, measurements: 1 }),
+        B.replaceSummary(GOOD_NAME, { formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0 }),
       ),
     ).toBeTruthy();
     expect(calls.order).toHaveLength(2);
@@ -492,7 +492,7 @@ describe("restore, replace everything (DATA-23, FLOW-09)", () => {
     const safety = JSON.parse(json) as { data: typeof before };
     expect(safety.data).toEqual(before);
 
-    expect(await deviceData()).toEqual(good.data);
+    expect(await deviceData()).toEqual({ ...(good.data as object), batches: [] });
   });
 
   it("replaces nothing when the earlier backup cannot be downloaded", async () => {

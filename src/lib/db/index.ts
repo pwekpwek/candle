@@ -1,3 +1,4 @@
+import { createBatchesRepo } from "./batches";
 import { openDatabase } from "./db";
 import type { CandleDatabase, DataLayer, DataLayerOptions } from "./contract";
 import { createDraftsRepo } from "./drafts";
@@ -8,7 +9,7 @@ import { createMeasurementsRepo } from "./measurements";
 import { createMetaRepo } from "./meta";
 import { createVersionsRepo } from "./versions";
 
-export { openDatabase } from "./db";
+export { openDatabase, SCHEMA_V1 } from "./db";
 export { DataError } from "./errors";
 export { bumpChangeCounter } from "./meta";
 export { probeStorage } from "./probe";
@@ -23,6 +24,7 @@ export function createDataLayer(db: CandleDatabase, options: DataLayerOptions = 
     formulas: createFormulasRepo(db, now),
     versions: createVersionsRepo(db, now, newId, meta),
     measurements: createMeasurementsRepo(db, now, newId),
+    batches: createBatchesRepo(db, now),
     drafts: createDraftsRepo(db, now),
     meta,
     example: createExampleRepo(db, now, newId),

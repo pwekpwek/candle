@@ -13,6 +13,7 @@
  */
 import type { CandleDatabase } from "@/lib/db/contract";
 import type {
+  Batch,
   BackupCounts,
   BackupData,
   BackupEnvelope,
@@ -68,8 +69,10 @@ export const MAX_BACKUP_BYTES = 25 * 1024 * 1024;
  *   incomplete   `counts` do not match the arrays
  *   checksum     checksum does not match the data section
  *   duplicates   an id appears twice within one array
- *   orphans      a version's formula, or a measurement's version, is neither
- *                in the file nor on this device
+ *   orphans      a version's formula, a measurement's version, or a batch's
+ *                version, is neither in the file nor on this device (a batch
+ *                whose version is in the file under another formula also
+ *                counts)
  */
 export type CheckFailure =
   | { code: "not-backup" }
@@ -86,7 +89,7 @@ export type CheckFailure =
   | { code: "incomplete" }
   | { code: "checksum" }
   | { code: "duplicates" }
-  | { code: "orphans"; versions: number; measurements: number };
+  | { code: "orphans"; versions: number; measurements: number; batches: number };
 
 export type CheckResult =
   | { ok: true; envelope: BackupEnvelope }
@@ -100,8 +103,15 @@ export type DeviceIds = {
 
 /**
  * Every Step 1 check. Pure apart from hashing. `sizeBytes` is the file's size
- * on disk. Older `formatVersion`s would be migrated here first; v0.1 knows
- * only version 1, and a version below 1 is "not-backup".
+ * on disk. A version below 1 is "not-backup"; above BACKUP_FORMAT_VERSION is
+ * "newer".
+ *
+ * Format 1 (v0.1, no batches) is migrated in memory (v0.2): the file is
+ * checked against the format 1 shape, its checksum is verified over the data
+ * section exactly as written, and only then are `data.batches = []` and
+ * `counts.batches = 0` added. The returned envelope keeps the file's
+ * `formatVersion` and `checksum`; everything after the checks uses the
+ * migrated `data` and `counts`.
  */
 export type CheckBackupText = (
   text: string,
@@ -198,12 +208,13 @@ export type RestorePlan = {
   basis: { envelope: BackupEnvelope; device: DeviceData };
 };
 
-/** Everything in the four data stores, read in one transaction. */
+/** Everything in the five data stores, read in one transaction. */
 export type DeviceData = {
   materials: Material[];
   formulas: Formula[];
   formulaVersions: FormulaVersion[];
   measurements: Measurement[];
+  batches: Batch[];
 };
 
 export type PlanRestore = (

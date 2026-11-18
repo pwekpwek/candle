@@ -163,6 +163,7 @@ describe("TEST-18 permanent delete after real data", () => {
     expect(await layer.formulas.deletionImpact(formula.id)).toEqual({
       versions: 2,
       measurements: 1,
+      batches: 0,
     });
     await layer.formulas.deletePermanently(formula.id);
 

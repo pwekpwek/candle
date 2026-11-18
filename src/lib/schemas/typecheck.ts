@@ -8,6 +8,7 @@ import type {
   BackupCounts,
   BackupData,
   BackupEnvelope,
+  Batch,
   Component,
   Formula,
   FormulaVersion,
@@ -18,6 +19,7 @@ import type {
   VersionInputs,
   VersionTargets,
 } from "@/lib/types";
+import type { BatchSchema } from "./batch";
 import type { BackupCountsSchema, BackupDataSchema, BackupEnvelopeSchema } from "./backup";
 import type { FormulaSchema } from "./formula";
 import type { MaterialSchema, MaterialSnapshotSchema } from "./material";
@@ -54,6 +56,8 @@ export type TypeChecks = [
   Assert<SameKeys<Out<typeof FormulaVersionSchema>, FormulaVersion>>,
   Assert<Same<Out<typeof MeasurementSchema>, Measurement>>,
   Assert<SameKeys<Out<typeof MeasurementSchema>, Measurement>>,
+  Assert<Same<Out<typeof BatchSchema>, Batch>>,
+  Assert<SameKeys<Out<typeof BatchSchema>, Batch>>,
   Assert<Same<Out<typeof BackupCountsSchema>, BackupCounts>>,
   Assert<Same<Out<typeof BackupDataSchema>, BackupData>>,
   Assert<SameKeys<Out<typeof BackupDataSchema>, BackupData>>,

@@ -276,6 +276,12 @@ export function messageForCheckFailure(failure: CheckFailure): string {
           `${countOf(failure.measurements, "measurement")} ${failure.measurements === 1 ? "refers" : "refer"} to a missing version`,
         );
       }
+      // Batch clause WRITTEN HERE (v0.2).
+      if (failure.batches > 0) {
+        parts.push(
+          `${countOf(failure.batches, "batch", "batches")} ${failure.batches === 1 ? "refers" : "refer"} to a missing version`,
+        );
+      }
       return `This backup is incomplete: ${parts.join(" and ")}.`;
     }
     default:
@@ -293,6 +299,7 @@ const SUMMARY_ORDER: readonly {
   { key: "formulaVersions", singular: "version", plural: "versions" },
   { key: "materials", singular: "material", plural: "materials" },
   { key: "measurements", singular: "measurement", plural: "measurements" },
+  { key: "batches", singular: "batch", plural: "batches" },
 ];
 
 function countsList(counts: BackupCounts): string[] {
@@ -345,6 +352,8 @@ export const MESSAGES = {
     name: "CandleLab",
     navFormulas: "Formulas",
     navMaterials: "Materials",
+    /** v0.2. WRITTEN HERE. */
+    navBatches: "Batches",
     navBackup: "Backup and restore",
     /** Phone bottom bar (spec 3 phone wireframe: "Formulas  Materials  Backup"). The link keeps the full name for screen readers. */
     navBackupShort: "Backup",
@@ -600,6 +609,93 @@ export const MESSAGES = {
     viewing: "Viewing",
   },
 
+  /**
+   * Batches (v0.2, BatchTrace). WRITTEN HERE (v0.2): the specs give no
+   * wording. Batches are described as records of a production run, nothing more.
+   */
+  batches: {
+    // List
+    title: "Batches",
+    listDescription: "Records of production runs, each made from one saved formula version.",
+    loading: "Loading batches…",
+    loadFailedTitle: "Batches could not be loaded.",
+    loadFailed: "Your data is still on this device. Try again.",
+    tryAgain: "Try again",
+    emptyTitle: "No batches yet",
+    emptyDescription:
+      "A batch is a record of one production run, made from a saved formula version. Open a saved formula and choose Create batch.",
+    emptyAction: "Go to saved formulas",
+    /** Used when the batch has no label: "Batch 3F2A91C0". */
+    defaultTitle: (idStart: string) => `Batch ${idStart}`,
+    versionText: (version: number) => `version ${version}`,
+    formulaArchivedBadge: "Formula archived",
+    notWeighed: "Not weighed yet",
+    weighedStatus: (weighed: number, total: number) => `${weighed} of ${total} weighed`,
+    producedOnLabel: "Produced",
+
+    // Create and detail
+    createButton: "Create batch",
+    createTitle: "Create batch",
+    createDescription: "Record a production run made from one saved version.",
+    creating: "Creating batch",
+    saveChanges: "Save changes",
+    savingChanges: "Saving changes",
+    sourceHeading: "Made from",
+    sourcePlannedTotal: (total: string) => `Planned total ${total}`,
+    madeFrom: "From",
+    separator: " · ",
+    createdNotice: "Batch saved",
+    changesSaved: "Changes saved",
+    createFailed: "The batch was not saved. Your entries are still in the form. Try again.",
+    saveFailed: "The changes were not saved. Your entries are still in the form. Try again.",
+    loadingTitle: "Batch",
+    detailLoading: "Loading batch…",
+    notFoundTitle: "Batch not found",
+    notFoundBody:
+      "It may have been deleted, or the link may be wrong. Your other batches are not affected.",
+    backToBatches: "Back to batches",
+    sourceNotFoundTitle: "Version not found",
+    sourceNotFoundBody:
+      "A batch is made from a saved formula version. This version may have been deleted, or the link may be wrong.",
+    backToFormulas: "Back to saved formulas",
+    notLatestNotice: (version: number, latest: number) =>
+      `Made from version ${version}. The formula's latest version is ${latest}.`,
+
+    // Form fields
+    producedOnFieldLabel: "Production date",
+    labelFieldLabel: "Label (optional)",
+    labelHint: "Your own code for this batch, up to 40 characters.",
+    notesFieldLabel: "Notes (optional)",
+    dateRequired: "Enter the production date.",
+    dateInvalid: "Enter a valid date.",
+    dateFuture: "The production date cannot be in the future.",
+    labelTooLong: "Use 40 characters or fewer.",
+    measuredHeading: "Measured weights",
+    measuredHint:
+      "Weigh what you actually used. Leave a row empty if you did not weigh it. Planned weights come from the saved version.",
+
+    // Delete a batch
+    deleteBatch: "Delete batch",
+    deleteTitle: "Delete this batch?",
+    deleteBody: (title: string) =>
+      `This removes the record ${title}, including its measured weights and notes. The formula and its versions are not changed. This cannot be undone.`,
+    deleteConfirm: "Delete batch",
+    deleteKeep: "Keep batch",
+    deleteFailed: "The batch was not deleted. Try again.",
+
+    // On the formula page
+    formulaCreateBatch: "Create batch",
+    formulaBatchesHeading: "Batches",
+    formulaNoBatches: "No batches made from this formula yet.",
+    formulaBatchesLoadFailed: "Batches could not be loaded.",
+
+    // Deleting a formula that has batches
+    formulaDeleteRefusedTitle: "This formula cannot be deleted",
+    formulaDeleteRefused: (count: number) =>
+      `This formula has ${countOf(count, "batch", "batches")}, so it can't be deleted. Batches keep a link to the version they were made from. Delete those batches first, or archive the formula.`,
+    formulaDeleteClose: "Close",
+  },
+
   /** Scale dialog (F5). */
   scale: {
     title: (version: number) => `Scale version ${version}`,
@@ -791,7 +887,7 @@ export const MESSAGES = {
     useBackupCopy: "Use the backup's copy",
     /** Replace confirmation. WRITTEN HERE, except "safety backup" (F7 step 5, DATA-23). */
     replaceWarning:
-      "This removes every formula, version, material and measurement on this device and writes the backup in their place. A safety backup of current data downloads first.",
+      "This removes every formula, version, material, measurement and batch on this device and writes the backup in their place. A safety backup of current data downloads first.",
     typeReplace: "Type REPLACE to confirm.",
     dontCloseTab: "Don't close this tab.",
     openSaved: "Open saved formulas",

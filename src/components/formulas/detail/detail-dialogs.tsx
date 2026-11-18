@@ -14,12 +14,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { getDataLayer } from "@/lib/db";
+import { DataError, getDataLayer } from "@/lib/db";
 import { LIMITS } from "@/lib/gramguard";
 import { MESSAGES, messageForIssue } from "@/lib/messages";
 import type { Formula } from "@/lib/types";
 
 const F = MESSAGES.formula;
+const B = MESSAGES.batches;
 type DialogProps = {
   formula: Formula;
   open: boolean;
@@ -177,7 +178,7 @@ export function DeleteFormulaDialog({
 type Impact =
   | { state: "loading" }
   | { state: "failed" }
-  | { state: "ready"; versions: number; measurements: number };
+  | { state: "ready"; versions: number; measurements: number; batches: number };
 
 function DeleteBody({
   formula,
@@ -216,12 +217,22 @@ function DeleteBody({
     try {
       await getDataLayer().formulas.deletePermanently(formula.id);
       onDeleted();
-    } catch {
-      setFailed(true);
+    } catch (error) {
       submitting.current = false;
       setBusy(false);
+      if (error instanceof DataError && error.code === "in-use") {
+        // Batches exist (made after this dialog opened, or another tab): show the refusal.
+        getDataLayer()
+          .formulas.deletionImpact(formula.id)
+          .then((counts) => setImpact({ state: "ready", ...counts, batches: Math.max(1, counts.batches) }))
+          .catch(() => setImpact((prev) => (prev.state === "ready" ? { ...prev, batches: Math.max(1, prev.batches) } : prev)));
+        return;
+      }
+      setFailed(true);
     }
   }
+
+  const refused = impact.state === "ready" && impact.batches > 0;
 
   return (
     <div className="grid gap-4">
@@ -232,6 +243,10 @@ function DeleteBody({
         </p>
       ) : impact.state === "failed" ? (
         <Notice variant="error">{F.deleteImpactFailed}</Notice>
+      ) : refused ? (
+        <Notice variant="info" title={B.formulaDeleteRefusedTitle}>
+          {B.formulaDeleteRefused(impact.batches)}
+        </Notice>
       ) : (
         <p className="text-sm text-foreground">
           {F.deleteBody(formula.name, impact.versions, impact.measurements)}
@@ -240,17 +255,19 @@ function DeleteBody({
       <DialogFooter>
         {/* First in the tab order, so the keep button takes the opening focus. */}
         <Button type="button" variant="secondary" onClick={onCancel}>
-          {F.deleteKeep}
+          {refused ? B.formulaDeleteClose : F.deleteKeep}
         </Button>
-        <Button
-          type="button"
-          variant="destructive"
-          busy={busy}
-          disabled={impact.state !== "ready"}
-          onClick={confirm}
-        >
-          {F.deleteConfirm}
-        </Button>
+        {refused ? null : (
+          <Button
+            type="button"
+            variant="destructive"
+            busy={busy}
+            disabled={impact.state !== "ready"}
+            onClick={confirm}
+          >
+            {F.deleteConfirm}
+          </Button>
+        )}
       </DialogFooter>
     </div>
   );

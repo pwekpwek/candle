@@ -1,4 +1,4 @@
-import { FlaskConicalIcon, HardDriveDownloadIcon, PackageIcon } from "lucide-react";
+import { ClipboardListIcon, FlaskConicalIcon, HardDriveDownloadIcon, PackageIcon } from "lucide-react";
 import { MESSAGES } from "@/lib/messages";
 
 export interface NavItem {
@@ -12,12 +12,13 @@ export interface NavItem {
 }
 
 /**
- * The three destinations (spec 3 "Navigation", blueprint section 2). "New
+ * The four destinations (spec 3 "Navigation", blueprint section 2). "New
  * formula" is the primary action on the Saved formulas page, not a
  * destination, so /formulas/new and the formula pages keep "Formulas" current.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/", label: MESSAGES.app.navFormulas, icon: FlaskConicalIcon, alsoActiveFor: ["/formulas"] },
+  { href: "/batches", label: MESSAGES.app.navBatches, icon: ClipboardListIcon, alsoActiveFor: [] },
   { href: "/materials", label: MESSAGES.app.navMaterials, icon: PackageIcon, alsoActiveFor: [] },
   {
     href: "/backup",

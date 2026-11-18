@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  BatchSchema,
   FormulaSchema,
   FormulaVersionSchema,
   MaterialSchema,
@@ -18,32 +19,53 @@ import type { CheckBackupText, CheckFailure, CheckResult } from "./contract";
  * kept loose on purpose: a wrong algorithm or value is a "checksum" failure
  * (Step 1, fifth check), not a schema failure.
  */
-const EnvelopeShapeSchema = z.strictObject({
+const V1_COUNTS = {
+  materials: z.int().min(0),
+  formulas: z.int().min(0),
+  formulaVersions: z.int().min(0),
+  measurements: z.int().min(0),
+};
+const V1_DATA = {
+  materials: z.array(z.unknown()),
+  formulas: z.array(z.unknown()),
+  formulaVersions: z.array(z.unknown()),
+  measurements: z.array(z.unknown()),
+};
+const ENVELOPE_FIELDS = {
   format: z.literal(BACKUP_FORMAT),
   formatVersion: z.int().min(1),
   schemaVersion: z.int().min(1),
   appVersion: z.string().min(1),
   exportedAt: TimestampSchema,
-  counts: z.strictObject({
-    materials: z.int().min(0),
-    formulas: z.int().min(0),
-    formulaVersions: z.int().min(0),
-    measurements: z.int().min(0),
-  }),
   checksum: z.strictObject({ algorithm: z.string(), value: z.string() }),
-  data: z.strictObject({
-    materials: z.array(z.unknown()),
-    formulas: z.array(z.unknown()),
-    formulaVersions: z.array(z.unknown()),
-    measurements: z.array(z.unknown()),
-  }),
+};
+
+/** Format 1 (v0.1): four stores, no batches. */
+const EnvelopeShapeV1Schema = z.strictObject({
+  ...ENVELOPE_FIELDS,
+  counts: z.strictObject(V1_COUNTS),
+  data: z.strictObject(V1_DATA),
 });
+
+/** Format 2 (v0.2): adds `batches`. */
+const EnvelopeShapeV2Schema = z.strictObject({
+  ...ENVELOPE_FIELDS,
+  counts: z.strictObject({ ...V1_COUNTS, batches: z.int().min(0) }),
+  data: z.strictObject({ ...V1_DATA, batches: z.array(z.unknown()) }),
+});
+
+/** The stores each format holds. */
+const STORES_IN_FORMAT: Record<number, readonly DataStoreName[]> = {
+  1: ["materials", "formulas", "formulaVersions", "measurements"],
+  2: DATA_STORES,
+};
 
 const RECORD_SCHEMAS = {
   materials: MaterialSchema,
   formulas: FormulaSchema,
   formulaVersions: FormulaVersionSchema,
   measurements: MeasurementSchema,
+  batches: BatchSchema,
 } as const;
 
 const RECORD_NOUNS: Record<DataStoreName, string> = {
@@ -51,6 +73,7 @@ const RECORD_NOUNS: Record<DataStoreName, string> = {
   formulas: "formula",
   formulaVersions: "formula version",
   measurements: "measurement",
+  batches: "batch",
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -136,7 +159,9 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
     count += 1;
   };
 
-  const shape = EnvelopeShapeSchema.safeParse(parsed);
+  const stores = STORES_IN_FORMAT[formatVersion]!;
+  const shapeSchema = formatVersion === 1 ? EnvelopeShapeV1Schema : EnvelopeShapeV2Schema;
+  const shape = shapeSchema.safeParse(parsed);
   if (!shape.success) note("backup file", describeIssue(shape.error.issues[0]!, parsed));
 
   // When the envelope is bad, records are still counted if `data` holds arrays.
@@ -146,9 +171,12 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
     formulas: [],
     formulaVersions: [],
     measurements: [],
+    batches: [],
   };
-  for (const store of DATA_STORES) {
-    const records: unknown = shape.success ? shape.data.data[store] : rawData[store];
+  for (const store of stores) {
+    const records: unknown = shape.success
+      ? (shape.data.data as Record<string, unknown>)[store]
+      : rawData[store];
     if (!Array.isArray(records)) continue;
     records.forEach((record: unknown, index) => {
       const result = RECORD_SCHEMAS[store].safeParse(record);
@@ -160,13 +188,21 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
     return fail({ code: "invalid", count, firstLabel, firstProblem });
   }
 
+  // Format 1 has no batches: counted as 0 here (the in-memory migration).
+  const fileCounts = shape.data.counts as Partial<BackupEnvelope["counts"]>;
   const envelope: BackupEnvelope = {
     format: BACKUP_FORMAT,
     formatVersion: shape.data.formatVersion,
     schemaVersion: shape.data.schemaVersion,
     appVersion: shape.data.appVersion,
     exportedAt: shape.data.exportedAt,
-    counts: shape.data.counts,
+    counts: {
+      materials: fileCounts.materials ?? 0,
+      formulas: fileCounts.formulas ?? 0,
+      formulaVersions: fileCounts.formulaVersions ?? 0,
+      measurements: fileCounts.measurements ?? 0,
+      batches: fileCounts.batches ?? 0,
+    },
     checksum: shape.data.checksum as BackupEnvelope["checksum"],
     data: valid as unknown as BackupData,
   };
@@ -176,9 +212,11 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
     if (envelope.counts[store] !== envelope.data[store].length) return fail({ code: "incomplete" });
   }
 
-  // 5. checksum
+  // 5. checksum, over the data section exactly as the file's format holds it.
   if (shape.data.checksum.algorithm !== "SHA-256") return fail({ code: "checksum" });
-  const actual = await sha256Hex(canonicalJson(envelope.data));
+  const asWritten: Record<string, unknown> = {};
+  for (const store of stores) asWritten[store] = envelope.data[store];
+  const actual = await sha256Hex(canonicalJson(asWritten));
   if (actual !== shape.data.checksum.value) return fail({ code: "checksum" });
 
   // 6. duplicates
@@ -196,7 +234,19 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
     (measurement) =>
       !versionIds.has(measurement.versionId) && !device.versionIds.has(measurement.versionId),
   ).length;
-  if (versions > 0 || measurements > 0) return fail({ code: "orphans", versions, measurements });
+  // A batch must point at a version in the file or on this device; when the
+  // version is in the file it must belong to the batch's formula.
+  const fileVersionFormula = new Map(
+    envelope.data.formulaVersions.map((version) => [version.id, version.formulaId]),
+  );
+  const batches = envelope.data.batches.filter((batch) => {
+    const formulaOfVersion = fileVersionFormula.get(batch.versionId);
+    if (formulaOfVersion !== undefined) return formulaOfVersion !== batch.formulaId;
+    return !device.versionIds.has(batch.versionId);
+  }).length;
+  if (versions > 0 || measurements > 0 || batches > 0) {
+    return fail({ code: "orphans", versions, measurements, batches });
+  }
 
   return { ok: true, envelope };
 };

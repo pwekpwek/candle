@@ -1,6 +1,6 @@
 # Backup fixtures
 
-`good.json` is a real export made by the app's `exportBackup`. It holds 7 materials, 2 formulas, 3 formula versions and 1 measurement.
+`good.json` is a real export made by the v0.1 app's `exportBackup` (format 1, no batches); v0.2 restores it through the format 1 migration. It holds 7 materials, 2 formulas, 3 formula versions and 1 measurement.
 
 `make-bad.mjs` regenerates the eleven `bad-*.json` files from `good.json`. Each bad file breaks exactly one thing. Run it with `node tests/fixtures/backups/make-bad.mjs`.
 
@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | `bad-01-not-json.json` | Not JSON at all: the text `this is not a backup file {` | 01 not-backup |
 | `bad-02-wrong-format.json` | `format` is `candlelab-export` | 02 not-backup |
-| `bad-03-newer-version.json` | `formatVersion` is `2` | 03 newer |
+| `bad-03-newer-version.json` | `formatVersion` is `3` (v0.2 reads 1 and 2) | 03 newer |
 | `bad-04-missing-field.json` | `targets` removed from `data.formulaVersions[0]` (checksum recomputed) | 04 invalid |
 | `bad-05-wrong-type.json` | `data.formulas[0].name` is the number `42` (checksum recomputed) | 05 invalid |
 | `bad-06-negative-weight.json` | `data.measurements[0].entries[0].actualMg` is `-5000` (checksum recomputed) | 06 invalid |

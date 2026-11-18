@@ -48,20 +48,26 @@ export const exportBackup: ExportBackup = async (db, options) => {
 
   // DATA-15: one read-only transaction, nothing awaited inside except Dexie.
   const data: BackupData = await guard(() =>
-    db.transaction("r", [db.materials, db.formulas, db.formulaVersions, db.measurements], async () => {
-      const [materials, formulas, formulaVersions, measurements] = await Promise.all([
-        db.materials.toArray(),
-        db.formulas.toArray(),
-        db.formulaVersions.toArray(),
-        db.measurements.toArray(),
-      ]);
-      return {
-        materials: byId(materials),
-        formulas: byId(formulas),
-        formulaVersions: byId(formulaVersions),
-        measurements: byId(measurements),
-      };
-    }),
+    db.transaction(
+      "r",
+      [db.materials, db.formulas, db.formulaVersions, db.measurements, db.batches],
+      async () => {
+        const [materials, formulas, formulaVersions, measurements, batches] = await Promise.all([
+          db.materials.toArray(),
+          db.formulas.toArray(),
+          db.formulaVersions.toArray(),
+          db.measurements.toArray(),
+          db.batches.toArray(),
+        ]);
+        return {
+          materials: byId(materials),
+          formulas: byId(formulas),
+          formulaVersions: byId(formulaVersions),
+          measurements: byId(measurements),
+          batches: byId(batches),
+        };
+      },
+    ),
   );
 
   const exportedAt = now();
@@ -70,6 +76,7 @@ export const exportBackup: ExportBackup = async (db, options) => {
     formulas: data.formulas.length,
     formulaVersions: data.formulaVersions.length,
     measurements: data.measurements.length,
+    batches: data.batches.length,
   };
   // Hashing happens outside any Dexie transaction.
   const checksum = { algorithm: "SHA-256" as const, value: await sha256Hex(canonicalJson(data)) };

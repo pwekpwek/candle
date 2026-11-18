@@ -343,7 +343,7 @@ describe("restore check-failure messages (Data Model step 1)", () => {
     [{ code: "checksum" }, "This backup is damaged or was edited."],
     [{ code: "duplicates" }, "This backup is damaged: duplicate records."],
     [
-      { code: "orphans", versions: 2, measurements: 0 },
+      { code: "orphans", versions: 2, measurements: 0, batches: 0 },
       "This backup is incomplete: 2 versions refer to a missing formula.",
     ],
   ];
@@ -367,7 +367,7 @@ describe("restore check-failure messages (Data Model step 1)", () => {
 
   it("orphans with one version and one measurement", () => {
     expect(
-      messageForCheckFailure({ code: "orphans", versions: 1, measurements: 1 }),
+      messageForCheckFailure({ code: "orphans", versions: 1, measurements: 1, batches: 0 }),
     ).toBe(
       "This backup is incomplete: 1 version refers to a missing formula and 1 measurement refers to a missing version.",
     );
@@ -381,7 +381,7 @@ describe("restore result summary (Data Model step 5)", () => {
       formulaVersions: number,
       materials: number,
       measurements: number,
-    ): BackupCounts => ({ formulas, formulaVersions, materials, measurements });
+    ): BackupCounts => ({ formulas, formulaVersions, materials, measurements, batches: 0 });
     expect(
       restoreSummary({
         fileName: "candlelab-backup-20261114-140512.json",
@@ -400,16 +400,17 @@ describe("restore result summary (Data Model step 5)", () => {
       formulaVersions: 1,
       materials: 1,
       measurements: 1,
+      batches: 1,
     };
     expect(
       restoreSummary({
         fileName: "b.json",
         added: one,
         skippedIdentical: 1,
-        kept: { formulas: 1, formulaVersions: 0, materials: 0, measurements: 0 },
+        kept: { formulas: 1, formulaVersions: 0, materials: 0, measurements: 0, batches: 0 },
       }),
     ).toBe(
-      "Restored from b.json: added 1 formula, 1 version, 1 material, 1 measurement. Skipped 1 identical item. Kept this device's copy of 1 formula.",
+      "Restored from b.json: added 1 formula, 1 version, 1 material, 1 measurement, 1 batch. Skipped 1 identical item. Kept this device's copy of 1 formula.",
     );
   });
 
@@ -417,9 +418,9 @@ describe("restore result summary (Data Model step 5)", () => {
     expect(
       restoreSummary({
         fileName: "b.json",
-        added: { formulas: 0, formulaVersions: 2, materials: 0, measurements: 0 },
+        added: { formulas: 0, formulaVersions: 2, materials: 0, measurements: 0, batches: 0 },
         skippedIdentical: 0,
-        kept: { formulas: 0, formulaVersions: 2, materials: 0, measurements: 0 },
+        kept: { formulas: 0, formulaVersions: 2, materials: 0, measurements: 0, batches: 0 },
       }),
     ).toBe(
       "Restored from b.json: added 2 versions. Kept this device's copy of 2 versions.",
@@ -524,7 +525,7 @@ const SAMPLE_CHECKS: CheckFailure[] = [
   { code: "incomplete" },
   { code: "checksum" },
   { code: "duplicates" },
-  { code: "orphans", versions: 1, measurements: 1 },
+  { code: "orphans", versions: 1, measurements: 1, batches: 0 },
 ];
 
 /** Exported helpers that take arguments: name → sampler. */
@@ -534,9 +535,9 @@ const HELPER_SAMPLES: Record<string, () => string> = {
   restoreSummary: () =>
     restoreSummary({
       fileName: "a.json",
-      added: { formulas: 1, formulaVersions: 2, materials: 3, measurements: 4 },
+      added: { formulas: 1, formulaVersions: 2, materials: 3, measurements: 4, batches: 0 },
       skippedIdentical: 5,
-      kept: { formulas: 0, formulaVersions: 1, materials: 1, measurements: 0 },
+      kept: { formulas: 0, formulaVersions: 1, materials: 1, measurements: 0, batches: 0 },
     }),
   basisWords: () => basisWords("wax") + basisWords("total"),
   basisExplanation: () => basisExplanation(800, "wax") + basisExplanation(800, "total"),
@@ -580,6 +581,13 @@ const MESSAGE_SAMPLES: Record<string, unknown[]> = {
   "formula.sizingWax": ["1000.0 g"],
   "formula.notLatestNotice": [1, 2],
   "formula.deleteBody": ["Lavender Vanilla", 3, 1],
+  "batches.defaultTitle": ["3F2A91C0"],
+  "batches.versionText": [2],
+  "batches.weighedStatus": [3, 4],
+  "batches.sourcePlannedTotal": ["1080.0 g"],
+  "batches.notLatestNotice": [1, 2],
+  "batches.deleteBody": ["Batch 3F2A91C0"],
+  "batches.formulaDeleteRefused": [2],
   "formula.measuredFieldLabel": ["Lavender"],
   "formula.versionNumber": [2],
   "formula.originRevisionRow": ["cedar added"],
@@ -589,20 +597,20 @@ const MESSAGE_SAMPLES: Record<string, unknown[]> = {
   "scale.newWax": ["1000.0 g"],
   "backup.lastBackup": ["3 days ago", 4],
   "backup.exportedLine": ["Nov 14, 14:05", 12, 31],
-  "backup.previewAdd": [{ formulas: 9, formulaVersions: 22, materials: 14, measurements: 0 }],
-  "backup.previewAlreadyHere": [{ formulas: 3, formulaVersions: 9, materials: 0, measurements: 0 }],
-  "backup.previewConflicts": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0 }],
-  "backup.previewReplace": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1 }],
+  "backup.previewAdd": [{ formulas: 9, formulaVersions: 22, materials: 14, measurements: 0, batches: 0 }],
+  "backup.previewAlreadyHere": [{ formulas: 3, formulaVersions: 9, materials: 0, measurements: 0, batches: 0 }],
+  "backup.previewConflicts": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0 }],
+  "backup.previewReplace": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0 }],
   "backup.previewVersionConflicts": [2],
   "backup.previewRenumbered": [1],
   "backup.previewMissingMaterials": [3],
-  "backup.replaceAffects": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1 }],
-  "backup.replacedSentence": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0 }],
+  "backup.replaceAffects": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0 }],
+  "backup.replacedSentence": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0 }],
   "backup.renumberedSentence": ["Lavender Vanilla", 3, 4],
   "backup.renumberedMany": [5],
   "backup.replaceSummary": [
     "candlelab-backup-20261114-140512.json",
-    { formulas: 2, formulaVersions: 3, materials: 7, measurements: 1 },
+    { formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0 },
   ],
 };
 
