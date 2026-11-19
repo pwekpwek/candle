@@ -169,13 +169,71 @@ export type Batch = {
   updatedAt: string;
 };
 
-/** The exported stores, in dependency order. `batches` was added in v0.2. */
+export type CureMilestoneKind = "cureEnd" | "burnTest" | "check";
+
+/**
+ * One scheduled point in a batch's cure plan (v0.2, CurePilot). Its due date
+ * is never stored: it is the batch's `producedOn` plus `offsetDays`, so moving
+ * the production date moves every open milestone. `doneOn` stays as marked.
+ */
+export type CureMilestone = {
+  /** UUID, stable inside its plan. */
+  id: string;
+  /** `cureEnd` is the end of the cure time (at most one per plan). */
+  kind: CureMilestoneKind;
+  /** 1–60 characters after trimming. Optional; the screens require it for `check`. */
+  label?: string;
+  /** Whole days after the production date, 0–365. */
+  offsetDays: number;
+  /** Local calendar date (YYYY-MM-DD) the maker marked it done, or null. */
+  doneOn: string | null;
+};
+
+/**
+ * Store `curePlans` (v0.2, CurePilot). A batch's curing schedule. `id` IS the
+ * batch's id, so a batch has at most one plan. Scheduling information only.
+ */
+export type CurePlan = {
+  /** The batch this plan belongs to (= Batch.id). */
+  id: string;
+  /** 1–20 milestones, unique ids, at most one `cureEnd`. */
+  milestones: CureMilestone[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * Store `productionPlans` (v0.2, CurePilot). A planned production run of one
+ * saved version. Not a batch: "Create batch" from it makes the batch and sets
+ * `batchId` in the same transaction. `formulaId` and `versionId` never change.
+ */
+export type ProductionPlan = {
+  id: string;
+  formulaId: string;
+  versionId: string;
+  /** Planned date (YYYY-MM-DD), local calendar. Any date. */
+  plannedOn: string;
+  /** 1–40 characters after trimming. Optional. */
+  label?: string;
+  notes?: string;
+  /** The batch made from this entry, or null while it is open. */
+  batchId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * The exported stores, in dependency order. `batches` was added in v0.2
+ * (format 2); `curePlans` and `productionPlans` in v0.2 CurePilot (format 3).
+ */
 export const DATA_STORES = [
   "materials",
   "formulas",
   "formulaVersions",
   "measurements",
   "batches",
+  "curePlans",
+  "productionPlans",
 ] as const;
 export type DataStoreName = (typeof DATA_STORES)[number];
 
@@ -185,19 +243,32 @@ export type BackupData = {
   formulaVersions: FormulaVersion[];
   measurements: Measurement[];
   batches: Batch[];
+  curePlans: CurePlan[];
+  productionPlans: ProductionPlan[];
 };
 
 export type BackupCounts = Record<DataStoreName, number>;
 
 export const BACKUP_FORMAT = "candlelab-backup" as const;
-/** 2 since v0.2 (adds `batches`). Format 1 files are migrated on restore. */
-export const BACKUP_FORMAT_VERSION = 2 as const;
-/** IndexedDB schema. 2 since v0.2 (adds the `batches` store). */
-export const SCHEMA_VERSION = 2 as const;
+/**
+ * 3 since v0.2 CurePilot (adds `curePlans`, `productionPlans`); 2 added
+ * `batches`. Format 1 and 2 files are migrated on restore.
+ */
+export const BACKUP_FORMAT_VERSION = 3 as const;
+/** IndexedDB schema. 3 since v0.2 CurePilot; 2 added the `batches` store. */
+export const SCHEMA_VERSION = 3 as const;
 export const CALC_VERSION = 1 as const;
 export const APP_VERSION = "0.2.0" as const;
 /** Longest batch label after trimming. */
 export const MAX_BATCH_LABEL_LENGTH = 40 as const;
+/** Longest production entry label after trimming (same as a batch label). */
+export const MAX_PRODUCTION_LABEL_LENGTH = 40 as const;
+/** Longest milestone label after trimming. */
+export const MAX_MILESTONE_LABEL_LENGTH = 60 as const;
+/** Most milestones in one cure plan. */
+export const MAX_MILESTONES = 20 as const;
+/** Largest milestone offset, in days after the production date. */
+export const MAX_OFFSET_DAYS = 365 as const;
 export const DB_NAME = "candlelab" as const;
 
 /** The backup file (docs/specs/4 Data Model.md, "Backup file"). */

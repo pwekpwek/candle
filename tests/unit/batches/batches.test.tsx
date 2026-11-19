@@ -51,6 +51,8 @@ beforeEach(async () => {
     db.formulaVersions.clear(),
     db.measurements.clear(),
     db.batches.clear(),
+    db.curePlans.clear(),
+    db.productionPlans.clear(),
     db.drafts.clear(),
     db.meta.clear(),
   ]);
@@ -87,12 +89,13 @@ function tomorrow(): string {
 }
 
 describe("navigation", () => {
-  it("has Batches between Formulas and Materials", () => {
+  it("has Batches second, then Schedule, then Materials", () => {
     const labels = NAV_ITEMS.map((i) => i.label);
     expect(labels.indexOf(MESSAGES.app.navBatches)).toBe(1);
     expect(labels[0]).toBe(MESSAGES.app.navFormulas);
-    expect(labels[2]).toBe(MESSAGES.app.navMaterials);
-    expect(NAV_ITEMS).toHaveLength(4);
+    expect(labels[2]).toBe(MESSAGES.app.navSchedule);
+    expect(labels[3]).toBe(MESSAGES.app.navMaterials);
+    expect(NAV_ITEMS).toHaveLength(5);
   });
 
   it("marks Batches current for /batches/*, and not Formulas", () => {
@@ -223,7 +226,10 @@ describe("batch page", () => {
     render(<BatchDetail batchId={s.batch.id} />);
     fireEvent.click(await screen.findByRole("button", { name: B.deleteBatch }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: B.deleteConfirm }));
+    // The button is enabled once the dialog has read what else goes with the batch.
+    const confirm = within(dialog).getByRole("button", { name: B.deleteConfirm });
+    await waitFor(() => expect(confirm).toBeEnabled());
+    fireEvent.click(confirm);
     await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/batches"));
     expect(await layer().batches.get(s.batch.id)).toBeUndefined();
   });

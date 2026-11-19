@@ -282,6 +282,17 @@ export function messageForCheckFailure(failure: CheckFailure): string {
           `${countOf(failure.batches, "batch", "batches")} ${failure.batches === 1 ? "refers" : "refer"} to a missing version`,
         );
       }
+      // Cure plan and planned production clauses WRITTEN HERE (v0.2 CurePilot).
+      if (failure.curePlans > 0) {
+        parts.push(
+          `${countOf(failure.curePlans, "cure plan")} ${failure.curePlans === 1 ? "refers" : "refer"} to a missing batch`,
+        );
+      }
+      if (failure.productionPlans > 0) {
+        parts.push(
+          `${countOf(failure.productionPlans, "planned production entry", "planned production entries")} ${failure.productionPlans === 1 ? "refers" : "refer"} to a missing version or batch`,
+        );
+      }
       return `This backup is incomplete: ${parts.join(" and ")}.`;
     }
     default:
@@ -300,6 +311,9 @@ const SUMMARY_ORDER: readonly {
   { key: "materials", singular: "material", plural: "materials" },
   { key: "measurements", singular: "measurement", plural: "measurements" },
   { key: "batches", singular: "batch", plural: "batches" },
+  // WRITTEN HERE (v0.2 CurePilot).
+  { key: "curePlans", singular: "cure plan", plural: "cure plans" },
+  { key: "productionPlans", singular: "planned production entry", plural: "planned production entries" },
 ];
 
 function countsList(counts: BackupCounts): string[] {
@@ -354,6 +368,9 @@ export const MESSAGES = {
     navMaterials: "Materials",
     /** v0.2. WRITTEN HERE. */
     navBatches: "Batches",
+    /** v0.2 CurePilot. WRITTEN HERE (v0.2 CurePilot). The count is the items overdue or due today. */
+    navSchedule: "Schedule",
+    navScheduleCount: (count: number) => `Schedule, ${count} due or overdue`,
     navBackup: "Backup and restore",
     /** Phone bottom bar (spec 3 phone wireframe: "Formulas  Materials  Backup"). The link keeps the full name for screen readers. */
     navBackupShort: "Backup",
@@ -682,6 +699,29 @@ export const MESSAGES = {
     deleteConfirm: "Delete batch",
     deleteKeep: "Keep batch",
     deleteFailed: "The batch was not deleted. Try again.",
+    // WRITTEN HERE (v0.2 CurePilot): what else goes with a batch.
+    deleteChecking: "Checking what goes with this batch…",
+    deleteCureNote: (milestones: number) =>
+      `Its cure plan, with ${countOf(milestones, "milestone")}, is deleted too.`,
+    deletePlanNote: "The planned production entry it came from becomes open again.",
+
+    // WRITTEN HERE (v0.2 CurePilot): Create batch from a planned production entry.
+    planNoticeTitle: "From planned production.",
+    planNotice: (what: string, date: string) =>
+      `This batch is made from the entry ${what}, planned for ${date}. Saving links them.`,
+    planAlreadyTitle: "This entry already has a batch.",
+    planAlreadyBody: "A planned production entry can make one batch.",
+    planOpenBatch: "Open the batch",
+    planOpenEntry: "Open the entry",
+    planOtherVersionTitle: "This entry is for another version.",
+    planOtherVersionBody:
+      "The entry names a different version of the formula than the one in this link, so a batch cannot be made from it here.",
+    planGoneTitle: "Planned production not found",
+    planGoneBody: "It may have been deleted, or the link may be wrong.",
+    planCreateInvalid:
+      "The batch was not saved. The planned production entry already has a batch, or is for another version.",
+    planCreateGone: "The batch was not saved. The planned production entry no longer exists.",
+    planCheckFailed: "The planned production entry could not be checked. Try again.",
 
     // On the formula page
     formulaCreateBatch: "Create batch",
@@ -694,6 +734,160 @@ export const MESSAGES = {
     formulaDeleteRefused: (count: number) =>
       `This formula has ${countOf(count, "batch", "batches")}, so it can't be deleted. Batches keep a link to the version they were made from. Delete those batches first, or archive the formula.`,
     formulaDeleteClose: "Close",
+    // WRITTEN HERE (v0.2 CurePilot)
+    formulaDeletePlans: (count: number) =>
+      `Its ${countOf(count, "planned production entry", "planned production entries")} will be deleted too.`,
+  },
+
+  /**
+   * CurePilot (v0.2): cure plans, planned production and the Schedule page.
+   * Scheduling information only: dates the maker chose, never a statement that
+   * a candle is cured, ready or finished. Every string is WRITTEN HERE
+   * (v0.2 CurePilot) for owner review.
+   */
+  schedule: {
+    // WRITTEN HERE (v0.2 CurePilot): the Curing section on the batch page
+    curingHeading: "Curing",
+    curingEmpty:
+      "Set a cure time and dates for burn tests. They show on the Schedule page as reminders for the dates you choose.",
+    addCurePlan: "Add cure plan",
+    editCurePlan: "Edit cure plan",
+    removeCurePlan: "Remove cure plan",
+    curingLoadFailed: "The cure plan could not be loaded.",
+    curingDatesLabel: "Cure plan dates",
+    cureTime: (days: number) => `Cure time: ${countOf(days, "day")}`,
+    noCureTime: "No cure time set.",
+    plannedCureEnd: (date: string) => `Planned cure end: ${date}`,
+    kindName: {
+      cureEnd: "Planned cure end",
+      burnTest: "Planned burn test",
+      check: "Milestone",
+    },
+    dueOn: (date: string) => `Due ${date}`,
+    stateOverdue: "Overdue",
+    stateDue: "Due today",
+    stateUpcoming: "Upcoming",
+    stateDone: (date: string) => `Done on ${date}`,
+    markDone: "Mark done",
+    markNotDone: "Mark not done",
+    markDoneFor: (what: string) => `Mark done: ${what}`,
+    markNotDoneFor: (what: string) => `Mark not done: ${what}`,
+    markFailed: "The change was not saved. Try again.",
+    cureSavedNotice: "Cure plan saved",
+    removeTitle: "Remove this cure plan?",
+    removeBody: (milestones: number) =>
+      `This removes the cure plan and its ${countOf(milestones, "milestone")} from this batch. The batch is not changed. This cannot be undone.`,
+    removeConfirm: "Remove cure plan",
+    removeKeep: "Keep cure plan",
+    removeFailed: "The cure plan was not removed. Try again.",
+
+    // WRITTEN HERE (v0.2 CurePilot): the cure-plan editor
+    editorAddTitle: "Add cure plan",
+    editorEditTitle: "Edit cure plan",
+    editorLoading: "Loading cure plan…",
+    editorDescription: (title: string, producedOn: string) =>
+      `For ${title}, produced ${producedOn}. Dates are counted in days from the production date.`,
+    backToBatch: "Back to batch",
+    cureTimeLabel: "Cure time (days)",
+    cureTimeHint: "Whole days, 0 to 365. Leave empty to set no cure time.",
+    milestonesHeading: "Burn tests and other dates",
+    addBurnTest: "Add burn test",
+    addOther: "Add other milestone",
+    rowGroup: (n: number) => `Milestone ${n}`,
+    kindLabel: "Type",
+    kindOptionBurnTest: "Burn test",
+    kindOptionCheck: "Other",
+    labelOptional: "Label (optional)",
+    labelRequired: "Label",
+    offsetLabel: "Days after production",
+    removeRow: "Remove",
+    removeRowFor: (n: number) => `Remove milestone ${n}`,
+    limitReached: (max: number) =>
+      `A plan can have up to ${max} dates, including the cure time.`,
+    cureSave: "Save cure plan",
+    cureSaving: "Saving cure plan",
+    cancel: "Cancel",
+    errDaysWhole: "Enter a whole number of days.",
+    errDaysRange: "Use 0 to 365 days.",
+    errDaysRequired: "Enter the number of days.",
+    errLabelRequired: "Enter a label for this milestone.",
+    errLabelTooLong: "Use 60 characters or fewer.",
+    errPlanEmpty: "Add a cure time, a burn test or another milestone.",
+    errTooMany: (max: number) =>
+      `A plan can have at most ${max} dates, including the cure time.`,
+    cureSaveFailed:
+      "The cure plan was not saved. Your entries are still in the form. Try again.",
+    cureSaveInvalid: "The cure plan was not saved. Check the days and labels.",
+    cureBatchGone: "This batch was deleted, so the cure plan could not be saved.",
+
+    // WRITTEN HERE (v0.2 CurePilot): planned production
+    planProduction: "Plan production",
+    planCreateTitle: "Plan production",
+    planCreateDescription:
+      "Pick a date to make one saved version. This is a reminder, not a batch.",
+    planViewTitle: "Planned production",
+    planLoading: "Loading planned production…",
+    planSourceHeading: "Planned for",
+    plannedOnLabel: "Planned date",
+    plannedOnRequired: "Enter the planned date.",
+    plannedOnInvalid: "Enter a valid date.",
+    planLabelLabel: "Label (optional)",
+    planLabelHint: "Your own name for this run, up to 40 characters.",
+    planLabelTooLong: "Use 40 characters or fewer.",
+    planNotesLabel: "Notes (optional)",
+    planSave: "Save planned production",
+    planSaving: "Saving planned production",
+    planSaveChanges: "Save changes",
+    planSavingChanges: "Saving changes",
+    planCreateFailed:
+      "The planned production was not saved. Your entries are still in the form. Try again.",
+    planSaveFailed: "The changes were not saved. Your entries are still in the form. Try again.",
+    planSavedNotice: "Planned production saved",
+    planChangesSaved: "Changes saved",
+    planOpenLine: "No batch made from this entry yet.",
+    planCreateBatch: "Create batch",
+    planBatchMade: "Batch made from this entry:",
+    planProducedOn: (date: string) => `produced ${date}`,
+    planDelete: "Delete entry",
+    planDeleteTitle: "Delete this planned production?",
+    planDeleteBody: (hasBatch: boolean) =>
+      hasBatch
+        ? "This removes the entry only. The batch made from it is not changed. This cannot be undone."
+        : "This removes the entry. Nothing else is changed. This cannot be undone.",
+    planDeleteConfirm: "Delete entry",
+    planDeleteKeep: "Keep entry",
+    planDeleteFailed: "The entry was not deleted. Try again.",
+    planNotFoundTitle: "Planned production not found",
+    planNotFoundBody:
+      "It may have been deleted, or the link may be wrong. Your formulas and batches are not affected.",
+    planSourceNotFoundBody:
+      "A planned production is for one saved formula version. This version may have been deleted, or the link may be wrong.",
+    backToSchedule: "Back to schedule",
+    formulaPlansHeading: "Planned production",
+    formulaPlansLoadFailed: "Planned production could not be loaded.",
+    formulaPlanRow: (version: number) => `version ${version}`,
+
+    // WRITTEN HERE (v0.2 CurePilot): the Schedule page
+    title: "Schedule",
+    description: "Dates you set for cure times, burn tests and planned production.",
+    loading: "Loading schedule…",
+    loadFailedTitle: "The schedule could not be loaded.",
+    loadFailed: "Your data is still on this device. Try again.",
+    tryAgain: "Try again",
+    emptyTitle: "Nothing scheduled yet",
+    emptyDescription:
+      "Add a cure plan from a batch, or plan production from a formula. The dates you set show up here.",
+    emptyBatches: "Go to batches",
+    emptyFormulas: "Go to saved formulas",
+    groupOverdue: "Overdue",
+    groupDue: "Due today",
+    groupUpcoming: "Upcoming",
+    groupDone: "Done",
+    doneLimited: (shown: number) => `Showing the ${shown} most recent.`,
+    productionTitle: "Planned production",
+    productionDate: (date: string) => `Planned ${date}`,
+    versionOf: (name: string, version: number) => `${name}, version ${version}`,
+    rowFailed: "The change was not saved. Try again.",
   },
 
   /** Scale dialog (F5). */

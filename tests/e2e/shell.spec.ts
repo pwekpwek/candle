@@ -5,6 +5,7 @@ const TOP_LEVEL = [
   { name: "Materials", path: "/materials", heading: "Materials" },
   { name: "Backup and restore", path: "/backup", heading: "Backup and restore" },
   { name: "Batches", path: "/batches", heading: "Batches" },
+  { name: "Schedule", path: "/schedule", heading: "Schedule" },
 ] as const;
 
 const ALL_ROUTES = [
@@ -15,6 +16,10 @@ const ALL_ROUTES = [
   "/formulas/abc/revise",
   "/materials",
   "/backup",
+  "/schedule",
+  "/schedule/plan/new",
+  "/schedule/plan/abc",
+  "/batches/abc/cure-plan",
 ];
 
 async function expectOnlyCurrent(page: Page, currentName: string) {
@@ -49,7 +54,7 @@ test.describe("desktop (1280px)", () => {
     await expect(page.getByText("CandleLab Studio", { exact: true })).toBeVisible();
     await expectOnlyCurrent(page, "Formulas");
 
-    for (const item of [TOP_LEVEL[1], TOP_LEVEL[2], TOP_LEVEL[3], TOP_LEVEL[0]]) {
+    for (const item of [TOP_LEVEL[1], TOP_LEVEL[2], TOP_LEVEL[3], TOP_LEVEL[4], TOP_LEVEL[0]]) {
       await nav.getByRole("link", { name: item.name }).click();
       await expect(page).toHaveURL(item.path);
       await expect(
@@ -141,7 +146,7 @@ test.describe("phone (375px)", () => {
     await expect(page.locator("aside")).toBeHidden();
     await expectOnlyCurrent(page, "Formulas");
 
-    for (const item of [TOP_LEVEL[1], TOP_LEVEL[2], TOP_LEVEL[3], TOP_LEVEL[0]]) {
+    for (const item of [TOP_LEVEL[1], TOP_LEVEL[2], TOP_LEVEL[3], TOP_LEVEL[4], TOP_LEVEL[0]]) {
       await nav.getByRole("link", { name: item.name }).click();
       await expect(page).toHaveURL(item.path);
       await expect(

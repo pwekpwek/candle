@@ -50,21 +50,34 @@ export const exportBackup: ExportBackup = async (db, options) => {
   const data: BackupData = await guard(() =>
     db.transaction(
       "r",
-      [db.materials, db.formulas, db.formulaVersions, db.measurements, db.batches],
+      [
+        db.materials,
+        db.formulas,
+        db.formulaVersions,
+        db.measurements,
+        db.batches,
+        db.curePlans,
+        db.productionPlans,
+      ],
       async () => {
-        const [materials, formulas, formulaVersions, measurements, batches] = await Promise.all([
-          db.materials.toArray(),
-          db.formulas.toArray(),
-          db.formulaVersions.toArray(),
-          db.measurements.toArray(),
-          db.batches.toArray(),
-        ]);
+        const [materials, formulas, formulaVersions, measurements, batches, curePlans, productionPlans] =
+          await Promise.all([
+            db.materials.toArray(),
+            db.formulas.toArray(),
+            db.formulaVersions.toArray(),
+            db.measurements.toArray(),
+            db.batches.toArray(),
+            db.curePlans.toArray(),
+            db.productionPlans.toArray(),
+          ]);
         return {
           materials: byId(materials),
           formulas: byId(formulas),
           formulaVersions: byId(formulaVersions),
           measurements: byId(measurements),
           batches: byId(batches),
+          curePlans: byId(curePlans),
+          productionPlans: byId(productionPlans),
         };
       },
     ),
@@ -77,6 +90,8 @@ export const exportBackup: ExportBackup = async (db, options) => {
     formulaVersions: data.formulaVersions.length,
     measurements: data.measurements.length,
     batches: data.batches.length,
+    curePlans: data.curePlans.length,
+    productionPlans: data.productionPlans.length,
   };
   // Hashing happens outside any Dexie transaction.
   const checksum = { algorithm: "SHA-256" as const, value: await sha256Hex(canonicalJson(data)) };

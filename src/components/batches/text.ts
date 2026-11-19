@@ -1,3 +1,4 @@
+import { isLocalDate, todayLocal } from "@/lib/schedule";
 import { MESSAGES } from "@/lib/messages";
 import type { Batch, FormulaVersion } from "@/lib/types";
 
@@ -9,21 +10,14 @@ export function batchTitle(batch: Pick<Batch, "id" | "label">): string {
   return label ? label : B.defaultTitle(batch.id.slice(0, 8).toUpperCase());
 }
 
-/** The device's local today as YYYY-MM-DD, from local date parts (never toISOString). */
+/** The device's local today as YYYY-MM-DD. One implementation: `todayLocal` in `@/lib/schedule`. */
 export function localToday(now: Date = new Date()): string {
-  const y = String(now.getFullYear()).padStart(4, "0");
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return todayLocal(now);
 }
 
-/** True for a real calendar date written YYYY-MM-DD. */
+/** True for a real calendar date written YYYY-MM-DD. One implementation: `isLocalDate`. */
 export function isRealDate(value: string): boolean {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return false;
-  const [y, m, d] = [Number(match[1]), Number(match[2]), Number(match[3])];
-  const date = new Date(Date.UTC(y, m - 1, d));
-  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+  return isLocalDate(value);
 }
 
 /** "Nov 18, 2026" for a stored YYYY-MM-DD. The calendar date is shown as written, in any time zone. */

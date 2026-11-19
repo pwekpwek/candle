@@ -18,7 +18,7 @@ function byId<T extends { id: string }>(rows: T[]): T[] {
 }
 
 /**
- * Reads the four stores, each sorted by id. Only Dexie operations are awaited,
+ * Reads the data stores, each sorted by id. Only Dexie operations are awaited,
  * so it is safe to call inside any transaction that includes these stores.
  */
 async function readStores(db: CandleDatabase): Promise<DeviceData> {
@@ -27,30 +27,42 @@ async function readStores(db: CandleDatabase): Promise<DeviceData> {
   const formulaVersions = await db.formulaVersions.toArray();
   const measurements = await db.measurements.toArray();
   const batches = await db.batches.toArray();
+  const curePlans = await db.curePlans.toArray();
+  const productionPlans = await db.productionPlans.toArray();
   return {
     materials: byId(materials),
     formulas: byId(formulas),
     formulaVersions: byId(formulaVersions),
     measurements: byId(measurements),
     batches: byId(batches),
+    curePlans: byId(curePlans),
+    productionPlans: byId(productionPlans),
   };
 }
 
-/** One read-only transaction over the five data stores. Failures are DataError("storage"). */
+/** Every data store, for transaction scopes. */
+function dataTables(db: CandleDatabase) {
+  return [
+    db.materials,
+    db.formulas,
+    db.formulaVersions,
+    db.measurements,
+    db.batches,
+    db.curePlans,
+    db.productionPlans,
+  ];
+}
+
+/** One read-only transaction over the data stores. Failures are DataError("storage"). */
 export const readDeviceData: ReadDeviceData = (db) =>
-  guard(() =>
-    db.transaction(
-      "r",
-      [db.materials, db.formulas, db.formulaVersions, db.measurements, db.batches],
-      () => readStores(db),
-    ),
-  );
+  guard(() => db.transaction("r", dataTables(db), () => readStores(db)));
 
 /** The ids already on the device, for `checkBackupText`. */
 export function deviceIdsOf(device: DeviceData): DeviceIds {
   return {
     formulaIds: new Set(device.formulas.map((formula) => formula.id)),
     versionIds: new Set(device.formulaVersions.map((version) => version.id)),
+    batchIds: new Set(device.batches.map((batch) => batch.id)),
   };
 }
 
@@ -114,7 +126,7 @@ export const applyRestore: ApplyRestore = async (db, plan, options = {}) => {
     try {
       await db.transaction(
         "rw",
-        [db.materials, db.formulas, db.formulaVersions, db.measurements, db.batches, db.meta],
+        [...dataTables(db), db.meta],
         async () => {
           const fresh = await readStores(db);
           staleCheck(plan, fresh, options.safetyBackup?.envelope.data);
@@ -125,6 +137,8 @@ export const applyRestore: ApplyRestore = async (db, plan, options = {}) => {
             await db.formulaVersions.clear();
             await db.measurements.clear();
             await db.batches.clear();
+            await db.curePlans.clear();
+            await db.productionPlans.clear();
           }
           for (const store of DATA_STORES) {
             await writeStore(db, store, plan);
@@ -184,16 +198,25 @@ async function writeStore(db: CandleDatabase, store: DataStoreName, plan: Restor
     case "batches":
       await db.batches.bulkPut(plan.puts.batches);
       return;
+    case "curePlans":
+      await db.curePlans.bulkPut(plan.puts.curePlans);
+      return;
+    case "productionPlans":
+      await db.productionPlans.bulkPut(plan.puts.productionPlans);
+      return;
   }
 }
 
 async function readCounts(db: CandleDatabase): Promise<BackupCounts> {
-  const [materials, formulas, formulaVersions, measurements, batches] = await Promise.all([
-    db.materials.count(),
-    db.formulas.count(),
-    db.formulaVersions.count(),
-    db.measurements.count(),
-    db.batches.count(),
-  ]);
-  return { materials, formulas, formulaVersions, measurements, batches };
+  const [materials, formulas, formulaVersions, measurements, batches, curePlans, productionPlans] =
+    await Promise.all([
+      db.materials.count(),
+      db.formulas.count(),
+      db.formulaVersions.count(),
+      db.measurements.count(),
+      db.batches.count(),
+      db.curePlans.count(),
+      db.productionPlans.count(),
+    ]);
+  return { materials, formulas, formulaVersions, measurements, batches, curePlans, productionPlans };
 }

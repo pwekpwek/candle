@@ -10,11 +10,14 @@ import type {
   BackupEnvelope,
   Batch,
   Component,
+  CureMilestone,
+  CurePlan,
   Formula,
   FormulaVersion,
   Material,
   MaterialSnapshot,
   Measurement,
+  ProductionPlan,
   Sizing,
   VersionInputs,
   VersionTargets,
@@ -24,6 +27,7 @@ import type { BackupCountsSchema, BackupDataSchema, BackupEnvelopeSchema } from 
 import type { FormulaSchema } from "./formula";
 import type { MaterialSchema, MaterialSnapshotSchema } from "./material";
 import type { MeasurementSchema } from "./measurement";
+import type { CureMilestoneSchema, CurePlanSchema, ProductionPlanSchema } from "./schedule";
 import type {
   ComponentSchema,
   FormulaVersionSchema,
@@ -58,6 +62,12 @@ export type TypeChecks = [
   Assert<SameKeys<Out<typeof MeasurementSchema>, Measurement>>,
   Assert<Same<Out<typeof BatchSchema>, Batch>>,
   Assert<SameKeys<Out<typeof BatchSchema>, Batch>>,
+  Assert<Same<Out<typeof CureMilestoneSchema>, CureMilestone>>,
+  Assert<SameKeys<Out<typeof CureMilestoneSchema>, CureMilestone>>,
+  Assert<Same<Out<typeof CurePlanSchema>, CurePlan>>,
+  Assert<SameKeys<Out<typeof CurePlanSchema>, CurePlan>>,
+  Assert<Same<Out<typeof ProductionPlanSchema>, ProductionPlan>>,
+  Assert<SameKeys<Out<typeof ProductionPlanSchema>, ProductionPlan>>,
   Assert<Same<Out<typeof BackupCountsSchema>, BackupCounts>>,
   Assert<Same<Out<typeof BackupDataSchema>, BackupData>>,
   Assert<SameKeys<Out<typeof BackupDataSchema>, BackupData>>,

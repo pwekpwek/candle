@@ -1,10 +1,12 @@
 import { z } from "zod";
 import {
   BatchSchema,
+  CurePlanSchema,
   FormulaSchema,
   FormulaVersionSchema,
   MaterialSchema,
   MeasurementSchema,
+  ProductionPlanSchema,
   TimestampSchema,
 } from "@/lib/schemas";
 import { BACKUP_FORMAT, BACKUP_FORMAT_VERSION, DATA_STORES } from "@/lib/types";
@@ -14,7 +16,7 @@ import { MAX_BACKUP_BYTES } from "./contract";
 import type { CheckBackupText, CheckFailure, CheckResult } from "./contract";
 
 /**
- * The envelope's own shape. `data` is only checked to hold four arrays here;
+ * The envelope's own shape. `data` is only checked to hold its format's arrays here;
  * each record is validated against its own schema afterwards. The checksum is
  * kept loose on purpose: a wrong algorithm or value is a "checksum" failure
  * (Step 1, fifth check), not a schema failure.
@@ -47,17 +49,42 @@ const EnvelopeShapeV1Schema = z.strictObject({
   data: z.strictObject(V1_DATA),
 });
 
-/** Format 2 (v0.2): adds `batches`. */
+/** Format 2 (v0.2 BatchTrace): adds `batches`. */
 const EnvelopeShapeV2Schema = z.strictObject({
   ...ENVELOPE_FIELDS,
   counts: z.strictObject({ ...V1_COUNTS, batches: z.int().min(0) }),
   data: z.strictObject({ ...V1_DATA, batches: z.array(z.unknown()) }),
 });
 
+/** Format 3 (v0.2 CurePilot): adds `curePlans` and `productionPlans`. */
+const EnvelopeShapeV3Schema = z.strictObject({
+  ...ENVELOPE_FIELDS,
+  counts: z.strictObject({
+    ...V1_COUNTS,
+    batches: z.int().min(0),
+    curePlans: z.int().min(0),
+    productionPlans: z.int().min(0),
+  }),
+  data: z.strictObject({
+    ...V1_DATA,
+    batches: z.array(z.unknown()),
+    curePlans: z.array(z.unknown()),
+    productionPlans: z.array(z.unknown()),
+  }),
+});
+
+/** The envelope shape of each format this app reads. */
+const SHAPE_FOR_FORMAT = {
+  1: EnvelopeShapeV1Schema,
+  2: EnvelopeShapeV2Schema,
+  3: EnvelopeShapeV3Schema,
+} as const;
+
 /** The stores each format holds. */
 const STORES_IN_FORMAT: Record<number, readonly DataStoreName[]> = {
   1: ["materials", "formulas", "formulaVersions", "measurements"],
-  2: DATA_STORES,
+  2: ["materials", "formulas", "formulaVersions", "measurements", "batches"],
+  3: DATA_STORES,
 };
 
 const RECORD_SCHEMAS = {
@@ -66,6 +93,8 @@ const RECORD_SCHEMAS = {
   formulaVersions: FormulaVersionSchema,
   measurements: MeasurementSchema,
   batches: BatchSchema,
+  curePlans: CurePlanSchema,
+  productionPlans: ProductionPlanSchema,
 } as const;
 
 const RECORD_NOUNS: Record<DataStoreName, string> = {
@@ -74,6 +103,8 @@ const RECORD_NOUNS: Record<DataStoreName, string> = {
   formulaVersions: "formula version",
   measurements: "measurement",
   batches: "batch",
+  curePlans: "cure plan",
+  productionPlans: "planned production entry",
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -160,7 +191,7 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
   };
 
   const stores = STORES_IN_FORMAT[formatVersion]!;
-  const shapeSchema = formatVersion === 1 ? EnvelopeShapeV1Schema : EnvelopeShapeV2Schema;
+  const shapeSchema = SHAPE_FOR_FORMAT[formatVersion as keyof typeof SHAPE_FOR_FORMAT];
   const shape = shapeSchema.safeParse(parsed);
   if (!shape.success) note("backup file", describeIssue(shape.error.issues[0]!, parsed));
 
@@ -172,6 +203,8 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
     formulaVersions: [],
     measurements: [],
     batches: [],
+    curePlans: [],
+    productionPlans: [],
   };
   for (const store of stores) {
     const records: unknown = shape.success
@@ -188,7 +221,7 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
     return fail({ code: "invalid", count, firstLabel, firstProblem });
   }
 
-  // Format 1 has no batches: counted as 0 here (the in-memory migration).
+  // Stores an older format lacks are counted as 0 here (the in-memory migration).
   const fileCounts = shape.data.counts as Partial<BackupEnvelope["counts"]>;
   const envelope: BackupEnvelope = {
     format: BACKUP_FORMAT,
@@ -202,6 +235,8 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
       formulaVersions: fileCounts.formulaVersions ?? 0,
       measurements: fileCounts.measurements ?? 0,
       batches: fileCounts.batches ?? 0,
+      curePlans: fileCounts.curePlans ?? 0,
+      productionPlans: fileCounts.productionPlans ?? 0,
     },
     checksum: shape.data.checksum as BackupEnvelope["checksum"],
     data: valid as unknown as BackupData,
@@ -244,8 +279,24 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
     if (formulaOfVersion !== undefined) return formulaOfVersion !== batch.formulaId;
     return !device.versionIds.has(batch.versionId);
   }).length;
-  if (versions > 0 || measurements > 0 || batches > 0) {
-    return fail({ code: "orphans", versions, measurements, batches });
+  // CurePilot (format 3). A cure plan's id is its batch's id.
+  const fileBatchVersion = new Map(envelope.data.batches.map((batch) => [batch.id, batch.versionId]));
+  const batchKnown = (id: string) => fileBatchVersion.has(id) || device.batchIds.has(id);
+  const curePlans = envelope.data.curePlans.filter((plan) => !batchKnown(plan.id)).length;
+  const productionPlans = envelope.data.productionPlans.filter((entry) => {
+    const formulaOfVersion = fileVersionFormula.get(entry.versionId);
+    if (formulaOfVersion !== undefined) {
+      if (formulaOfVersion !== entry.formulaId) return true;
+    } else if (!device.versionIds.has(entry.versionId)) {
+      return true;
+    }
+    if (entry.batchId === null) return false;
+    const versionOfBatch = fileBatchVersion.get(entry.batchId);
+    if (versionOfBatch !== undefined) return versionOfBatch !== entry.versionId;
+    return !device.batchIds.has(entry.batchId);
+  }).length;
+  if (versions > 0 || measurements > 0 || batches > 0 || curePlans > 0 || productionPlans > 0) {
+    return fail({ code: "orphans", versions, measurements, batches, curePlans, productionPlans });
   }
 
   return { ok: true, envelope };

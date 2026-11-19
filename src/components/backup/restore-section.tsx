@@ -22,7 +22,7 @@ import type {
   RestorePlan,
 } from "@/lib/backup";
 import { MESSAGES, messageForCheckFailure, restoreSummary } from "@/lib/messages";
-import type { BackupCounts, BackupEnvelope } from "@/lib/types";
+import { DATA_STORES, type BackupCounts, type BackupEnvelope } from "@/lib/types";
 import { backupDatabase } from "./database";
 import { downloadText } from "./download";
 import { FocusRegion } from "./focus-region";
@@ -89,6 +89,8 @@ function deviceCountsOf(device: DeviceData): BackupCounts {
     formulaVersions: device.formulaVersions.length,
     measurements: device.measurements.length,
     batches: device.batches.length,
+    curePlans: device.curePlans.length,
+    productionPlans: device.productionPlans.length,
   };
 }
 
@@ -99,11 +101,12 @@ function tallyCounts(plan: RestorePlan, field: "identical" | "conflict"): Backup
     formulaVersions: plan.tally.formulaVersions[field],
     measurements: plan.tally.measurements[field],
     batches: plan.tally.batches[field],
+    curePlans: plan.tally.curePlans[field],
+    productionPlans: plan.tally.productionPlans[field],
   };
 }
 
-const total = (c: BackupCounts) =>
-  c.materials + c.formulas + c.formulaVersions + c.measurements + c.batches;
+const total = (c: BackupCounts) => DATA_STORES.reduce((sum, store) => sum + c[store], 0);
 
 /** The result sentences (PRD-26, Step 5), one per line. */
 function resultLines(plan: RestorePlan): string[] {

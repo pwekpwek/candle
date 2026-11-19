@@ -391,7 +391,7 @@ test("archived formula keeps batches; formula delete is refused until batches ar
   await expect(page.getByRole("heading", { level: 1, name: WE5.name })).toHaveCount(0);
 });
 
-test("backup format 2 round trip restores batches in a clean browser", async ({
+test("backup round trip restores batches in a clean browser", async ({
   page,
   browser,
 }, testInfo) => {
@@ -405,7 +405,8 @@ test("backup format 2 round trip restores batches in a clean browser", async ({
   const idB = await createBatch(page, { date: "2026-11-17", weights: { "Soy 464": "1000.5" } });
 
   const { file, backup } = await exportBackup(page, testInfo);
-  expect(backup.formatVersion).toBe(2);
+  // The app now writes format 3 (CurePilot); batches are unchanged by it.
+  expect(backup.formatVersion).toBe(3);
   expect(backup.data.batches).toHaveLength(2);
   expect(backup.counts).toMatchObject({ batches: 2, formulas: 1 });
   expect(backup.data.batches.map((b: { id: string }) => b.id).sort()).toEqual(

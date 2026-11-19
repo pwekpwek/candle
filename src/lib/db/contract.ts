@@ -18,7 +18,7 @@
  *
  * Rules every write follows:
  *   - DATA-13: each committed write to materials, formulas, formulaVersions,
- *     measurements or batches adds 1 to meta `changesSinceBackup`, inside the same
+ *     measurements, batches, curePlans or productionPlans adds 1 to meta `changesSinceBackup`, inside the same
  *     transaction as the write.
  *   - Timestamps come from the injected clock (`createDataLayer(db, { now })`),
  *     default `() => new Date().toISOString()`. IDs come from the injected
@@ -33,12 +33,15 @@ import type { EntityTable } from "dexie";
 import type { EditorFields, ValidatedFormulaInput } from "@/lib/gramguard/contract";
 import type {
   Batch,
+  CureMilestoneKind,
+  CurePlan,
   Formula,
   FormulaVersion,
   Material,
   MaterialType,
   Measurement,
   MeasurementEntry,
+  ProductionPlan,
   VersionOrigin,
   VersionScale,
   VesselDetails,
@@ -72,12 +75,15 @@ export interface DataErrorLike extends Error {
 export type MetaRow = { key: string; value: unknown };
 
 /**
- * The Dexie database. Stores and indexes (schema version 2; batches added in 2):
+ * The Dexie database. Stores and indexes (schema version 3; batches added in
+ * 2, curePlans and productionPlans in 3):
  *   materials        id, type, archivedAt
  *   formulas         id, updatedAt, archivedAt
  *   formulaVersions  id, formulaId, &[formulaId+number]
  *   measurements     id, versionId, formulaId
  *   batches          id, formulaId, versionId, producedOn
+ *   curePlans        id            (the batch id)
+ *   productionPlans  id, formulaId, versionId, plannedOn, batchId
  *   drafts           key
  *   meta             key
  */
@@ -87,6 +93,8 @@ export type CandleDatabase = Dexie & {
   formulaVersions: EntityTable<FormulaVersion, "id">;
   measurements: EntityTable<Measurement, "id">;
   batches: EntityTable<Batch, "id">;
+  curePlans: EntityTable<CurePlan, "id">;
+  productionPlans: EntityTable<ProductionPlan, "id">;
   drafts: EntityTable<Draft, "key">;
   meta: EntityTable<MetaRow, "key">;
 };
@@ -140,12 +148,19 @@ export type FormulasRepo = {
   /** PRD-17. Does not create a version. Name is validated as V-02. */
   updateDetails(id: string, details: { name: string; notes?: string }): Promise<Formula>;
   setArchived(id: string, archived: boolean): Promise<Formula>;
-  /** For the delete confirmation (D-8). `batches` > 0 means deletion is refused. */
-  deletionImpact(id: string): Promise<{ versions: number; measurements: number; batches: number }>;
   /**
-   * DATA-12: formula, versions, measurements and its draft, in one transaction.
-   * From v0.2 it throws DataError("in-use") and deletes nothing while any batch
-   * refers to the formula, so a batch never loses the version it was made from.
+   * For the delete confirmation (D-8). `batches` > 0 means deletion is refused.
+   * `productionPlans` (CurePilot) are the planned production entries that go
+   * with the formula.
+   */
+  deletionImpact(
+    id: string,
+  ): Promise<{ versions: number; measurements: number; batches: number; productionPlans: number }>;
+  /**
+   * DATA-12: formula, versions, measurements, its planned production entries
+   * (CurePilot) and its draft, in one transaction. From v0.2 it throws
+   * DataError("in-use") and deletes nothing while any batch refers to the
+   * formula, so a batch never loses the version it was made from.
    */
   deletePermanently(id: string): Promise<void>;
 };
@@ -250,6 +265,12 @@ export type CreateBatchRequest = BatchInput & {
   batchId: string;
   /** The saved version the batch is made from. Its formula is looked up. */
   versionId: string;
+  /**
+   * CurePilot: the planned production entry this batch is made from, if any.
+   * Its `batchId` is set in the same transaction. "not-found" if the entry is
+   * gone; "invalid" if it names another version or already has a batch.
+   */
+  productionPlanId?: string;
 };
 
 export type BatchListItem = {
@@ -274,8 +295,107 @@ export type BatchesRepo = {
   create(request: CreateBatchRequest): Promise<{ batch: Batch; created: boolean }>;
   /** Replaces the editable fields. `formulaId`, `versionId`, `id` and `createdAt` never change. */
   update(id: string, input: BatchInput): Promise<Batch>;
-  /** Removes one batch, after the maker confirmed. */
+  /** For the delete confirmation (CurePilot): what goes or changes with the batch. */
+  deletionImpact(id: string): Promise<{ milestones: number; productionPlans: number }>;
+  /**
+   * Removes one batch, after the maker confirmed. CurePilot: its cure plan is
+   * deleted in the same transaction, and a planned production entry that made
+   * it becomes open again (`batchId` back to null).
+   */
   delete(id: string): Promise<void>;
+};
+
+// ───────────────────────────── CurePilot (v0.2) ─────────────────────────────
+
+/** One milestone as the cure-plan editor sends it. */
+export type CureMilestoneInput = {
+  /**
+   * The id of a milestone already in the stored plan, to keep it (its
+   * `doneOn` is kept from storage). Absent for a new milestone, which gets a
+   * fresh id and starts open.
+   */
+  id?: string;
+  kind: CureMilestoneKind;
+  /** Trimmed; blank means no label. At most 60 characters after trimming. */
+  label?: string;
+  /** Whole days after the production date, 0 to 365. */
+  offsetDays: number;
+};
+
+export type CurePlansRepo = {
+  /** The batch's plan, or undefined when it has none. */
+  get(batchId: string): Promise<CurePlan | undefined>;
+  /**
+   * Creates or replaces the batch's plan with these 1 to 20 milestones. One
+   * transaction over curePlans, batches and meta. "not-found" if the batch is
+   * missing; "invalid" for an unknown or repeated milestone id, more than one
+   * cure end, or a bad offset or label. Marking done is not done here.
+   */
+  save(batchId: string, milestones: CureMilestoneInput[]): Promise<CurePlan>;
+  /**
+   * Marks one milestone done on `doneOn` (YYYY-MM-DD, the maker's local date)
+   * or open again (null). Writes nothing when it is already in that state.
+   */
+  setMilestoneDone(batchId: string, milestoneId: string, doneOn: string | null): Promise<CurePlan>;
+  /** Removes the plan. "not-found" when the batch has none. */
+  delete(batchId: string): Promise<void>;
+};
+
+/** What the maker can set on a planned production entry. */
+export type ProductionPlanInput = {
+  /** YYYY-MM-DD. Required. Any date. */
+  plannedOn: string;
+  /** Trimmed; blank means no label. At most 40 characters after trimming. */
+  label?: string;
+  /** Trimmed; blank means no notes. */
+  notes?: string;
+};
+
+export type CreateProductionPlanRequest = ProductionPlanInput & {
+  /** Chosen by the caller and reused on retry: an existing id writes nothing. */
+  planId: string;
+  /** The saved version to make. Its formula is looked up. */
+  versionId: string;
+};
+
+export type ProductionPlanListItem = {
+  plan: ProductionPlan;
+  formula: Formula;
+  version: FormulaVersion;
+  /** The batch made from it, or null while open. */
+  batch: Batch | null;
+};
+
+export type ProductionPlansRepo = {
+  /** Every entry with its formula, version and batch, earliest `plannedOn` first. */
+  list(): Promise<ProductionPlanListItem[]>;
+  /** Entries for one formula, same order. */
+  listByFormula(formulaId: string): Promise<ProductionPlan[]>;
+  get(id: string): Promise<ProductionPlanListItem | undefined>;
+  /** "not-found" if the version (or its formula) is missing; "invalid" for a bad date or label. */
+  create(request: CreateProductionPlanRequest): Promise<{ plan: ProductionPlan; created: boolean }>;
+  /** Replaces the editable fields. `formulaId`, `versionId` and `batchId` never change here. */
+  update(id: string, input: ProductionPlanInput): Promise<ProductionPlan>;
+  /** Removes the entry only. A batch made from it is untouched. */
+  delete(id: string): Promise<void>;
+};
+
+export type CureScheduleItem = {
+  plan: CurePlan;
+  batch: Batch;
+  formula: Formula;
+  version: FormulaVersion;
+};
+
+/** Everything the Schedule page and the nav count need, read in one transaction. */
+export type ScheduleData = {
+  cure: CureScheduleItem[];
+  production: ProductionPlanListItem[];
+};
+
+export type ScheduleRepo = {
+  /** Plans whose batch, formula or version is missing are left out (damaged data only). */
+  read(): Promise<ScheduleData>;
 };
 
 // ───────────────────────────── Drafts ─────────────────────────────
@@ -345,6 +465,9 @@ export type DataLayer = {
   versions: VersionsRepo;
   measurements: MeasurementsRepo;
   batches: BatchesRepo;
+  curePlans: CurePlansRepo;
+  productionPlans: ProductionPlansRepo;
+  schedule: ScheduleRepo;
   drafts: DraftsRepo;
   meta: MetaRepo;
   example: ExampleRepo;

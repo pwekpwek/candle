@@ -25,7 +25,8 @@ export function PageHeader({
       )}
     >
       <div className="min-w-0 flex-1 basis-60">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+        {/* wrap-anywhere: a long label with no spaces (a batch or entry title) must not widen the page. */}
+        <h1 className="text-xl font-semibold tracking-tight wrap-anywhere text-foreground">
           {title}
         </h1>
         {description ? (

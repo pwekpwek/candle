@@ -127,8 +127,14 @@ describe("formulas", () => {
       versions: 3,
       measurements: 2,
       batches: 0,
+      productionPlans: 0,
     });
-    expect(await layer.formulas.deletionImpact(id())).toEqual({ versions: 0, measurements: 0, batches: 0 });
+    expect(await layer.formulas.deletionImpact(id())).toEqual({
+      versions: 0,
+      measurements: 0,
+      batches: 0,
+      productionPlans: 0,
+    });
   });
 
   it("deletes formula, versions, measurements and draft together, leaving others alone", async () => {

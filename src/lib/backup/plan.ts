@@ -12,7 +12,15 @@ import type { DeviceData, PlanRestore, Renumbering, RestorePlan, StoreTally } fr
 type Class = "new" | "identical" | "conflict";
 
 function zeroCounts(): BackupCounts {
-  return { materials: 0, formulas: 0, formulaVersions: 0, measurements: 0, batches: 0 };
+  return {
+    materials: 0,
+    formulas: 0,
+    formulaVersions: 0,
+    measurements: 0,
+    batches: 0,
+    curePlans: 0,
+    productionPlans: 0,
+  };
 }
 
 function emptyTally(): Record<DataStoreName, StoreTally> {
@@ -22,6 +30,8 @@ function emptyTally(): Record<DataStoreName, StoreTally> {
     formulaVersions: { new: 0, identical: 0, conflict: 0 },
     measurements: { new: 0, identical: 0, conflict: 0 },
     batches: { new: 0, identical: 0, conflict: 0 },
+    curePlans: { new: 0, identical: 0, conflict: 0 },
+    productionPlans: { new: 0, identical: 0, conflict: 0 },
   };
 }
 
@@ -69,6 +79,8 @@ function countsOf(data: BackupData): BackupCounts {
     formulaVersions: data.formulaVersions.length,
     measurements: data.measurements.length,
     batches: data.batches.length,
+    curePlans: data.curePlans.length,
+    productionPlans: data.productionPlans.length,
   };
 }
 
@@ -96,6 +108,8 @@ function tallyAgainst(envelopeData: BackupData, device: DeviceData): Record<Data
     formulaVersions: sameVersion as (a: never, b: never) => boolean,
     measurements: sameByCanonical,
     batches: sameByCanonical,
+    curePlans: sameByCanonical,
+    productionPlans: sameByCanonical,
   };
   for (const store of DATA_STORES) {
     const deviceMap = byId(device[store] as { id: string }[]);
@@ -127,6 +141,8 @@ function planReplace(
       formulaVersions: [...data.formulaVersions],
       measurements: [...data.measurements],
       batches: [...data.batches],
+      curePlans: [...data.curePlans],
+      productionPlans: [...data.productionPlans],
     },
     clear: true,
     added: { ...fileCounts },
@@ -160,6 +176,8 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
     formulaVersions: [],
     measurements: [],
     batches: [],
+    curePlans: [],
+    productionPlans: [],
   };
 
   // Materials, measurements and batches: new, identical or conflict.
@@ -195,18 +213,28 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
   // Batches are editable records like measurements (v0.2). Their source link
   // never differs between two copies made by the app, so a conflict is about
   // the date, label, notes or measured weights.
-  const deviceBatches = byId(device.batches);
-  for (const record of data.batches) {
-    const { cls } = classify(record, deviceBatches, sameByCanonical);
-    tally.batches[cls] += 1;
-    if (cls === "new") {
-      puts.batches.push(record);
-      added.batches += 1;
-    } else if (cls === "conflict") {
-      if (policy === "useBackup") {
-        puts.batches.push(record);
-        replaced.batches += 1;
-      } else kept.batches += 1;
+  //
+  // CurePilot: cure plans and production entries are editable records too and
+  // are classified the same way, whole (docs/v0.2-curepilot.md). A cure plan's
+  // id is its batch's id, so two devices that planned the same batch meet here
+  // as an ordinary conflict.
+  const editableStores = ["batches", "curePlans", "productionPlans"] as const;
+  for (const store of editableStores) {
+    const deviceMap = byId<{ id: string }>(device[store]);
+    const incoming: { id: string }[] = data[store];
+    const out: { id: string }[] = puts[store];
+    for (const record of incoming) {
+      const { cls } = classify(record, deviceMap, sameByCanonical);
+      tally[store][cls] += 1;
+      if (cls === "new") {
+        out.push(record);
+        added[store] += 1;
+      } else if (cls === "conflict") {
+        if (policy === "useBackup") {
+          out.push(record);
+          replaced[store] += 1;
+        } else kept[store] += 1;
+      }
     }
   }
 
@@ -328,6 +356,8 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
     formulaVersions: device.formulaVersions.length + added.formulaVersions,
     measurements: device.measurements.length + added.measurements,
     batches: device.batches.length + added.batches,
+    curePlans: device.curePlans.length + added.curePlans,
+    productionPlans: device.productionPlans.length + added.productionPlans,
   };
   const present = new Set([
     ...device.materials.map((material) => material.id),

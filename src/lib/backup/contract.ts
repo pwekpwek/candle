@@ -15,6 +15,7 @@ import type { CandleDatabase } from "@/lib/db/contract";
 import type {
   Batch,
   BackupCounts,
+  CurePlan,
   BackupData,
   BackupEnvelope,
   DataStoreName,
@@ -22,6 +23,7 @@ import type {
   FormulaVersion,
   Material,
   Measurement,
+  ProductionPlan,
 } from "@/lib/types";
 
 // ───────────────────────────── Export ─────────────────────────────
@@ -46,7 +48,7 @@ export type ExportedBackup = {
 };
 
 /**
- * DATA-15 to DATA-18. Reads the four data stores in one read transaction, each
+ * DATA-15 to DATA-18. Reads every data store (DATA_STORES) in one read transaction, each
  * array sorted by `id`. Then, in a second transaction, sets meta
  * `lastBackupAt`, `lastBackupCounts` and resets `changesSinceBackup` to 0
  * (DATA-13). Archived items are included. Drafts and meta are not.
@@ -72,7 +74,10 @@ export const MAX_BACKUP_BYTES = 25 * 1024 * 1024;
  *   orphans      a version's formula, a measurement's version, or a batch's
  *                version, is neither in the file nor on this device (a batch
  *                whose version is in the file under another formula also
- *                counts)
+ *                counts). CurePilot (format 3): a cure plan's batch, a
+ *                production entry's version (same formula rule as batches),
+ *                or a production entry's batch when set (a batch in the file
+ *                must be of the entry's version).
  */
 export type CheckFailure =
   | { code: "not-backup" }
@@ -89,7 +94,14 @@ export type CheckFailure =
   | { code: "incomplete" }
   | { code: "checksum" }
   | { code: "duplicates" }
-  | { code: "orphans"; versions: number; measurements: number; batches: number };
+  | {
+      code: "orphans";
+      versions: number;
+      measurements: number;
+      batches: number;
+      curePlans: number;
+      productionPlans: number;
+    };
 
 export type CheckResult =
   | { ok: true; envelope: BackupEnvelope }
@@ -99,6 +111,8 @@ export type CheckResult =
 export type DeviceIds = {
   formulaIds: ReadonlySet<string>;
   versionIds: ReadonlySet<string>;
+  /** CurePilot: for cure plans and production entries that name a batch. */
+  batchIds: ReadonlySet<string>;
 };
 
 /**
@@ -106,10 +120,11 @@ export type DeviceIds = {
  * on disk. A version below 1 is "not-backup"; above BACKUP_FORMAT_VERSION is
  * "newer".
  *
- * Format 1 (v0.1, no batches) is migrated in memory (v0.2): the file is
- * checked against the format 1 shape, its checksum is verified over the data
- * section exactly as written, and only then are `data.batches = []` and
- * `counts.batches = 0` added. The returned envelope keeps the file's
+ * Format 1 (v0.1, no batches) and format 2 (BatchTrace, no cure plans or
+ * production entries) are migrated in memory: the file is checked against its
+ * own format's shape, its checksum is verified over the data section exactly
+ * as written, and only then are the stores it lacks added as empty arrays
+ * with a count of 0. The returned envelope keeps the file's
  * `formatVersion` and `checksum`; everything after the checks uses the
  * migrated `data` and `counts`.
  */
@@ -184,7 +199,7 @@ export type RestorePlan = {
   tally: Record<DataStoreName, StoreTally>;
   /** Records to write with put(), per store. */
   puts: BackupData;
-  /** True in replace mode: empty the four stores first. */
+  /** True in replace mode: empty every data store first. */
   clear: boolean;
   /** Records that will be new on the device, per store. */
   added: BackupCounts;
@@ -208,13 +223,15 @@ export type RestorePlan = {
   basis: { envelope: BackupEnvelope; device: DeviceData };
 };
 
-/** Everything in the five data stores, read in one transaction. */
+/** Everything in the data stores (DATA_STORES), read in one transaction. */
 export type DeviceData = {
   materials: Material[];
   formulas: Formula[];
   formulaVersions: FormulaVersion[];
   measurements: Measurement[];
   batches: Batch[];
+  curePlans: CurePlan[];
+  productionPlans: ProductionPlan[];
 };
 
 export type PlanRestore = (
@@ -275,15 +292,15 @@ export type ApplyRestoreOptions = {
 // only when the restore wrote or cleared something.
 
 /**
- * DATA-23 to DATA-28. One read-write transaction over the four data stores
+ * DATA-23 to DATA-28. One read-write transaction over the data stores
  * and meta:
  *   1. Refuse if another restore is running, or replace mode lacks a safety backup.
  *   2. Inside the transaction, re-read the device and check it still matches
  *      what the plan was built against (same ids and content for every record
  *      the plan touches or skips); if not, abort with "stale".
- *   3. If plan.clear, clear the four stores. Write plan.puts.
+ *   3. If plan.clear, clear the data stores. Write plan.puts.
  *   4. Set meta lastRestoreAt and add 1 to changesSinceBackup.
- *   5. After commit, re-read the four counts and compare with
+ *   5. After commit, re-read the counts and compare with
  *      plan.expectedCounts. A difference is "mismatch", never success.
  * Any error aborts the transaction and leaves the device exactly as it was.
  */

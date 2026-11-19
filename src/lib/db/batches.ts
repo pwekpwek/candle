@@ -1,4 +1,4 @@
-import { BatchSchema } from "@/lib/schemas";
+import { BatchSchema, ProductionPlanSchema } from "@/lib/schemas";
 import type { Batch, FormulaVersion, MeasurementEntry } from "@/lib/types";
 import type { BatchInput, BatchListItem, BatchesRepo, CandleDatabase } from "./contract";
 import { DataError, guard, notFound, parseRecord } from "./errors";
@@ -102,7 +102,7 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
 
     create: (request) =>
       guard(() =>
-        db.transaction("rw", [db.batches, db.formulaVersions, db.formulas, db.meta], async () => {
+        db.transaction("rw", [db.batches, db.formulaVersions, db.formulas, db.productionPlans, db.meta], async () => {
           // Idempotent: a retry with the same id writes nothing.
           const already = await db.batches.get(request.batchId);
           if (already) return { batch: already, created: false };
@@ -110,6 +110,17 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
           const version = await db.formulaVersions.get(request.versionId);
           if (!version) throw notFound("Version", request.versionId);
           if (!(await db.formulas.get(version.formulaId))) throw notFound("Formula", version.formulaId);
+
+          // CurePilot: a batch made from a planned production entry links it.
+          const planId = request.productionPlanId;
+          const entry = planId === undefined ? undefined : await db.productionPlans.get(planId);
+          if (planId !== undefined && !entry) throw notFound("Production plan", planId);
+          if (entry && entry.versionId !== version.id) {
+            throw new DataError("invalid", `Production plan ${entry.id} is for another version.`);
+          }
+          if (entry && entry.batchId !== null) {
+            throw new DataError("invalid", `Production plan ${entry.id} already has a batch.`);
+          }
 
           const timestamp = now();
           const batch = parseRecord(
@@ -125,6 +136,14 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
             "batch",
           );
           await db.batches.add(batch);
+          if (entry) {
+            const linked = parseRecord(
+              ProductionPlanSchema,
+              { ...entry, batchId: batch.id, updatedAt: timestamp },
+              "production plan",
+            );
+            await db.productionPlans.put(linked);
+          }
           await bumpChangeCounter(db);
           return { batch, created: true };
         }),
@@ -156,10 +175,35 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
         }),
       ),
 
+    deletionImpact: (id) =>
+      guard(() =>
+        db.transaction("r", [db.curePlans, db.productionPlans], async () => {
+          const plan = await db.curePlans.get(id);
+          return {
+            milestones: plan?.milestones.length ?? 0,
+            productionPlans: await db.productionPlans.where("batchId").equals(id).count(),
+          };
+        }),
+      ),
+
     delete: (id) =>
       guard(() =>
-        db.transaction("rw", [db.batches, db.meta], async () => {
+        db.transaction("rw", [db.batches, db.curePlans, db.productionPlans, db.meta], async () => {
           if (!(await db.batches.get(id))) throw notFound("Batch", id);
+          // CurePilot: the batch's cure plan goes with it, and an entry that
+          // made it becomes open again (docs/v0.2-curepilot.md, Archive and delete).
+          await db.curePlans.delete(id);
+          const entries = await db.productionPlans.where("batchId").equals(id).toArray();
+          const timestamp = now();
+          for (const entry of entries) {
+            await db.productionPlans.put(
+              parseRecord(
+                ProductionPlanSchema,
+                { ...entry, batchId: null, updatedAt: timestamp },
+                "production plan",
+              ),
+            );
+          }
           await db.batches.delete(id);
           await bumpChangeCounter(db);
         }),

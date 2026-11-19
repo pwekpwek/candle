@@ -178,7 +178,7 @@ export function DeleteFormulaDialog({
 type Impact =
   | { state: "loading" }
   | { state: "failed" }
-  | { state: "ready"; versions: number; measurements: number; batches: number };
+  | { state: "ready"; versions: number; measurements: number; batches: number; productionPlans: number };
 
 function DeleteBody({
   formula,
@@ -248,9 +248,14 @@ function DeleteBody({
           {B.formulaDeleteRefused(impact.batches)}
         </Notice>
       ) : (
-        <p className="text-sm text-foreground">
-          {F.deleteBody(formula.name, impact.versions, impact.measurements)}
-        </p>
+        <>
+          <p className="text-sm text-foreground">
+            {F.deleteBody(formula.name, impact.versions, impact.measurements)}
+          </p>
+          {impact.productionPlans > 0 ? (
+            <p className="text-sm text-foreground">{B.formulaDeletePlans(impact.productionPlans)}</p>
+          ) : null}
+        </>
       )}
       <DialogFooter>
         {/* First in the tab order, so the keep button takes the opening focus. */}
