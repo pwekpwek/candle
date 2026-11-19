@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense } from "react";
 import { FlameIcon } from "lucide-react";
+import { useAttentionCount } from "@/components/schedule/use-attention-count";
+import { MESSAGES } from "@/lib/messages";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS, isNavItemActive } from "./nav-items";
 
@@ -19,7 +21,29 @@ import { NAV_ITEMS, isNavItemActive } from "./nav-items";
  * once without a current item as the fallback.
  */
 
-function SideNavLinks({ pathname }: { pathname: string | null }) {
+/** The small count on the Schedule item. Decorative: the link name carries the count. */
+function CountBadge({ count, className }: { count: number; className?: string }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      aria-hidden="true"
+      data-testid="nav-attention-badge"
+      className={cn(
+        "inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-xs font-semibold text-destructive-foreground tabular",
+        className,
+      )}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
+/** The link name: the label, with the count when there is one ("Schedule, 2 due or overdue"). */
+function linkName(item: { label: string; showsAttention?: boolean }, count: number): string {
+  return item.showsAttention && count > 0 ? MESSAGES.app.navScheduleCount(count) : item.label;
+}
+
+function SideNavLinks({ pathname, attention }: { pathname: string | null; attention: number }) {
   return (
     <ul className="flex flex-col gap-1">
       {NAV_ITEMS.map((item) => {
@@ -29,7 +53,7 @@ function SideNavLinks({ pathname }: { pathname: string | null }) {
           <li key={item.href}>
             <Link
               href={item.href}
-              aria-label={item.label}
+              aria-label={linkName(item, attention)}
               aria-current={active ? "page" : undefined}
               className={cn(
                 "group relative flex h-10 items-center justify-center gap-3 rounded-md text-sm transition-colors duration-150 lg:justify-start lg:px-3",
@@ -43,6 +67,12 @@ function SideNavLinks({ pathname }: { pathname: string | null }) {
                 strokeWidth={1.75}
                 className={cn("size-5 shrink-0", active && "text-primary")}
               />
+              {item.showsAttention ? (
+                <CountBadge
+                  count={attention}
+                  className="absolute top-0.5 right-0.5 h-4 min-w-4 text-[0.6875rem] lg:static lg:order-last lg:ml-auto"
+                />
+              ) : null}
               <span
                 aria-hidden="true"
                 className="max-lg:pointer-events-none max-lg:absolute max-lg:left-full max-lg:z-40 max-lg:ml-2 max-lg:rounded-md max-lg:border max-lg:border-border max-lg:bg-popover max-lg:px-2 max-lg:py-1 max-lg:whitespace-nowrap max-lg:text-popover-foreground max-lg:opacity-0 max-lg:shadow-popover max-lg:transition-opacity max-lg:duration-150 max-lg:group-hover:opacity-100 max-lg:group-focus-visible:opacity-100"
@@ -57,9 +87,9 @@ function SideNavLinks({ pathname }: { pathname: string | null }) {
   );
 }
 
-function BottomNavLinks({ pathname }: { pathname: string | null }) {
+function BottomNavLinks({ pathname, attention }: { pathname: string | null; attention: number }) {
   return (
-    <ul className="grid h-16 grid-cols-4 gap-1 px-2 py-1">
+    <ul className="grid h-16 grid-cols-5 gap-0.5 px-1 py-1">
       {NAV_ITEMS.map((item) => {
         const active = isNavItemActive(item, pathname);
         const Icon = item.icon;
@@ -69,9 +99,13 @@ function BottomNavLinks({ pathname }: { pathname: string | null }) {
               href={item.href}
               aria-current={active ? "page" : undefined}
               // The short visible text ("Backup") is part of the full name (label in name).
-              aria-label={item.shortLabel ? item.label : undefined}
+              aria-label={
+                item.shortLabel || (item.showsAttention && attention > 0)
+                  ? linkName(item, attention)
+                  : undefined
+              }
               className={cn(
-                "flex h-full flex-col items-center justify-center gap-1 rounded-md px-1 text-xs transition-colors duration-150",
+                "relative flex h-full flex-col items-center justify-center gap-1 rounded-md px-0.5 text-xs transition-colors duration-150",
                 active
                   ? "bg-accent font-semibold text-foreground"
                   : "text-text-secondary",
@@ -82,6 +116,12 @@ function BottomNavLinks({ pathname }: { pathname: string | null }) {
                 strokeWidth={1.75}
                 className={cn("size-5 shrink-0", active && "text-primary")}
               />
+              {item.showsAttention ? (
+                <CountBadge
+                  count={attention}
+                  className="absolute top-1 left-1/2 ml-1 h-4 min-w-4 text-[0.6875rem]"
+                />
+              ) : null}
               <span className="max-w-full truncate">{item.shortLabel ?? item.label}</span>
             </Link>
           </li>
@@ -92,11 +132,13 @@ function BottomNavLinks({ pathname }: { pathname: string | null }) {
 }
 
 function ConnectedSideNavLinks() {
-  return <SideNavLinks pathname={usePathname()} />;
+  const attention = useAttentionCount();
+  return <SideNavLinks pathname={usePathname()} attention={attention} />;
 }
 
 function ConnectedBottomNavLinks() {
-  return <BottomNavLinks pathname={usePathname()} />;
+  const attention = useAttentionCount();
+  return <BottomNavLinks pathname={usePathname()} attention={attention} />;
 }
 
 /** Sidebar (from 1024px) and icon rail (640 to 1023px). Hidden below 640px. */
@@ -114,7 +156,7 @@ export function SideNav() {
         </span>
       </div>
       <nav aria-label="Main" className="px-3 lg:px-3">
-        <Suspense fallback={<SideNavLinks pathname={null} />}>
+        <Suspense fallback={<SideNavLinks pathname={null} attention={0} />}>
           <ConnectedSideNavLinks />
         </Suspense>
       </nav>
@@ -129,7 +171,7 @@ export function BottomNav() {
       aria-label="Main"
       className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-muted pb-[env(safe-area-inset-bottom)] sm:hidden"
     >
-      <Suspense fallback={<BottomNavLinks pathname={null} />}>
+      <Suspense fallback={<BottomNavLinks pathname={null} attention={0} />}>
         <ConnectedBottomNavLinks />
       </Suspense>
     </nav>

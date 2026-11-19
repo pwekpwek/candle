@@ -5,6 +5,7 @@ import { FormulaSchema } from "./formula";
 import { MaterialSchema } from "./material";
 import { MeasurementSchema } from "./measurement";
 import { TimestampSchema } from "./primitives";
+import { CurePlanSchema, ProductionPlanSchema } from "./schedule";
 import { FormulaVersionSchema } from "./version";
 
 /** BackupCounts: one whole number per exported store. */
@@ -14,15 +15,19 @@ export const BackupCountsSchema = z.strictObject({
   formulaVersions: z.int().min(0),
   measurements: z.int().min(0),
   batches: z.int().min(0),
+  curePlans: z.int().min(0),
+  productionPlans: z.int().min(0),
 });
 
-/** The exported stores (DATA-15), current format (2). Drafts and meta are not exported (DATA-17). */
+/** The exported stores (DATA-15), current format (3). Drafts and meta are not exported (DATA-17). */
 export const BackupDataSchema = z.strictObject({
   materials: z.array(MaterialSchema),
   formulas: z.array(FormulaSchema),
   formulaVersions: z.array(FormulaVersionSchema),
   measurements: z.array(MeasurementSchema),
   batches: z.array(BatchSchema),
+  curePlans: z.array(CurePlanSchema),
+  productionPlans: z.array(ProductionPlanSchema),
 });
 
 /** SHA-256 of the data section, lowercase hex (DATA-16). */

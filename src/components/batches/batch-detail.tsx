@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { CuringSection } from "@/components/schedule/curing-section";
 import { getDataLayer } from "@/lib/db";
 import type { BatchInput, BatchListItem } from "@/lib/db";
 import { MESSAGES } from "@/lib/messages";
@@ -24,6 +25,7 @@ import { batchTitle, formatProducedOn, versionHref } from "./text";
 
 const B = MESSAGES.batches;
 const F = MESSAGES.formula;
+const S = MESSAGES.schedule;
 
 type Loaded =
   | { status: "ok"; item: BatchListItem; latestNumber: number }
@@ -118,10 +120,12 @@ function DetailBody({
 
   // "?created=1" shows the confirmation once, then leaves the URL clean.
   const [createdNotice] = useState(() => searchParams.get("created") === "1");
-  const hasCreatedParam = searchParams.get("created") !== null;
+  // "?cureSaved=1" (from the cure-plan editor) works the same way.
+  const [cureSavedNotice] = useState(() => searchParams.get("cureSaved") === "1");
+  const hasParam = searchParams.get("created") !== null || searchParams.get("cureSaved") !== null;
   useEffect(() => {
-    if (hasCreatedParam) router.replace(here);
-  }, [hasCreatedParam, router, here]);
+    if (hasParam) router.replace(here);
+  }, [hasParam, router, here]);
 
   async function save(input: BatchInput) {
     await getDataLayer().batches.update(batch.id, input);
@@ -161,6 +165,7 @@ function DetailBody({
 
       <div className="mb-6 flex flex-col gap-3 empty:hidden">
         {createdNotice ? <Notice variant="success">{B.createdNotice}</Notice> : null}
+        {cureSavedNotice ? <Notice variant="success">{S.cureSavedNotice}</Notice> : null}
         {version.number !== latestNumber ? (
           <Notice
             variant="info"
@@ -192,6 +197,8 @@ function DetailBody({
         onSubmit={save}
       />
 
+      <CuringSection batchId={batch.id} producedOn={batch.producedOn} className="mt-8" />
+
       <DeleteBatchDialog
         title={batchTitle(batch)}
         batchId={batch.id}
@@ -219,12 +226,64 @@ function DeleteBatchDialog({
   onOpenChange: (open: boolean) => void;
   onDeleted: () => void;
 }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{B.deleteTitle}</DialogTitle>
+          <DialogDescription className="sr-only">{B.deleteTitle}</DialogDescription>
+        </DialogHeader>
+        {/* Mounted only while open, so what goes with the batch is read fresh each time. */}
+        <DeleteBody
+          title={title}
+          batchId={batchId}
+          onCancel={() => onOpenChange(false)}
+          onDeleted={onDeleted}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type Impact =
+  | { state: "loading" }
+  | { state: "failed" }
+  | { state: "ready"; milestones: number; productionPlans: number };
+
+function DeleteBody({
+  title,
+  batchId,
+  onCancel,
+  onDeleted,
+}: {
+  title: string;
+  batchId: string;
+  onCancel: () => void;
+  onDeleted: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  // What else goes with the batch (CurePilot). "failed" still allows the delete: the base text stands.
+  const [impact, setImpact] = useState<Impact>({ state: "loading" });
   const submitting = useRef(false);
 
+  useEffect(() => {
+    let live = true;
+    getDataLayer()
+      .batches.deletionImpact(batchId)
+      .then((counts) => {
+        if (live) setImpact({ state: "ready", ...counts });
+      })
+      .catch(() => {
+        if (live) setImpact({ state: "failed" });
+      });
+    return () => {
+      live = false;
+    };
+  }, [batchId]);
+
   async function confirm() {
-    if (submitting.current) return;
+    if (submitting.current || impact.state === "loading") return;
     submitting.current = true;
     setBusy(true);
     setFailed(false);
@@ -239,32 +298,35 @@ function DeleteBatchDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) setFailed(false);
-        onOpenChange(next);
-      }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{B.deleteTitle}</DialogTitle>
-          <DialogDescription className="sr-only">{B.deleteTitle}</DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4">
-          {failed ? <Notice variant="error">{B.deleteFailed}</Notice> : null}
-          <p className="text-sm text-foreground">{B.deleteBody(title)}</p>
-          <DialogFooter>
-            {/* First in the tab order, so the keep button takes the opening focus. */}
-            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
-              {B.deleteKeep}
-            </Button>
-            <Button type="button" variant="destructive" busy={busy} onClick={confirm}>
-              {B.deleteConfirm}
-            </Button>
-          </DialogFooter>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <div className="grid gap-4">
+      {failed ? <Notice variant="error">{B.deleteFailed}</Notice> : null}
+      <p className="text-sm text-foreground">{B.deleteBody(title)}</p>
+      {impact.state === "loading" ? (
+        <p role="status" className="text-sm text-text-secondary">
+          {B.deleteChecking}
+        </p>
+      ) : null}
+      {impact.state === "ready" && impact.milestones > 0 ? (
+        <p className="text-sm text-foreground">{B.deleteCureNote(impact.milestones)}</p>
+      ) : null}
+      {impact.state === "ready" && impact.productionPlans > 0 ? (
+        <p className="text-sm text-foreground">{B.deletePlanNote}</p>
+      ) : null}
+      <DialogFooter>
+        {/* First in the tab order, so the keep button takes the opening focus. */}
+        <Button type="button" variant="secondary" onClick={onCancel}>
+          {B.deleteKeep}
+        </Button>
+        <Button
+          type="button"
+          variant="destructive"
+          busy={busy}
+          disabled={impact.state === "loading"}
+          onClick={confirm}
+        >
+          {B.deleteConfirm}
+        </Button>
+      </DialogFooter>
+    </div>
   );
 }

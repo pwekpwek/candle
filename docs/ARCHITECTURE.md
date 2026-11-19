@@ -55,6 +55,9 @@ Read this before any task. The specs are in `docs/specs/`. The task list is `doc
 | `tests/e2e/*` | T23, T24 | Playwright flows |
 | `src/lib/db/batches.ts`, batch parts of `src/lib/{types.ts,db,backup,schemas}` | v0.2 BatchTrace | Batch record, schema 2, backup format 2 |
 | `src/components/batches/*`, `src/app/batches/**` | v0.2 BatchTrace | Batch screens |
+| `src/lib/db/{cure-plans,production-plans,schedule}.ts`, CurePilot parts of `src/lib/{types.ts,db,backup,schemas}`, `src/lib/schedule/contract.ts` | v0.2 CurePilot (lead) | Cure plans, planned production, schema 3, backup format 3 |
+| `src/lib/schedule/{dates,schedule,index}.ts` | v0.2 CurePilot | Pure date and schedule logic |
+| `src/components/schedule/**`, `src/app/schedule/**`, `src/app/batches/[batchId]/cure-plan/**` | v0.2 CurePilot | Curing section, cure-plan editor, planned production, Schedule page, nav count |
 
 ## Routes
 
@@ -69,7 +72,12 @@ Read this before any task. The specs are in `docs/specs/`. The task list is `doc
 | `/backup` | Backup and restore |
 | `/batches` | Batches list (v0.2) |
 | `/batches/new?version=[versionId]` | Create batch from a saved version (v0.2) |
-| `/batches/[batchId]` | Batch detail and edit (v0.2) |
+| `/batches/[batchId]` | Batch detail and edit, with its Curing section (v0.2) |
+| `/batches/[batchId]/cure-plan` | Cure-plan editor (v0.2 CurePilot) |
+| `/schedule` | Schedule: overdue, due today, upcoming, done (v0.2 CurePilot) |
+| `/schedule/plan/new?version=[versionId]` | Plan production of a saved version (v0.2 CurePilot) |
+| `/schedule/plan/[planId]` | Planned production entry: edit, delete, Create batch (v0.2 CurePilot) |
+| `/batches/new?version=[versionId]&plan=[planId]` | Create batch from a planned production entry (v0.2 CurePilot) |
 
 ## Decisions made during the build
 
@@ -106,3 +114,15 @@ Full plan and compatibility notes: `docs/v0.2-batchtrace.md`.
 - **Production date** is a local calendar date; the screens refuse future dates, the data layer only checks the format.
 - **Page header actions wrap** on narrow screens (`PageHeader`), since the formula page now has four actions.
 - **Dev indicator off** (`devIndicators: false`): in development it covered the phone bar's first item. Development only.
+
+## v0.2 CurePilot decisions (2026-11-19)
+
+Full design and compatibility notes: `docs/v0.2-curepilot.md`.
+
+- **Milestones are day offsets** from the batch's production date; due dates are never stored. Moving the production date moves every open milestone; a milestone marked done keeps its `doneOn`.
+- **One cure plan per batch:** store `curePlans`, whose `id` is the batch id. Cure time is the plan's single `cureEnd` milestone; planned burn tests are `burnTest` milestones. Two devices that planned the same batch meet as an ordinary restore conflict.
+- **Planned production** (`productionPlans`) links a version, not a batch. "Create batch" from an entry writes the batch and sets the entry's `batchId` in one transaction. Batches still never have future dates.
+- **Reminders are in-app only:** the Schedule page and a nav count of overdue and due-today items, computed on the device. No push or email (no backend).
+- **Deletes:** a batch's cure plan is deleted with the batch, and an entry that made it becomes open again; a formula's open entries are deleted with the formula (a formula with batches still cannot be deleted). Archiving a formula changes nothing in the schedule.
+- **Schema 3** adds `curePlans` and `productionPlans` only. **Backup format 3** adds both; formats 1 and 2 are migrated in memory after their own checksum is verified. Orphan checks cover a cure plan's batch and an entry's version and batch.
+- **Wording:** curing is scheduling information only; nothing says a candle is cured, ready or safe.

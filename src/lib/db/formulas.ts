@@ -77,13 +77,22 @@ export function createFormulasRepo(db: CandleDatabase, now: () => string): Formu
         versions: await db.formulaVersions.where("formulaId").equals(id).count(),
         measurements: await db.measurements.where("formulaId").equals(id).count(),
         batches: await db.batches.where("formulaId").equals(id).count(),
+        productionPlans: await db.productionPlans.where("formulaId").equals(id).count(),
       })),
 
     deletePermanently: (id) =>
       guard(() =>
         db.transaction(
           "rw",
-          [db.formulas, db.formulaVersions, db.measurements, db.batches, db.drafts, db.meta],
+          [
+            db.formulas,
+            db.formulaVersions,
+            db.measurements,
+            db.batches,
+            db.productionPlans,
+            db.drafts,
+            db.meta,
+          ],
           async () => {
             if (!(await db.formulas.get(id))) throw notFound("Formula", id);
             // DATA-12 (v0.2): a batch keeps its source version, so refuse.
@@ -91,6 +100,9 @@ export function createFormulasRepo(db: CandleDatabase, now: () => string): Formu
             if (batches > 0) {
               throw new DataError("in-use", `Formula ${id} has ${batches} batch(es).`);
             }
+            // CurePilot: open planned production entries go with the formula.
+            // An entry with a batch cannot be here: its batch blocks the delete.
+            await db.productionPlans.where("formulaId").equals(id).delete();
             await db.measurements.where("formulaId").equals(id).delete();
             await db.formulaVersions.where("formulaId").equals(id).delete();
             await db.drafts.delete(id);

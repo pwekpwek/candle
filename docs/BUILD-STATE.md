@@ -43,7 +43,18 @@ Branch `feat/v0.2-batchtrace`, from the v0.1 candidate `8b0c32c`. Scope, plan an
 
 Models: lead (Opus) wrote the batch record, schema 2, backup format 2 and their unit tests, reviewed every diff and ran the checks; Sonnet wrote the batch screens and their unit tests, and the browser tests. Two app issues found by the browser tests (a 1px overflow on the formula page at 375px, and a first click swallowed by a blur error) were fixed by the lead.
 
-Next in v0.2: CurePilot, then BurnMatrix (see the vault Tasks note).
+## v0.2 — CurePilot (2026-11-19)
+
+Branch `feat/v0.2-curepilot`, stacked on `feat/v0.2-batchtrace` (its PR merges into that branch). Scope, data model, compatibility and delete rules: `docs/v0.2-curepilot.md`. Results and the commit SHA are in the vault handoff `Projects/apps/candle/Sessions/2026-11-19 - v0.2 CurePilot - Development Handoff.md`.
+
+- **Storage:** IndexedDB schema 3 (IndexedDB version 30) adds `curePlans` (key = batch id) and `productionPlans`. Schema 1 and 2 databases upgrade in place (`tests/unit/db/upgrade.test.ts`, plus a real BatchTrace browser profile, see the handoff).
+- **Backup format 3** adds both stores; formats 1 and 2 are read and migrated in memory. `tests/fixtures/backups/good-v2.json` is a real BatchTrace (format 2) export. `bad-03-newer-version.json` now uses format 4.
+- **Pure schedule logic** in `src/lib/schedule` (contract in `contract.ts`): local-date arithmetic in UTC, item states, the nav attention count.
+- **Data-layer changes other screens must know:** `batches.create` takes an optional `productionPlanId`; `batches.delete` also deletes the cure plan and reopens a linked planned entry; `formulas.deletePermanently` also deletes the formula's open planned entries; `formulas.deletionImpact` has `productionPlans`; `batches.deletionImpact` is new.
+
+Models: lead (Opus) wrote the design note, types, schemas, schema 3, the repositories, backup format 3, the schedule contract and their unit tests, reviewed every diff and ran the checks. Sonnet wrote the schedule logic and its tests, the screens and their tests, and the browser tests.
+
+Next in v0.2: BurnMatrix (see the vault Tasks note). It can link a burn session to a `burnTest` milestone by its id.
 
 ## Wave 3 handover
 

@@ -75,14 +75,14 @@ async function rebuild(env: BackupEnvelope & { data: Record<string, unknown[]> }
   return JSON.stringify(env);
 }
 
-describe("backup format 2 (v0.2) export", () => {
-  it("exports batches with format 2, schema 2, counts and a checksum over all five stores", async () => {
+describe("backup export includes batches (format 3 since CurePilot)", () => {
+  it("exports batches with the current format and schema, counts and a checksum over every store", async () => {
     const { device, batches } = await sourceWithBatches();
     const { envelope, json } = await exportBackup(device.db, { now: () => NOW });
-    expect(envelope.formatVersion).toBe(2);
-    expect(envelope.schemaVersion).toBe(2);
+    expect(envelope.formatVersion).toBe(3);
+    expect(envelope.schemaVersion).toBe(3);
     expect(envelope.appVersion).toBe("0.2.0");
-    expect(envelope.counts).toEqual({ materials: 6, formulas: 2, formulaVersions: 3, measurements: 2, batches: 3 });
+    expect(envelope.counts).toEqual({ materials: 6, formulas: 2, formulaVersions: 3, measurements: 2, batches: 3, curePlans: 0, productionPlans: 0 });
     expect(envelope.data.batches.map((b) => b.id)).toEqual(batches.map((b) => b.id).sort());
     expect(envelope.checksum.value).toBe(await sha256Hex(canonicalJson(envelope.data)));
     expect(BackupEnvelopeSchema.safeParse(JSON.parse(json)).success).toBe(true);
@@ -230,6 +230,8 @@ describe("v0.1 backup (format 1) import", () => {
       formulaVersions: V1.data.formulaVersions.length,
       measurements: V1.data.measurements.length,
       batches: 0,
+      curePlans: 0,
+      productionPlans: 0,
     });
     const applied = await applyRestore(device.db, plan);
     expect(applied.ok).toBe(true);
@@ -294,21 +296,21 @@ describe("batch links on restore (orphan check)", () => {
     const text = await v2With((env) => {
       env.data.batches[0]!.versionId = "99999999-0000-4000-8000-000000000001";
     });
-    expect(await failureOf(text, setup())).toEqual({ code: "orphans", versions: 0, measurements: 0, batches: 1 });
+    expect(await failureOf(text, setup())).toEqual({ code: "orphans", versions: 0, measurements: 0, batches: 1, curePlans: 0, productionPlans: 0 });
   });
 
   it("refuses a batch whose version in the file belongs to another formula", async () => {
     const text = await v2With((env) => {
       env.data.batches[0]!.formulaId = "99999999-0000-4000-8000-000000000002";
     });
-    expect(await failureOf(text, setup())).toMatchObject({ code: "orphans", batches: 1 });
+    expect(await failureOf(text, setup())).toMatchObject({ code: "orphans", batches: 1, curePlans: 0, productionPlans: 0 });
   });
 
   it("accepts a batch whose version is already on this device", async () => {
     const { device, first } = await sourceWithBatches();
     const { envelope } = await exportBackup(device.db, { now: () => NOW });
     // Keep only the batches: their versions are on `device` itself.
-    envelope.data = { materials: [], formulas: [], formulaVersions: [], measurements: [], batches: envelope.data.batches };
+    envelope.data = { materials: [], formulas: [], formulaVersions: [], measurements: [], batches: envelope.data.batches, curePlans: [], productionPlans: [] };
     const text = await rebuild(envelope as BackupEnvelope & { data: Record<string, unknown[]> });
     const result = await check(text, device);
     expect(result.ok).toBe(true);

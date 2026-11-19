@@ -4,4 +4,5 @@ export * from "./formula";
 export * from "./version";
 export * from "./measurement";
 export * from "./batch";
+export * from "./schedule";
 export * from "./backup";

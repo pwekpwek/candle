@@ -1,0 +1,178 @@
+{
+  "format": "candlelab-backup",
+  "formatVersion": 2,
+  "schemaVersion": 2,
+  "appVersion": "0.2.0",
+  "exportedAt": "2026-11-19T00:17:04.942Z",
+  "counts": {
+    "materials": 4,
+    "formulas": 1,
+    "formulaVersions": 1,
+    "measurements": 0,
+    "batches": 2
+  },
+  "checksum": {
+    "algorithm": "SHA-256",
+    "value": "bdbf486464dafaa2490e8d933fdc37889c1424283dc1e60535e262a8dcb60931"
+  },
+  "data": {
+    "materials": [
+      {
+        "id": "2071fbc8-3ee7-44bb-aa55-ed3b898037fb",
+        "type": "fragranceOil",
+        "name": "Vanilla (example)",
+        "createdAt": "2026-11-19T00:17:03.525Z",
+        "updatedAt": "2026-11-19T00:17:03.525Z",
+        "archivedAt": null
+      },
+      {
+        "id": "23fb98bf-c71e-4855-8b52-fd9d2db1a5d3",
+        "type": "fragranceOil",
+        "name": "Lavender (example)",
+        "createdAt": "2026-11-19T00:17:03.524Z",
+        "updatedAt": "2026-11-19T00:17:03.524Z",
+        "archivedAt": null
+      },
+      {
+        "id": "8d7d9a3c-c857-471b-8b69-cab877d26142",
+        "type": "wax",
+        "name": "Soy wax (example)",
+        "createdAt": "2026-11-19T00:17:03.519Z",
+        "updatedAt": "2026-11-19T00:17:03.519Z",
+        "archivedAt": null
+      },
+      {
+        "id": "ffd66ba9-0624-4aa1-99fc-15f3e0f3b536",
+        "type": "fragranceOil",
+        "name": "Cedarwood (example)",
+        "createdAt": "2026-11-19T00:17:03.525Z",
+        "updatedAt": "2026-11-19T00:17:03.525Z",
+        "archivedAt": null
+      }
+    ],
+    "formulas": [
+      {
+        "id": "3329e1e3-0f97-4ee9-9a7a-6de04a70023e",
+        "name": "Lavender Vanilla Cedar (example)",
+        "latestVersionNumber": 1,
+        "createdAt": "2026-11-19T00:17:04.253Z",
+        "updatedAt": "2026-11-19T00:17:04.253Z",
+        "archivedAt": null
+      }
+    ],
+    "formulaVersions": [
+      {
+        "id": "28f8c61b-bfe4-4c61-9573-e2de5d12ce42",
+        "formulaId": "3329e1e3-0f97-4ee9-9a7a-6de04a70023e",
+        "number": 1,
+        "origin": "initial",
+        "parentVersionId": null,
+        "scale": null,
+        "createdAt": "2026-11-19T00:17:04.253Z",
+        "inputs": {
+          "sizing": {
+            "mode": "vessels",
+            "count": 6,
+            "fillMg": 180000
+          },
+          "fragranceBp": 800,
+          "basis": "wax",
+          "precisionMg": 100,
+          "waxes": [
+            {
+              "componentId": "00bf0242-6963-445a-9460-ab34e15ec4a7",
+              "materialId": "8d7d9a3c-c857-471b-8b69-cab877d26142",
+              "snapshot": {
+                "type": "wax",
+                "name": "Soy wax (example)"
+              },
+              "partsX100": 100
+            }
+          ],
+          "oils": [
+            {
+              "componentId": "18e65c18-8720-47f3-86e0-536101a90516",
+              "materialId": "23fb98bf-c71e-4855-8b52-fd9d2db1a5d3",
+              "snapshot": {
+                "type": "fragranceOil",
+                "name": "Lavender (example)"
+              },
+              "partsX100": 300
+            },
+            {
+              "componentId": "9aa65206-2ac6-4017-9e3a-aad5e53937c3",
+              "materialId": "2071fbc8-3ee7-44bb-aa55-ed3b898037fb",
+              "snapshot": {
+                "type": "fragranceOil",
+                "name": "Vanilla (example)"
+              },
+              "partsX100": 200
+            },
+            {
+              "componentId": "3e83a48f-dd22-456a-8c06-120ac595cc1a",
+              "materialId": "ffd66ba9-0624-4aa1-99fc-15f3e0f3b536",
+              "snapshot": {
+                "type": "fragranceOil",
+                "name": "Cedarwood (example)"
+              },
+              "partsX100": 100
+            }
+          ],
+          "wick": null,
+          "vessel": null
+        },
+        "targets": {
+          "totalMg": 1080000,
+          "waxTotalMg": 1000000,
+          "fragranceTotalMg": 80000,
+          "components": [
+            {
+              "componentId": "00bf0242-6963-445a-9460-ab34e15ec4a7",
+              "targetMg": 1000000
+            },
+            {
+              "componentId": "18e65c18-8720-47f3-86e0-536101a90516",
+              "targetMg": 40000
+            },
+            {
+              "componentId": "9aa65206-2ac6-4017-9e3a-aad5e53937c3",
+              "targetMg": 26700
+            },
+            {
+              "componentId": "3e83a48f-dd22-456a-8c06-120ac595cc1a",
+              "targetMg": 13300
+            }
+          ]
+        },
+        "calcVersion": 1
+      }
+    ],
+    "measurements": [],
+    "batches": [
+      {
+        "id": "b06714f6-5f1f-43e2-bb17-7195aa0b6eff",
+        "formulaId": "3329e1e3-0f97-4ee9-9a7a-6de04a70023e",
+        "versionId": "28f8c61b-bfe4-4c61-9573-e2de5d12ce42",
+        "label": "BT-01",
+        "producedOn": "2026-11-10",
+        "entries": [
+          {
+            "componentId": "00bf0242-6963-445a-9460-ab34e15ec4a7",
+            "actualMg": 1003200
+          }
+        ],
+        "createdAt": "2026-11-19T00:17:04.576Z",
+        "updatedAt": "2026-11-19T00:17:04.576Z"
+      },
+      {
+        "id": "f32e9154-94bd-4aaa-bf23-691b51c10821",
+        "formulaId": "3329e1e3-0f97-4ee9-9a7a-6de04a70023e",
+        "versionId": "28f8c61b-bfe4-4c61-9573-e2de5d12ce42",
+        "producedOn": "2026-11-15",
+        "entries": [],
+        "createdAt": "2026-11-19T00:17:04.826Z",
+        "updatedAt": "2026-11-19T00:17:04.826Z"
+      }
+    ]
+  }
+}

@@ -9,6 +9,7 @@ import { FormulaBatches } from "@/components/batches";
 import { Notice, type NoticeVariant } from "@/components/common/notice";
 import { PageHeader } from "@/components/common/page-header";
 import { ScaleDialog } from "@/components/scale";
+import { FormulaPlans } from "@/components/schedule/formula-plans";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -29,6 +30,7 @@ import { VersionHistory } from "./version-history";
 const F = MESSAGES.formula;
 const E = MESSAGES.editor;
 const B = MESSAGES.batches;
+const S = MESSAGES.schedule;
 
 export type FormulaDetailProps = {
   formulaId: string;
@@ -279,6 +281,9 @@ function FormulaBody({
             <Button asChild variant="outline">
               <Link href={`/batches/new?version=${version.id}`}>{B.formulaCreateBatch}</Link>
             </Button>
+            <Button asChild variant="outline">
+              <Link href={`/schedule/plan/new?version=${version.id}`}>{S.planProduction}</Link>
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" aria-label={F.moreActions}>
@@ -368,6 +373,8 @@ function FormulaBody({
           {F.loading}
         </p>
       )}
+
+      <FormulaPlans formulaId={formula.id} versions={versions} className="mt-8" />
 
       <FormulaBatches formulaId={formula.id} versions={versions} className="mt-8" />
 

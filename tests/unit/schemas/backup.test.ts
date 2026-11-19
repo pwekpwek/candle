@@ -17,8 +17,8 @@ describe("BackupEnvelopeSchema", () => {
   it("accepts an empty backup with zero counts", () => {
     const empty = {
       ...envelope,
-      counts: { materials: 0, formulas: 0, formulaVersions: 0, measurements: 0, batches: 0 },
-      data: { materials: [], formulas: [], formulaVersions: [], measurements: [], batches: [] },
+      counts: { materials: 0, formulas: 0, formulaVersions: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0 },
+      data: { materials: [], formulas: [], formulaVersions: [], measurements: [], batches: [], curePlans: [], productionPlans: [] },
     };
     expect(BackupEnvelopeSchema.safeParse(empty).success).toBe(true);
   });
