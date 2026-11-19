@@ -15,6 +15,8 @@ import type { CandleDatabase } from "@/lib/db/contract";
 import type {
   Batch,
   BackupCounts,
+  BurnPhotoBackup,
+  BurnSession,
   CurePlan,
   BackupData,
   BackupEnvelope,
@@ -45,6 +47,8 @@ export type ExportedBackup = {
   /** The file's text: the envelope as JSON, 2-space indented. */
   json: string;
   fileName: string;
+  /** BurnMatrix: the file's size in UTF-8 bytes, for the backup page. Above MAX_BACKUP_BYTES this app cannot restore it. */
+  sizeBytes: number;
 };
 
 /**
@@ -60,14 +64,17 @@ export type ExportBackup = (
 
 // ───────────────────────────── Checks ─────────────────────────────
 
-export const MAX_BACKUP_BYTES = 25 * 1024 * 1024;
+/** 256 MiB since v0.2 BurnMatrix (photos); 25 MiB before. */
+export const MAX_BACKUP_BYTES = 256 * 1024 * 1024;
 
 /**
  * Why a file was refused. Checks run in this order and stop at the first
  * failure (docs/specs/4 Data Model.md, Step 1):
- *   not-backup   over 25 MB, not JSON, not an object, or `format` is wrong
+ *   not-backup   over MAX_BACKUP_BYTES, not JSON, not an object, or `format` is wrong
  *   newer        `formatVersion` is higher than this app understands
- *   invalid      one or more records (or the envelope) break the schema
+ *   invalid      one or more records (or the envelope) break the schema;
+ *                BurnMatrix: also a photo whose base64, size, JPEG marker
+ *                or SHA-256 does not match its record
  *   incomplete   `counts` do not match the arrays
  *   checksum     checksum does not match the data section
  *   duplicates   an id appears twice within one array
@@ -77,7 +84,8 @@ export const MAX_BACKUP_BYTES = 25 * 1024 * 1024;
  *                counts). CurePilot (format 3): a cure plan's batch, a
  *                production entry's version (same formula rule as batches),
  *                or a production entry's batch when set (a batch in the file
- *                must be of the entry's version).
+ *                must be of the entry's version). BurnMatrix (format 4): a
+ *                burn session's batch, or a photo's session.
  */
 export type CheckFailure =
   | { code: "not-backup" }
@@ -101,6 +109,8 @@ export type CheckFailure =
       batches: number;
       curePlans: number;
       productionPlans: number;
+      burnSessions: number;
+      burnPhotos: number;
     };
 
 export type CheckResult =
@@ -113,6 +123,8 @@ export type DeviceIds = {
   versionIds: ReadonlySet<string>;
   /** CurePilot: for cure plans and production entries that name a batch. */
   batchIds: ReadonlySet<string>;
+  /** BurnMatrix: for photos that name a session. */
+  burnSessionIds: ReadonlySet<string>;
 };
 
 /**
@@ -120,8 +132,9 @@ export type DeviceIds = {
  * on disk. A version below 1 is "not-backup"; above BACKUP_FORMAT_VERSION is
  * "newer".
  *
- * Format 1 (v0.1, no batches) and format 2 (BatchTrace, no cure plans or
- * production entries) are migrated in memory: the file is checked against its
+ * Format 1 (v0.1, no batches), format 2 (BatchTrace, no cure plans or
+ * production entries) and format 3 (CurePilot, no burn sessions or photos)
+ * are migrated in memory: the file is checked against its
  * own format's shape, its checksum is verified over the data section exactly
  * as written, and only then are the stores it lacks added as empty arrays
  * with a count of 0. The returned envelope keeps the file's
@@ -166,6 +179,8 @@ export type Renumbering = {
  *     may change (DATA-22), so restoring the same file again after a
  *     renumbering still finds every version identical (DATA-19). Clarified in
  *     wave 6.
+ *   - burnPhotos (BurnMatrix): identical when canonicalJson is equal
+ *     without `dataBase64`; `sha256` stands for the bytes.
  *   - formulas: compared on name, notes and archivedAt only.
  *     `latestVersionNumber`, `createdAt` and `updatedAt` are bookkeeping and do
  *     not make a conflict.
@@ -232,6 +247,9 @@ export type DeviceData = {
   batches: Batch[];
   curePlans: CurePlan[];
   productionPlans: ProductionPlan[];
+  burnSessions: BurnSession[];
+  /** Photos in their backup form (base64), so every restore step compares one shape. */
+  burnPhotos: BurnPhotoBackup[];
 };
 
 export type PlanRestore = (

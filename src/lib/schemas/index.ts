@@ -6,3 +6,4 @@ export * from "./measurement";
 export * from "./batch";
 export * from "./schedule";
 export * from "./backup";
+export * from "./burn";

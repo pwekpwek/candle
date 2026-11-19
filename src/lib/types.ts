@@ -222,9 +222,123 @@ export type ProductionPlan = {
   updatedAt: string;
 };
 
+export type SootLevel = "none" | "light" | "moderate" | "heavy";
+
+/**
+ * One burn of one candle in a burn session (v0.2, BurnMatrix). Observations
+ * only: every field except the duration is optional, and nothing here is a
+ * verdict. Burns are numbered by their position in `BurnCandle.burns`.
+ */
+export type BurnRecord = {
+  /** UUID, stable inside its candle. */
+  id: string;
+  /** Whole minutes, 1–1440. */
+  durationMin: number;
+  /** Candle weight before this burn, whole milligrams (1 up). */
+  weightBeforeMg?: number;
+  /** Candle weight after this burn, whole milligrams; not above `weightBeforeMg`. */
+  weightAfterMg?: number;
+  /** Melt pool diameter at the end of the burn, whole millimetres, 0–500. */
+  meltPoolDiameterMm?: number;
+  /** Melt pool depth at the end of the burn, whole millimetres, 0–500. */
+  meltPoolDepthMm?: number;
+  /** Flame height seen during the burn, whole millimetres, 0–500. */
+  flameHeightMm?: number;
+  /** Soot the maker saw. An observation, not a rating. */
+  soot?: SootLevel;
+  /** Up to MAX_BURN_TEXT_LENGTH characters after trimming. */
+  notes?: string;
+};
+
+/**
+ * The wick of one candle, as tested. `materialId` names a wick in the material
+ * library, or is null for a wick typed as free text. `name` is a snapshot of
+ * the material's name when it was chosen (or the typed text), so reports keep
+ * the name used at the time even after the material is renamed.
+ */
+export type BurnWick = {
+  materialId: string | null;
+  /** 1–80 characters after trimming. */
+  name: string;
+};
+
+/** One candle burned in a session, side by side with the others. */
+export type BurnCandle = {
+  /** UUID, stable inside its session. */
+  id: string;
+  /** "Candle 1", "A", "CD-10"…: 1–40 characters after trimming. */
+  label: string;
+  wick: BurnWick;
+  /** 0–MAX_BURNS_PER_CANDLE burns, in the order they happened. */
+  burns: BurnRecord[];
+  /** Cold throw notes (unlit), the maker's own words. */
+  coldThrow?: string;
+  /** Hot throw notes (lit), the maker's own words. */
+  hotThrow?: string;
+  notes?: string;
+};
+
+/**
+ * Store `burnSessions` (v0.2, BurnMatrix). One dated burn test on one batch.
+ * `batchId` is fixed at creation. `milestoneId` optionally names a `burnTest`
+ * milestone in the batch's cure plan; it is a soft link (see
+ * docs/v0.2-burnmatrix.md): saving a linked session marks that milestone done
+ * on `testedOn`. The app gives no pass or fail; `conclusion` is the maker's own text.
+ */
+export type BurnSession = {
+  id: string;
+  batchId: string;
+  /** Test date (YYYY-MM-DD), local calendar. */
+  testedOn: string;
+  /** 1–60 characters after trimming. Optional. */
+  label?: string;
+  /** A burnTest milestone of the batch's cure plan, or null. */
+  milestoneId: string | null;
+  /** 1–MAX_BURN_CANDLES candles. */
+  candles: BurnCandle[];
+  /** The maker's own conclusion. Never written by the app. */
+  conclusion?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Photo fields shared by the stored record and its backup form. */
+type BurnPhotoFields = {
+  id: string;
+  sessionId: string;
+  /** Always JPEG: the app re-encodes every photo when it is added. */
+  mimeType: "image/jpeg";
+  /** Pixels, 1–MAX_PHOTO_DIMENSION. */
+  width: number;
+  height: number;
+  /** Size of the JPEG bytes, 1–MAX_PHOTO_BYTES. */
+  byteLength: number;
+  /** SHA-256 of the JPEG bytes, lowercase hex. */
+  sha256: string;
+  /** 1–80 characters after trimming. Optional. */
+  caption?: string;
+  createdAt: string;
+};
+
+/**
+ * Store `burnPhotos` (v0.2, BurnMatrix). One photo of a burn session, kept on
+ * the device. Write-once: a photo is added or deleted, never changed.
+ */
+export type BurnPhoto = BurnPhotoFields & {
+  /** The JPEG file. */
+  bytes: Uint8Array;
+};
+
+/** A photo as a backup file holds it: the bytes as standard base64 (with padding). */
+export type BurnPhotoBackup = BurnPhotoFields & {
+  dataBase64: string;
+};
+
 /**
  * The exported stores, in dependency order. `batches` was added in v0.2
- * (format 2); `curePlans` and `productionPlans` in v0.2 CurePilot (format 3).
+ * (format 2); `curePlans` and `productionPlans` in v0.2 CurePilot (format 3);
+ * `burnSessions` and `burnPhotos` in v0.2 BurnMatrix (format 4).
  */
 export const DATA_STORES = [
   "materials",
@@ -234,6 +348,8 @@ export const DATA_STORES = [
   "batches",
   "curePlans",
   "productionPlans",
+  "burnSessions",
+  "burnPhotos",
 ] as const;
 export type DataStoreName = (typeof DATA_STORES)[number];
 
@@ -245,18 +361,25 @@ export type BackupData = {
   batches: Batch[];
   curePlans: CurePlan[];
   productionPlans: ProductionPlan[];
+  burnSessions: BurnSession[];
+  /** Photos in their backup form (base64 bytes); the device stores `BurnPhoto`. */
+  burnPhotos: BurnPhotoBackup[];
 };
 
 export type BackupCounts = Record<DataStoreName, number>;
 
 export const BACKUP_FORMAT = "candlelab-backup" as const;
 /**
- * 3 since v0.2 CurePilot (adds `curePlans`, `productionPlans`); 2 added
- * `batches`. Format 1 and 2 files are migrated on restore.
+ * 4 since v0.2 BurnMatrix (adds `burnSessions`, `burnPhotos`); 3 added
+ * `curePlans` and `productionPlans`; 2 added `batches`. Format 1 to 3 files
+ * are migrated on restore.
  */
-export const BACKUP_FORMAT_VERSION = 3 as const;
-/** IndexedDB schema. 3 since v0.2 CurePilot; 2 added the `batches` store. */
-export const SCHEMA_VERSION = 3 as const;
+export const BACKUP_FORMAT_VERSION = 4 as const;
+/**
+ * IndexedDB schema. 4 since v0.2 BurnMatrix; 3 (CurePilot) added cure plans
+ * and production entries; 2 added the `batches` store.
+ */
+export const SCHEMA_VERSION = 4 as const;
 export const CALC_VERSION = 1 as const;
 export const APP_VERSION = "0.2.0" as const;
 /** Longest batch label after trimming. */
@@ -269,6 +392,30 @@ export const MAX_MILESTONE_LABEL_LENGTH = 60 as const;
 export const MAX_MILESTONES = 20 as const;
 /** Largest milestone offset, in days after the production date. */
 export const MAX_OFFSET_DAYS = 365 as const;
+/** BurnMatrix: most candles burned side by side in one session. */
+export const MAX_BURN_CANDLES = 8 as const;
+/** BurnMatrix: most burns recorded for one candle. */
+export const MAX_BURNS_PER_CANDLE = 40 as const;
+/** BurnMatrix: longest single burn, in minutes (24 hours). */
+export const MAX_BURN_MINUTES = 1440 as const;
+/** BurnMatrix: largest melt pool or flame measurement, in millimetres. */
+export const MAX_BURN_MM = 500 as const;
+/** BurnMatrix: longest session label after trimming. */
+export const MAX_SESSION_LABEL_LENGTH = 60 as const;
+/** BurnMatrix: longest candle label after trimming. */
+export const MAX_CANDLE_LABEL_LENGTH = 40 as const;
+/** BurnMatrix: longest wick name after trimming. */
+export const MAX_WICK_NAME_LENGTH = 80 as const;
+/** BurnMatrix: longest photo caption after trimming. */
+export const MAX_PHOTO_CAPTION_LENGTH = 80 as const;
+/** BurnMatrix: longest notes, throw notes or conclusion after trimming. */
+export const MAX_BURN_TEXT_LENGTH = 2000 as const;
+/** BurnMatrix: most photos in one session. */
+export const MAX_SESSION_PHOTOS = 12 as const;
+/** BurnMatrix: longest side of a stored photo, in pixels. */
+export const MAX_PHOTO_DIMENSION = 1600 as const;
+/** BurnMatrix: largest stored photo, in bytes (1 MiB). */
+export const MAX_PHOTO_BYTES = 1_048_576 as const;
 export const DB_NAME = "candlelab" as const;
 
 /** The backup file (docs/specs/4 Data Model.md, "Backup file"). */

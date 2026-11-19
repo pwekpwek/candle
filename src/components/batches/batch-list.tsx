@@ -75,7 +75,15 @@ export function BatchList() {
 
   return (
     <>
-      <PageHeader title={B.title} description={B.listDescription} />
+      <PageHeader
+        title={B.title}
+        description={B.listDescription}
+        action={
+          <Button asChild variant="outline">
+            <Link href="/burn-tests">{MESSAGES.burnCompare.batchesLink}</Link>
+          </Button>
+        }
+      />
       {body}
     </>
   );

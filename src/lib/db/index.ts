@@ -1,4 +1,6 @@
 import { createBatchesRepo } from "./batches";
+import { createBurnPhotosRepo } from "./burn-photos";
+import { createBurnSessionsRepo } from "./burn-sessions";
 import { createCurePlansRepo } from "./cure-plans";
 import { createProductionPlansRepo } from "./production-plans";
 import { createScheduleRepo } from "./schedule";
@@ -12,7 +14,8 @@ import { createMeasurementsRepo } from "./measurements";
 import { createMetaRepo } from "./meta";
 import { createVersionsRepo } from "./versions";
 
-export { openDatabase, SCHEMA_V1, SCHEMA_V2_ADDED, SCHEMA_V3_ADDED } from "./db";
+export { openDatabase, SCHEMA_V1, SCHEMA_V2_ADDED, SCHEMA_V3_ADDED, SCHEMA_V4_ADDED } from "./db";
+export { sha256OfBytes } from "./burn-photos";
 export { DataError } from "./errors";
 export { bumpChangeCounter } from "./meta";
 export { probeStorage } from "./probe";
@@ -31,6 +34,8 @@ export function createDataLayer(db: CandleDatabase, options: DataLayerOptions = 
     curePlans: createCurePlansRepo(db, now, newId),
     productionPlans: createProductionPlansRepo(db, now),
     schedule: createScheduleRepo(db),
+    burnSessions: createBurnSessionsRepo(db, now, newId),
+    burnPhotos: createBurnPhotosRepo(db, now),
     drafts: createDraftsRepo(db, now),
     meta,
     example: createExampleRepo(db, now, newId),

@@ -1,0 +1,217 @@
+{
+  "format": "candlelab-backup",
+  "formatVersion": 3,
+  "schemaVersion": 3,
+  "appVersion": "0.2.0",
+  "exportedAt": "2026-11-19T13:47:21.659Z",
+  "counts": {
+    "materials": 4,
+    "formulas": 1,
+    "formulaVersions": 1,
+    "measurements": 0,
+    "batches": 2,
+    "curePlans": 1,
+    "productionPlans": 1
+  },
+  "checksum": {
+    "algorithm": "SHA-256",
+    "value": "a005db28da64b6665eebbe61107c68f3f8eb49c78a90ae9d2ee62ae5c7837a7e"
+  },
+  "data": {
+    "materials": [
+      {
+        "id": "a0a8eb56-28a4-441c-8ad5-7883db3e889e",
+        "type": "fragranceOil",
+        "name": "Cedar",
+        "createdAt": "2026-11-19T13:47:20.260Z",
+        "updatedAt": "2026-11-19T13:47:20.260Z",
+        "archivedAt": null
+      },
+      {
+        "id": "b290cc35-0b65-47a7-8a95-8d287befe4ad",
+        "type": "fragranceOil",
+        "name": "Lavender",
+        "createdAt": "2026-11-19T13:47:19.928Z",
+        "updatedAt": "2026-11-19T13:47:19.928Z",
+        "archivedAt": null
+      },
+      {
+        "id": "bacd4c0d-642c-4a53-939d-5ce52acbc892",
+        "type": "fragranceOil",
+        "name": "Vanilla",
+        "createdAt": "2026-11-19T13:47:20.094Z",
+        "updatedAt": "2026-11-19T13:47:20.094Z",
+        "archivedAt": null
+      },
+      {
+        "id": "dfa644ed-31e4-4434-b9e5-5e1dd336beb6",
+        "type": "wax",
+        "name": "Soy 464",
+        "createdAt": "2026-11-19T13:47:19.845Z",
+        "updatedAt": "2026-11-19T13:47:19.845Z",
+        "archivedAt": null
+      }
+    ],
+    "formulas": [
+      {
+        "id": "3f110a6f-ba2a-41eb-88bf-af7fe0d7b850",
+        "name": "Lavender Vanilla Cedar",
+        "latestVersionNumber": 1,
+        "createdAt": "2026-11-19T13:47:20.376Z",
+        "updatedAt": "2026-11-19T13:47:20.376Z",
+        "archivedAt": null
+      }
+    ],
+    "formulaVersions": [
+      {
+        "id": "e03f2f9d-5071-4b17-aaff-72e7d482a460",
+        "formulaId": "3f110a6f-ba2a-41eb-88bf-af7fe0d7b850",
+        "number": 1,
+        "origin": "initial",
+        "parentVersionId": null,
+        "scale": null,
+        "createdAt": "2026-11-19T13:47:20.376Z",
+        "inputs": {
+          "sizing": {
+            "mode": "vessels",
+            "count": 6,
+            "fillMg": 180000
+          },
+          "fragranceBp": 800,
+          "basis": "wax",
+          "precisionMg": 100,
+          "waxes": [
+            {
+              "componentId": "78b3f05e-6ac9-45c0-8492-3985975f578f",
+              "materialId": "dfa644ed-31e4-4434-b9e5-5e1dd336beb6",
+              "snapshot": {
+                "type": "wax",
+                "name": "Soy 464"
+              },
+              "partsX100": 100
+            }
+          ],
+          "oils": [
+            {
+              "componentId": "ea8f24df-41d8-4545-ba63-79e22585c941",
+              "materialId": "b290cc35-0b65-47a7-8a95-8d287befe4ad",
+              "snapshot": {
+                "type": "fragranceOil",
+                "name": "Lavender"
+              },
+              "partsX100": 300
+            },
+            {
+              "componentId": "8e79bfa9-8636-474c-8701-3e5843c76b28",
+              "materialId": "bacd4c0d-642c-4a53-939d-5ce52acbc892",
+              "snapshot": {
+                "type": "fragranceOil",
+                "name": "Vanilla"
+              },
+              "partsX100": 200
+            },
+            {
+              "componentId": "5f3e6db8-4a8a-4433-8cd9-196b05f2d6f0",
+              "materialId": "a0a8eb56-28a4-441c-8ad5-7883db3e889e",
+              "snapshot": {
+                "type": "fragranceOil",
+                "name": "Cedar"
+              },
+              "partsX100": 100
+            }
+          ],
+          "wick": null,
+          "vessel": null
+        },
+        "targets": {
+          "totalMg": 1080000,
+          "waxTotalMg": 1000000,
+          "fragranceTotalMg": 80000,
+          "components": [
+            {
+              "componentId": "78b3f05e-6ac9-45c0-8492-3985975f578f",
+              "targetMg": 1000000
+            },
+            {
+              "componentId": "ea8f24df-41d8-4545-ba63-79e22585c941",
+              "targetMg": 40000
+            },
+            {
+              "componentId": "8e79bfa9-8636-474c-8701-3e5843c76b28",
+              "targetMg": 26700
+            },
+            {
+              "componentId": "5f3e6db8-4a8a-4433-8cd9-196b05f2d6f0",
+              "targetMg": 13300
+            }
+          ]
+        },
+        "calcVersion": 1
+      }
+    ],
+    "measurements": [],
+    "batches": [
+      {
+        "id": "7a9cd6ee-49a7-447c-8307-782bd2b0aee9",
+        "formulaId": "3f110a6f-ba2a-41eb-88bf-af7fe0d7b850",
+        "versionId": "e03f2f9d-5071-4b17-aaff-72e7d482a460",
+        "label": "CP-01",
+        "producedOn": "2026-11-14",
+        "entries": [],
+        "createdAt": "2026-11-19T13:47:20.692Z",
+        "updatedAt": "2026-11-19T13:47:20.692Z"
+      },
+      {
+        "id": "dadb977e-6d54-40f3-8417-bba70ec13e13",
+        "formulaId": "3f110a6f-ba2a-41eb-88bf-af7fe0d7b850",
+        "versionId": "e03f2f9d-5071-4b17-aaff-72e7d482a460",
+        "label": "CP-02",
+        "producedOn": "2026-11-19",
+        "entries": [],
+        "createdAt": "2026-11-19T13:47:21.242Z",
+        "updatedAt": "2026-11-19T13:47:21.242Z"
+      }
+    ],
+    "curePlans": [
+      {
+        "id": "7a9cd6ee-49a7-447c-8307-782bd2b0aee9",
+        "milestones": [
+          {
+            "id": "cf400929-c4a7-46ab-a85b-41261a01e929",
+            "kind": "cureEnd",
+            "offsetDays": 14,
+            "doneOn": null
+          },
+          {
+            "id": "313612fd-1e1e-4de5-b6d8-51b7dbf027a7",
+            "kind": "burnTest",
+            "label": "First burn",
+            "offsetDays": 3,
+            "doneOn": null
+          },
+          {
+            "id": "1b81d57e-9a94-4475-a0a9-83057bf0027b",
+            "kind": "check",
+            "label": "Check frosting",
+            "offsetDays": 7,
+            "doneOn": "2026-11-19"
+          }
+        ],
+        "createdAt": "2026-11-19T13:47:20.959Z",
+        "updatedAt": "2026-11-19T13:47:21.026Z"
+      }
+    ],
+    "productionPlans": [
+      {
+        "id": "e8b1f601-3747-41fa-b22e-46c7f724fb63",
+        "formulaId": "3f110a6f-ba2a-41eb-88bf-af7fe0d7b850",
+        "versionId": "e03f2f9d-5071-4b17-aaff-72e7d482a460",
+        "plannedOn": "2026-11-29",
+        "label": "Holiday run",
+        "batchId": null,
+        "createdAt": "2026-11-19T13:47:21.493Z",
+        "updatedAt": "2026-11-19T13:47:21.493Z"
+      }
+    ]
+  }
+}

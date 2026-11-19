@@ -2,11 +2,13 @@ import { DATA_STORES } from "@/lib/types";
 import type {
   BackupCounts,
   BackupData,
+  BurnPhotoBackup,
   DataStoreName,
   Formula,
   FormulaVersion,
 } from "@/lib/types";
 import { canonicalJson } from "./canonical";
+import { photoIdentity } from "./photos";
 import type { DeviceData, PlanRestore, Renumbering, RestorePlan, StoreTally } from "./contract";
 
 type Class = "new" | "identical" | "conflict";
@@ -20,6 +22,8 @@ function zeroCounts(): BackupCounts {
     batches: 0,
     curePlans: 0,
     productionPlans: 0,
+    burnSessions: 0,
+    burnPhotos: 0,
   };
 }
 
@@ -32,6 +36,8 @@ function emptyTally(): Record<DataStoreName, StoreTally> {
     batches: { new: 0, identical: 0, conflict: 0 },
     curePlans: { new: 0, identical: 0, conflict: 0 },
     productionPlans: { new: 0, identical: 0, conflict: 0 },
+    burnSessions: { new: 0, identical: 0, conflict: 0 },
+    burnPhotos: { new: 0, identical: 0, conflict: 0 },
   };
 }
 
@@ -55,6 +61,11 @@ function classify<T extends { id: string }>(
 
 function sameByCanonical<T>(a: T, b: T): boolean {
   return canonicalJson(a) === canonicalJson(b);
+}
+
+/** BurnMatrix: photos compare without their bytes; `sha256` stands for them (verified on check). */
+function samePhoto(a: BurnPhotoBackup, b: BurnPhotoBackup): boolean {
+  return canonicalJson(photoIdentity(a)) === canonicalJson(photoIdentity(b));
 }
 
 /**
@@ -81,6 +92,8 @@ function countsOf(data: BackupData): BackupCounts {
     batches: data.batches.length,
     curePlans: data.curePlans.length,
     productionPlans: data.productionPlans.length,
+    burnSessions: data.burnSessions.length,
+    burnPhotos: data.burnPhotos.length,
   };
 }
 
@@ -110,6 +123,8 @@ function tallyAgainst(envelopeData: BackupData, device: DeviceData): Record<Data
     batches: sameByCanonical,
     curePlans: sameByCanonical,
     productionPlans: sameByCanonical,
+    burnSessions: sameByCanonical,
+    burnPhotos: samePhoto as (a: never, b: never) => boolean,
   };
   for (const store of DATA_STORES) {
     const deviceMap = byId(device[store] as { id: string }[]);
@@ -143,6 +158,8 @@ function planReplace(
       batches: [...data.batches],
       curePlans: [...data.curePlans],
       productionPlans: [...data.productionPlans],
+      burnSessions: [...data.burnSessions],
+      burnPhotos: [...data.burnPhotos],
     },
     clear: true,
     added: { ...fileCounts },
@@ -178,6 +195,8 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
     batches: [],
     curePlans: [],
     productionPlans: [],
+    burnSessions: [],
+    burnPhotos: [],
   };
 
   // Materials, measurements and batches: new, identical or conflict.
@@ -218,13 +237,19 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
   // are classified the same way, whole (docs/v0.2-curepilot.md). A cure plan's
   // id is its batch's id, so two devices that planned the same batch meet here
   // as an ordinary conflict.
-  const editableStores = ["batches", "curePlans", "productionPlans"] as const;
+  //
+  // BurnMatrix: burn sessions too (whole), and photos without their bytes.
+  const editableStores = ["batches", "curePlans", "productionPlans", "burnSessions", "burnPhotos"] as const;
   for (const store of editableStores) {
     const deviceMap = byId<{ id: string }>(device[store]);
     const incoming: { id: string }[] = data[store];
     const out: { id: string }[] = puts[store];
+    const same = (store === "burnPhotos" ? samePhoto : sameByCanonical) as (
+      a: { id: string },
+      b: { id: string },
+    ) => boolean;
     for (const record of incoming) {
-      const { cls } = classify(record, deviceMap, sameByCanonical);
+      const { cls } = classify(record, deviceMap, same);
       tally[store][cls] += 1;
       if (cls === "new") {
         out.push(record);
@@ -358,6 +383,8 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
     batches: device.batches.length + added.batches,
     curePlans: device.curePlans.length + added.curePlans,
     productionPlans: device.productionPlans.length + added.productionPlans,
+    burnSessions: device.burnSessions.length + added.burnSessions,
+    burnPhotos: device.burnPhotos.length + added.burnPhotos,
   };
   const present = new Set([
     ...device.materials.map((material) => material.id),

@@ -144,7 +144,7 @@ function ConnectedBottomNavLinks() {
 /** Sidebar (from 1024px) and icon rail (640 to 1023px). Hidden below 640px. */
 export function SideNav() {
   return (
-    <aside className="sticky top-0 hidden h-dvh w-16 shrink-0 flex-col border-r border-border bg-muted sm:flex lg:w-60">
+    <aside className="sticky top-0 hidden h-dvh print:hidden w-16 shrink-0 flex-col border-r border-border bg-muted sm:flex lg:w-60">
       <div className="flex h-16 items-center justify-center gap-2 px-3 lg:justify-start lg:px-5">
         <FlameIcon
           aria-hidden="true"
@@ -169,7 +169,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-muted pb-[env(safe-area-inset-bottom)] sm:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-muted pb-[env(safe-area-inset-bottom)] sm:hidden print:hidden"
     >
       <Suspense fallback={<BottomNavLinks pathname={null} attention={0} />}>
         <ConnectedBottomNavLinks />

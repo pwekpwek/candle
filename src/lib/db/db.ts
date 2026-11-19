@@ -24,12 +24,20 @@ export const SCHEMA_V3_ADDED = {
   productionPlans: "id, formulaId, versionId, plannedOn, batchId",
 } as const;
 
+/** Stores added by schema version 4 (v0.2 BurnMatrix). */
+export const SCHEMA_V4_ADDED = {
+  /** Unlinked sessions have milestoneId null and are left out of that index. */
+  burnSessions: "id, batchId, milestoneId, testedOn",
+  burnPhotos: "id, sessionId",
+} as const;
+
 /**
- * Builds the Dexie instance (schema version 3). Dexie opens lazily on the
+ * Builds the Dexie instance (schema version 4). Dexie opens lazily on the
  * first query, so calling this never touches IndexedDB by itself.
  *
  * Version 2 (BatchTrace) added `batches`; version 3 (CurePilot) adds
- * `curePlans` and `productionPlans`. Each version only adds stores. Every
+ * `curePlans` and `productionPlans`; version 4 (BurnMatrix) adds
+ * `burnSessions` and `burnPhotos`. Each version only adds stores. Every
  * earlier store keeps its key and indexes, so an upgrade moves no records
  * (DATA-29): an older database opens with all its data and empty new stores.
  */
@@ -38,5 +46,6 @@ export function openDatabase(name: string = DB_NAME): CandleDatabase {
   db.version(1).stores(SCHEMA_V1);
   db.version(2).stores(SCHEMA_V2_ADDED);
   db.version(3).stores(SCHEMA_V3_ADDED);
+  db.version(4).stores(SCHEMA_V4_ADDED);
   return db;
 }

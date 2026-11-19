@@ -1,4 +1,4 @@
-# Build State — CandleLab Studio v0.1
+# Build State — CandleLab Studio v0.1 and v0.2
 
 The single place that says where the build is. **Each wave runs in its own chat** (owner's instruction, 2026-11-15). A chat reads this file, does its wave, updates this file, commits, and stops. The lead orchestrator chat then checks the commit and starts the next wave's chat.
 
@@ -54,7 +54,21 @@ Branch `feat/v0.2-curepilot`, stacked on `feat/v0.2-batchtrace` (its PR merges i
 
 Models: lead (Opus) wrote the design note, types, schemas, schema 3, the repositories, backup format 3, the schedule contract and their unit tests, reviewed every diff and ran the checks. Sonnet wrote the schedule logic and its tests, the screens and their tests, and the browser tests.
 
-Next in v0.2: BurnMatrix (see the vault Tasks note). It can link a burn session to a `burnTest` milestone by its id.
+## v0.2 — BurnMatrix (2026-11-19)
+
+Branch `feat/v0.2-burnmatrix`, stacked on `feat/v0.2-curepilot` (its PR merges into that branch). Scope, data model, photo handling, the milestone link, compatibility and delete rules: `docs/v0.2-burnmatrix.md`. Results and the commit SHA are in the vault handoff `Projects/apps/candle/Sessions/2026-11-19 - v0.2 BurnMatrix - Development Handoff.md`.
+
+- **Storage:** IndexedDB schema 4 (IndexedDB version 40) adds `burnSessions` and `burnPhotos`. Schema 1 to 3 databases upgrade in place (`tests/unit/db/upgrade.test.ts`, plus a real CurePilot browser profile, see the handoff).
+- **Backup format 4** adds both stores. Photos are base64, each with its SHA-256 checked on restore. Formats 1 to 3 are read and migrated in memory. `tests/fixtures/backups/good-v3.json` is a real CurePilot (format 3) export. `bad-03-newer-version.json` now uses format 5. `MAX_BACKUP_BYTES` is 256 MiB, and `exportBackup` returns `sizeBytes`.
+- **Pure logic** is in `src/lib/burnmatrix` (contract in `contract.ts`): weight loss, mg per hour (BigInt half-up), totals, the comparison model and the CSV. Photo preparation is in `src/lib/photos` (contract in `contract.ts`).
+- **Data-layer changes other screens must know:**
+  - `batches.delete` throws `in-use` while the batch has burn sessions, and `batches.deletionImpact` has `burnSessions`.
+  - `curePlans.save` and `curePlans.delete` clear session links to milestones they remove.
+  - A new `DataErrorCode` `storage-full`.
+
+Models: lead (Opus) wrote the design note, types, schemas, schema 4, the repositories, backup format 4, the two contracts and their unit tests, reviewed every diff and ran the checks. Sonnet wrote the calculations, photo handling, the screens and their tests, and the browser tests.
+
+Next in v0.2: integration QA of the whole workflow (vault Tasks note).
 
 ## Wave 3 handover
 

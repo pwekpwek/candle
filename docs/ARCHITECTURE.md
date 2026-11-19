@@ -58,6 +58,11 @@ Read this before any task. The specs are in `docs/specs/`. The task list is `doc
 | `src/lib/db/{cure-plans,production-plans,schedule}.ts`, CurePilot parts of `src/lib/{types.ts,db,backup,schemas}`, `src/lib/schedule/contract.ts` | v0.2 CurePilot (lead) | Cure plans, planned production, schema 3, backup format 3 |
 | `src/lib/schedule/{dates,schedule,index}.ts` | v0.2 CurePilot | Pure date and schedule logic |
 | `src/components/schedule/**`, `src/app/schedule/**`, `src/app/batches/[batchId]/cure-plan/**` | v0.2 CurePilot | Curing section, cure-plan editor, planned production, Schedule page, nav count |
+| `src/lib/db/{burn-sessions,burn-photos}.ts`, `src/lib/backup/photos.ts`, `src/lib/schemas/burn.ts`, BurnMatrix parts of `src/lib/{types.ts,db,backup}`, `src/lib/burnmatrix/contract.ts`, `src/lib/photos/contract.ts` | v0.2 BurnMatrix (lead) | Burn sessions and photos, schema 4, backup format 4, contracts |
+| `src/lib/burnmatrix/{calc,comparison,csv,index}.ts` | v0.2 BurnMatrix | Weight loss, rates, totals, comparison model, CSV |
+| `src/lib/photos/{prepare,index}.ts`, `src/components/burn/photos/**` | v0.2 BurnMatrix | Photo shrinking and the photo gallery |
+| `src/components/burn/session/**`, `src/app/burn-tests/new/**`, `src/app/burn-tests/[sessionId]/page.tsx`, `src/app/burn-tests/[sessionId]/edit/**` | v0.2 BurnMatrix | Burn tests section on the batch page, session editor and page |
+| `src/components/burn/{compare,report,list,export}/**`, `src/app/burn-tests/page.tsx`, `src/app/burn-tests/compare/**`, `src/app/burn-tests/[sessionId]/report/**` | v0.2 BurnMatrix | Burn tests list, comparison, printable reports, CSV download, backup file size |
 
 ## Routes
 
@@ -78,6 +83,13 @@ Read this before any task. The specs are in `docs/specs/`. The task list is `doc
 | `/schedule/plan/new?version=[versionId]` | Plan production of a saved version (v0.2 CurePilot) |
 | `/schedule/plan/[planId]` | Planned production entry: edit, delete, Create batch (v0.2 CurePilot) |
 | `/batches/new?version=[versionId]&plan=[planId]` | Create batch from a planned production entry (v0.2 CurePilot) |
+| `/burn-tests` | All burn tests, pick up to 4 to compare (v0.2 BurnMatrix) |
+| `/burn-tests/new?batch=[batchId]` | Record a burn test for a batch (v0.2 BurnMatrix) |
+| `/burn-tests/[sessionId]` | Burn test: candles, burns, figures, photos (v0.2 BurnMatrix) |
+| `/burn-tests/[sessionId]/edit` | Edit a burn test (v0.2 BurnMatrix) |
+| `/burn-tests/[sessionId]/report` | Printable report of one burn test (v0.2 BurnMatrix) |
+| `/burn-tests/compare?sessions=a,b,c,d` | Comparison of 1 to 4 burn tests (v0.2 BurnMatrix) |
+| `/burn-tests/compare/report?sessions=…` | Printable comparison report (v0.2 BurnMatrix) |
 
 ## Decisions made during the build
 
@@ -126,3 +138,16 @@ Full design and compatibility notes: `docs/v0.2-curepilot.md`.
 - **Deletes:** a batch's cure plan is deleted with the batch, and an entry that made it becomes open again; a formula's open entries are deleted with the formula (a formula with batches still cannot be deleted). Archiving a formula changes nothing in the schedule.
 - **Schema 3** adds `curePlans` and `productionPlans` only. **Backup format 3** adds both; formats 1 and 2 are migrated in memory after their own checksum is verified. Orphan checks cover a cure plan's batch and an entry's version and batch.
 - **Wording:** curing is scheduling information only; nothing says a candle is cured, ready or safe.
+
+## v0.2 BurnMatrix decisions (2026-11-19)
+
+Full design and compatibility notes: `docs/v0.2-burnmatrix.md`.
+
+- **Session = one dated test on one batch**, with 1 to 8 candles side by side. Each candle has its own wick (a library wick, whose name is snapshotted, or free text), 0 to 40 burns and its own cold and hot throw notes. Burns record duration and optional weights, melt pool, flame, soot and notes. The maker's conclusion is free text. The app gives no pass or fail.
+- **Photos** are stored on the device as JPEG `Uint8Array`, shrunk to at most 1600 px and 1 MiB when added (metadata dropped), up to 12 per session, write-once. They are in backups as base64 with their own SHA-256.
+- **Planned burn test link** is a soft link to a `burnTest` milestone. Saving a linked session marks it done on the test date in the same transaction. Removing the milestone or the cure plan clears the link. Unlinking or deleting a session leaves the milestone as it is. A restore never refuses a file over it.
+- **Batch delete is refused** (`in-use`) while the batch has burn sessions. Deleting a session deletes its photos after confirmation.
+- **Storage full** has its own error code, `storage-full`, mapped from `QuotaExceededError` in every repository.
+- **Schema 4** adds `burnSessions` and `burnPhotos` only. **Backup format 4** adds both. Formats 1 to 3 are migrated in memory after their own checksum is verified. `MAX_BACKUP_BYTES` is 256 MiB, and export reports the file size.
+- **Reports** are printable pages (browser Print / Save as PDF) plus a CSV; there is no PDF library. The burn tests list is reached from the Batches page and each batch's Burn tests section, not from the nav.
+- **Wording:** observations only. The messages test scans every string for verdict words.

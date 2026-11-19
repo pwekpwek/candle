@@ -293,6 +293,17 @@ export function messageForCheckFailure(failure: CheckFailure): string {
           `${countOf(failure.productionPlans, "planned production entry", "planned production entries")} ${failure.productionPlans === 1 ? "refers" : "refer"} to a missing version or batch`,
         );
       }
+      // Burn test and photo clauses WRITTEN HERE (v0.2 BurnMatrix).
+      if (failure.burnSessions > 0) {
+        parts.push(
+          `${countOf(failure.burnSessions, "burn test")} ${failure.burnSessions === 1 ? "refers" : "refer"} to a missing batch`,
+        );
+      }
+      if (failure.burnPhotos > 0) {
+        parts.push(
+          `${countOf(failure.burnPhotos, "photo")} ${failure.burnPhotos === 1 ? "refers" : "refer"} to a missing burn test`,
+        );
+      }
       return `This backup is incomplete: ${parts.join(" and ")}.`;
     }
     default:
@@ -314,6 +325,9 @@ const SUMMARY_ORDER: readonly {
   // WRITTEN HERE (v0.2 CurePilot).
   { key: "curePlans", singular: "cure plan", plural: "cure plans" },
   { key: "productionPlans", singular: "planned production entry", plural: "planned production entries" },
+  // WRITTEN HERE (v0.2 BurnMatrix).
+  { key: "burnSessions", singular: "burn test", plural: "burn tests" },
+  { key: "burnPhotos", singular: "photo", plural: "photos" },
 ];
 
 function countsList(counts: BackupCounts): string[] {
@@ -1152,6 +1166,411 @@ export const MESSAGES = {
     failNoSafety:
       "Something went wrong inside the app, and nothing was changed. Please try again, and report it if it keeps happening.",
     recheck: "Check the file again",
+  },
+
+  /**
+   * Burn test CSV column headers and soot level names. WRITTEN HERE (v0.2 BurnMatrix)
+   * for owner review.
+   */
+  burnCsv: {
+    testDate: "Test date",
+    session: "Session",
+    batch: "Batch",
+    formula: "Formula",
+    version: "Version",
+    candle: "Candle",
+    wick: "Wick",
+    burn: "Burn",
+    durationMin: "Duration (min)",
+    weightBeforeG: "Weight before (g)",
+    weightAfterG: "Weight after (g)",
+    weightLossG: "Weight loss (g)",
+    rateGPerHour: "Rate (g/h)",
+    meltPoolDiameterMm: "Melt pool diameter (mm)",
+    meltPoolDepthMm: "Melt pool depth (mm)",
+    flameHeightMm: "Flame height (mm)",
+    soot: "Soot",
+    burnNotes: "Burn notes",
+    coldThrow: "Cold throw",
+    hotThrow: "Hot throw",
+    candleNotes: "Candle notes",
+    conclusion: "Conclusion",
+    sootNone: "None seen",
+    sootLight: "Light",
+    sootModerate: "Moderate",
+    sootHeavy: "Heavy",
+  },
+
+  /** Photos of a burn session (v0.2 BurnMatrix). WRITTEN HERE (v0.2 BurnMatrix): for owner review. */
+  burnPhotos: {
+    heading: "Photos",
+    count: (n: number, max: number) => `${n} of ${max}`,
+    empty: "No photos yet. Add photos of the burn, such as the melt pool, the flame or the soot.",
+    addButton: "Add photos",
+    limitReached: (max: number) =>
+      `This test has ${max} photos, which is the most it can hold. Delete a photo to add another.`,
+    limitStopped: (added: number, max: number) =>
+      `Added ${countOf(added, "photo")}. The test now has ${max} photos, the most it can hold, so the rest were not added.`,
+    progress: (n: number, total: number) => `Adding photo ${n} of ${total}…`,
+    addedSummary: (n: number) => `Added ${countOf(n, "photo")}.`,
+    photoAlt: (n: number, total: number) => `Photo ${n} of ${total}`,
+    openPhoto: (n: number, total: number) => `Open photo ${n} of ${total}`,
+    loadError: "The photos could not be loaded from this device.",
+    viewTitle: (n: number, total: number) => `Photo ${n} of ${total}`,
+    close: "Close",
+    delete: "Delete photo",
+    deleteTitle: "Delete this photo?",
+    deleteBody: "The photo is removed from this device. This cannot be undone.",
+    deleteConfirm: "Delete photo",
+    deleteCancel: "Keep photo",
+    deleteError: "The photo could not be deleted. Nothing was changed. Please try again.",
+    deleteGone: "That photo was already deleted.",
+    privacyNote:
+      "Photos are shrunk to fit and saved as JPEG on this device. Location and camera details in the photo are not kept.",
+    storageUsage: (used: string, quota: string) =>
+      `This site uses ${used} of about ${quota} available on this device.`,
+    errorNotImage: (name: string) => `${name} is not an image, so it was not added.`,
+    errorTooLarge: (name: string) =>
+      `${name} is larger than 40 MB, so it was not added. Choose a smaller photo.`,
+    errorTooBig: (name: string) =>
+      `${name} is still too big after shrinking, so it was not added. Try a different photo.`,
+    errorUnsupported:
+      "This browser cannot turn photos into JPEG files, so the photo was not added. Try another browser.",
+    errorStorageFull:
+      "This device is out of space for this site, so the photo was not added. Nothing else was lost. Deleting photos or old burn tests after making a backup frees space.",
+    errorLimit: (max: number) =>
+      `This test already has ${max} photos, the most it can hold, so the photo was not added.`,
+    errorStorage:
+      "The photo could not be saved on this device, so it was not added. Nothing else was changed. Please try again.",
+    errorNotFound: "This burn test could not be found, so the photo was not added.",
+  },
+
+  /**
+   * Burn test list, comparison, printable report and backup size (v0.2 BurnMatrix).
+   * WRITTEN HERE (v0.2 BurnMatrix): for owner review. Observations only: no verdicts.
+   */
+  burnCompare: {
+    // Shared
+    separator: " · ",
+    notRecorded: "Not recorded",
+    tryAgain: "Try again",
+    batchesLink: "Burn tests",
+    candleCount: (n: number) => countOf(n, "candle"),
+    photoCount: (n: number) => countOf(n, "photo"),
+    versionText: (version: number) => `version ${version}`,
+    sessionFallbackTitle: (date: string) => `Burn test on ${date}`,
+    batchFallbackTitle: (idStart: string) => `Batch ${idStart}`,
+    formulaArchivedBadge: "Formula archived",
+    makerConclusion: "Conclusion, in the maker's own words",
+    noConclusion: "No conclusion written.",
+    // List (/burn-tests)
+    listTitle: "Burn tests",
+    listDescription: "Every burn test you have recorded, newest first. Choose up to 4 to compare side by side.",
+    listLoading: "Loading burn tests…",
+    listLoadFailedTitle: "Burn tests could not be loaded.",
+    listLoadFailed: "Your data is still on this device. Try again.",
+    listEmptyTitle: "No burn tests yet",
+    listEmptyDescription:
+      "A burn test is a dated record of candles burned from one batch. Open a batch and choose Record burn test.",
+    listEmptyAction: "Go to batches",
+    listGroupLabel: "Burn tests to compare",
+    selectLabel: (title: string) => `Select ${title} to compare`,
+    selectedCount: (n: number, max: number) => `${n} of ${max} selected`,
+    selectionFull: (max: number) => `You can compare up to ${max} burn tests. Clear one to choose another.`,
+    compareButton: "Compare",
+    clearSelection: "Clear selection",
+    // Comparison (/burn-tests/compare)
+    compareTitle: "Compare burn tests",
+    compareDescription: "Figures and observations as recorded, side by side. Nothing is ranked or marked.",
+    compareLoading: "Loading the comparison…",
+    compareLoadFailedTitle: "The comparison could not be loaded.",
+    compareLoadFailed: "Your data is still on this device. Try again.",
+    compareNoneTitle: "No burn tests chosen",
+    compareNoneBody: "Choose one to four burn tests from the list to compare them.",
+    compareNotFoundTitle: "Burn tests not found",
+    compareNotFoundBody: "None of the chosen burn tests could be found. They may have been deleted.",
+    compareSomeMissing: (ids: string[]) =>
+      `${countOf(ids.length, "burn test")} could not be found and ${ids.length === 1 ? "is" : "are"} left out: ${ids.join(", ")}.`,
+    compareTruncated: (max: number) => `Only the first ${max} burn tests are shown.`,
+    tableCaption: "Burn test comparison. This table scrolls sideways when it is wider than the screen.",
+    sessionColumn: "Burn test",
+    candleColumn: "Candle",
+    rowWick: "Wick",
+    rowBurnCount: "Burns",
+    rowTotalTime: "Total burn time",
+    rowTotalLoss: "Total weight loss",
+    rowAverageRate: "Average rate",
+    rowLastMeltPoolDiameter: "Melt pool diameter, last recorded",
+    rowMaxMeltPoolDepth: "Melt pool depth, largest recorded",
+    rowMaxFlameHeight: "Flame height, largest recorded",
+    rowSoot: "Soot seen",
+    rowColdThrow: "Cold throw",
+    rowHotThrow: "Hot throw",
+    sootNone: "None",
+    sootLight: "Light",
+    sootModerate: "Moderate",
+    sootHeavy: "Heavy",
+    actionReport: "Report",
+    actionDownloadCsv: "Download CSV",
+    actionChangeSelection: "Change selection",
+    csvFailed: "The CSV could not be downloaded. Please try again.",
+    // Report
+    reportSessionTitle: "Burn test report",
+    reportCompareTitle: "Burn test comparison report",
+    reportLoading: "Loading the report…",
+    reportLoadFailedTitle: "The report could not be loaded.",
+    reportLoadFailed: "Your data is still on this device. Try again.",
+    reportNotFoundTitle: "Burn test not found",
+    reportNotFoundBody: "This burn test could not be found. It may have been deleted.",
+    reportGenerated: (date: string) => `Generated ${date}`,
+    reportObservationsNote:
+      "These are the maker's own observations. CandleLab Studio does not certify or rate candles.",
+    reportPrint: "Print or save as PDF",
+    reportBack: "Back",
+    reportSessionHeading: (n: number, total: number) => `Burn test ${n} of ${total}`,
+    reportDetails: "Details",
+    reportTestDate: "Test date",
+    reportBatch: "Batch",
+    reportFormula: "Formula",
+    reportCandlesHeading: "Candles",
+    reportCandleHeading: (n: number, label: string) => `Candle ${n}: ${label}`,
+    reportBurnsCaption: (label: string) => `Burns of ${label}`,
+    reportNoBurns: "No burns recorded for this candle.",
+    reportColNumber: "Burn",
+    reportColDuration: "Duration",
+    reportColBefore: "Weight before",
+    reportColAfter: "Weight after",
+    reportColLoss: "Loss",
+    reportColRate: "Rate",
+    reportColMeltPool: "Melt pool (diameter / depth)",
+    reportColFlame: "Flame",
+    reportColSoot: "Soot",
+    reportColNotes: "Notes",
+    reportTotals: "Totals for this candle",
+    reportThrowNotes: "Throw notes",
+    reportCandleNotes: "Candle notes",
+    reportNotes: "Notes",
+    reportPhotos: "Photos",
+    reportComparisonHeading: "Comparison",
+    // Backup page: file size
+    backupFileSize: (size: string) => `Backup file: ${size}`,
+    backupDevicePhotos: (count: number, size: string) =>
+      count === 0 ? "Photos on this device: none." : `Photos on this device: ${countOf(count, "photo")}, ${size}.`,
+    backupTooLarge: (size: string, max: string) =>
+      `This file is ${size}, which is larger than the ${max} this app can restore. It was downloaded, but this app cannot restore a file that large.`,
+  },
+
+  /**
+   * Burn test screens: the batch page section, the session editor and the
+   * session page (v0.2 BurnMatrix). WRITTEN HERE (v0.2 BurnMatrix): for owner
+   * review. Observations only: no verdicts, no ranking.
+   */
+  burn: {
+    // Batch page section
+    sectionHeading: "Burn tests",
+    sectionEmpty:
+      "No burn tests yet. Record one to keep what you saw when you burned candles from this batch.",
+    sectionLoading: "Loading burn tests…",
+    sectionLoadFailed: "The burn tests could not be loaded. Your data is still on this device.",
+    tryAgain: "Try again",
+    recordButton: "Record burn test",
+    compareAll: "Compare burn tests",
+    compareLatest: (n: number) => `Compare latest ${n}`,
+    rowCandles: (n: number) => countOf(n, "candle"),
+    rowPhotos: (n: number) => countOf(n, "photo"),
+    rowPlanned: (name: string) => `Planned test: ${name}`,
+    /** Used when a session has no label: "Burn test, Nov 18, 2026". */
+    defaultTitle: (date: string) => `Burn test, ${date}`,
+
+    // Editor, shared
+    newTitle: "Record burn test",
+    editTitle: "Edit burn test",
+    newDescription: (batch: string, producedOn: string) =>
+      `For ${batch}, produced ${producedOn}.`,
+    editDescription: (batch: string) => `On ${batch}.`,
+    editorLoading: "Loading…",
+    editorLoadFailed: "The burn test could not be loaded. Your data is still on this device.",
+    notFoundTitle: "Burn test not found",
+    notFoundBody:
+      "It may have been deleted, or the link may be wrong. Your other burn tests are not affected.",
+    backToBatch: "Back to the batch",
+    backToBatches: "Back to batches",
+    batchMissingTitle: "Batch not found",
+    batchMissingBody:
+      "A burn test belongs to one batch. This batch may have been deleted, or the link may be wrong.",
+    cancel: "Cancel",
+
+    // Editor: test details
+    dateLabel: "Test date",
+    labelLabel: "Label (optional)",
+    labelHint: "Your own name for this test, up to 60 characters.",
+    errDateRequired: "Enter the test date.",
+    errDateInvalid: "Enter a real date.",
+    errDateFuture: "The test date cannot be in the future.",
+    errDateBeforeProduced: (date: string) =>
+      `The test date cannot be before the batch was produced (${date}).`,
+    errLabelTooLong: (max: number) => `Use at most ${max} characters.`,
+    plannedLabel: "Planned burn test (optional)",
+    plannedNone: "Not linked to a planned test",
+    plannedHint: "Linking marks that planned test as done on the test date.",
+    plannedNoOptions: "This batch has no planned burn tests.",
+    plannedOption: (name: string, due: string) => `${name}, due ${due}`,
+    plannedOptionTaken: (name: string, due: string) =>
+      `${name}, due ${due} (linked to another burn test)`,
+
+    // Editor: candles
+    candlesHeading: "Candles",
+    candlesHint: "Up to 8 candles can burn side by side in one test.",
+    candleHeading: (n: number) => `Candle ${n}`,
+    defaultCandleLabel: (n: number) => `Candle ${n}`,
+    addCandle: "Add candle",
+    candleLimit: (max: number) => `A test can hold ${max} candles, which is the most.`,
+    removeCandle: "Remove candle",
+    removeCandleFor: (n: number) => `Remove candle ${n}`,
+    candleGroup: (n: number) => `Candle ${n}`,
+    candleLabelLabel: "Candle label",
+    errCandleLabelRequired: "Give this candle a label, for example Candle 1.",
+    errCandleLabelTooLong: (max: number) => `Use at most ${max} characters.`,
+    wickLabel: "Wick",
+    wickChoose: "Choose a wick",
+    wickOwn: "Type a wick name instead",
+    wickArchived: (name: string) => `${name} (archived)`,
+    wickTextLabel: "Wick name",
+    wickTextHint: "For example the wick type and size.",
+    errWickRequired: "Choose a wick from the library, or type its name.",
+    errWickTooLong: (max: number) => `Use at most ${max} characters.`,
+    coldThrowLabel: "Cold throw (optional)",
+    hotThrowLabel: "Hot throw (optional)",
+    candleNotesLabel: "Candle notes (optional)",
+    throwHint: "In your own words.",
+    errTextTooLong: (max: number) => `Use at most ${max} characters.`,
+
+    // Editor: burns
+    burnsHeading: "Burns",
+    burnsHint: "Record each burn of this candle, in the order they happened. Up to 40.",
+    burnsNone: "No burns recorded for this candle.",
+    burnHeading: (n: number) => `Burn ${n}`,
+    burnGroup: (candle: number, burn: number) => `Candle ${candle}, burn ${burn}`,
+    addBurn: "Add burn",
+    burnLimit: (max: number) => `This candle has ${max} burns, which is the most it can hold.`,
+    removeBurn: "Remove burn",
+    removeBurnFor: (candle: number, burn: number) => `Remove burn ${burn} of candle ${candle}`,
+    durationLabel: "Duration (minutes)",
+    errDurationRequired: "Enter how many minutes it burned.",
+    errDurationWhole: "Enter whole minutes, for example 120.",
+    errDurationRange: (max: number) => `Enter 1 to ${max} minutes.`,
+    weightBeforeLabel: "Weight before (g)",
+    weightAfterLabel: "Weight after (g)",
+    errWeightFormat:
+      "Use numbers only, with a period for decimals (for example 123.45). No commas.",
+    errWeightDecimals: "Use at most 2 decimals.",
+    errWeightBeforeZero: "Enter a weight above 0 g.",
+    errWeightTooLarge: "That weight is too large.",
+    errWeightAfterAbove: "The weight after cannot be above the weight before.",
+    meltDiameterLabel: "Melt pool diameter (mm)",
+    meltDepthLabel: "Melt pool depth (mm)",
+    flameLabel: "Flame height (mm)",
+    errMmWhole: "Enter whole millimetres, for example 55.",
+    errMmRange: (max: number) => `Enter 0 to ${max} mm.`,
+    sootLabel: "Soot seen",
+    sootNotRecorded: "Not recorded",
+    soot: {
+      none: "None seen",
+      light: "Light",
+      moderate: "Moderate",
+      heavy: "Heavy",
+    },
+    burnNotesLabel: "Burn notes (optional)",
+    optionalHint: "Leave blank when not recorded.",
+
+    // Editor: conclusion, notes, photos, save
+    closingHeading: "Your conclusion and notes",
+    conclusionLabel: "Your conclusion (optional)",
+    conclusionHint: "In your own words. The app does not rate or judge a burn.",
+    notesLabel: "Notes (optional)",
+    photosAfterSave: "Photos can be added after you save this burn test.",
+    save: "Save burn test",
+    saving: "Saving burn test",
+    saveChanges: "Save changes",
+    savingChanges: "Saving changes",
+    errCheckFields: "Some entries need fixing. They are marked below.",
+    saveFailed: "The burn test was not saved. Your entries are still in the form. Try again.",
+    saveInvalid:
+      "The burn test was not saved because the planned test or a wick it refers to has changed. Check them, then save again.",
+    saveBatchGone: "The batch for this burn test could not be found, so nothing was saved.",
+    saveStorageFull:
+      "This device is out of space for this site, so the burn test was not saved. Your entries are still in the form. Deleting photos or old burn tests after making a backup frees space.",
+    saveGone: "This burn test was deleted, so the changes were not saved.",
+    retry: "Try again",
+    savedNotice: "Burn test saved",
+
+    // Session page
+    pageLoading: "Loading burn test…",
+    pageLoadingTitle: "Burn test",
+    onBatch: "Batch",
+    separator: " · ",
+    versionText: (n: number) => `version ${n}`,
+    plannedHeading: "Planned test",
+    plannedLine: (name: string, due: string) => `${name}, due ${due}`,
+    plannedDoneOn: (date: string) => `Marked done on ${date}.`,
+    plannedNotDone: "Not marked done.",
+    notLinked: "Not linked to a planned test.",
+    candlesSectionHeading: "Candles",
+    wickLine: (name: string) => `Wick: ${name}`,
+    columnBurn: "Burn",
+    columnTime: "Time",
+    columnBefore: "Before",
+    columnAfter: "After",
+    columnLoss: "Loss",
+    columnRate: "Rate",
+    columnMelt: "Melt pool",
+    columnFlame: "Flame",
+    columnSoot: "Soot",
+    columnNotes: "Notes",
+    notRecorded: "Not recorded",
+    meltCell: (diameter: string | null, depth: string | null) =>
+      [diameter ? `${diameter} wide` : null, depth ? `${depth} deep` : null]
+        .filter(Boolean)
+        .join(", "),
+    totalsHeading: "Totals for this candle",
+    totalBurns: (n: number) => `Burns: ${n}`,
+    totalTime: (text: string) => `Time burned: ${text}`,
+    totalLoss: (text: string) => `Weight lost: ${text}`,
+    averageRate: (text: string) => `Average rate: ${text}`,
+    totalsNote: "Weight lost and rate use only the burns with both weights recorded.",
+    lastMelt: (text: string) => `Last melt pool diameter: ${text}`,
+    maxDepth: (text: string) => `Deepest melt pool: ${text}`,
+    maxFlame: (text: string) => `Tallest flame: ${text}`,
+    sootSeen: (text: string) => `Soot seen: ${text}`,
+    coldThrowHeading: "Cold throw",
+    hotThrowHeading: "Hot throw",
+    candleNotesHeading: "Candle notes",
+    conclusionHeading: "Your conclusion",
+    notesHeading: "Notes",
+    edit: "Edit",
+    report: "Report",
+    downloadCsv: "Download CSV",
+    csvFailed: "The CSV could not be downloaded. Please try again.",
+    delete: "Delete",
+    pageActionsGroup: "Burn test actions",
+
+    // Delete burn test
+    deleteTitle: "Delete this burn test?",
+    deleteBody: (title: string) =>
+      `${title} and everything recorded in it will be removed from this device. This cannot be undone.`,
+    deletePhotos: (n: number) =>
+      `Its ${countOf(n, "photo")} will be deleted too.`,
+    deletePlannedNote: "A planned test linked to it stays marked as it is.",
+    deleteChecking: "Checking what goes with it…",
+    deleteKeep: "Keep burn test",
+    deleteConfirm: "Delete burn test",
+    deleteFailed: "The burn test was not deleted. Nothing was changed. Please try again.",
+
+    // Delete batch with burn tests
+    batchDeleteBlocked: (n: number) =>
+      `This batch has ${countOf(n, "burn test")}. A batch cannot be deleted until its burn tests are deleted. Open each burn test and delete it first.`,
+    batchDeleteInUse:
+      "The batch was not deleted because it still has burn tests. Delete them first, then try again.",
   },
 
   /** Storage blocked (blueprint section 5, F7 storage row). */
