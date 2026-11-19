@@ -343,7 +343,7 @@ describe("restore check-failure messages (Data Model step 1)", () => {
     [{ code: "checksum" }, "This backup is damaged or was edited."],
     [{ code: "duplicates" }, "This backup is damaged: duplicate records."],
     [
-      { code: "orphans", versions: 2, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0 },
+      { code: "orphans", versions: 2, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 },
       "This backup is incomplete: 2 versions refer to a missing formula.",
     ],
   ];
@@ -367,7 +367,7 @@ describe("restore check-failure messages (Data Model step 1)", () => {
 
   it("orphans with one version and one measurement", () => {
     expect(
-      messageForCheckFailure({ code: "orphans", versions: 1, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0 }),
+      messageForCheckFailure({ code: "orphans", versions: 1, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 }),
     ).toBe(
       "This backup is incomplete: 1 version refers to a missing formula and 1 measurement refers to a missing version.",
     );
@@ -381,7 +381,7 @@ describe("restore result summary (Data Model step 5)", () => {
       formulaVersions: number,
       materials: number,
       measurements: number,
-    ): BackupCounts => ({ formulas, formulaVersions, materials, measurements, batches: 0, curePlans: 0, productionPlans: 0 });
+    ): BackupCounts => ({ formulas, formulaVersions, materials, measurements, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 });
     expect(
       restoreSummary({
         fileName: "candlelab-backup-20261114-140512.json",
@@ -402,17 +402,17 @@ describe("restore result summary (Data Model step 5)", () => {
       measurements: 1,
       batches: 1,
       curePlans: 1,
-      productionPlans: 1,
+      productionPlans: 1, burnSessions: 1, burnPhotos: 1,
     };
     expect(
       restoreSummary({
         fileName: "b.json",
         added: one,
         skippedIdentical: 1,
-        kept: { formulas: 1, formulaVersions: 0, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0 },
+        kept: { formulas: 1, formulaVersions: 0, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 },
       }),
     ).toBe(
-      "Restored from b.json: added 1 formula, 1 version, 1 material, 1 measurement, 1 batch, 1 cure plan, 1 planned production entry. Skipped 1 identical item. Kept this device's copy of 1 formula.",
+      "Restored from b.json: added 1 formula, 1 version, 1 material, 1 measurement, 1 batch, 1 cure plan, 1 planned production entry, 1 burn test, 1 photo. Skipped 1 identical item. Kept this device's copy of 1 formula.",
     );
   });
 
@@ -420,9 +420,9 @@ describe("restore result summary (Data Model step 5)", () => {
     expect(
       restoreSummary({
         fileName: "b.json",
-        added: { formulas: 0, formulaVersions: 2, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0 },
+        added: { formulas: 0, formulaVersions: 2, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 },
         skippedIdentical: 0,
-        kept: { formulas: 0, formulaVersions: 2, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0 },
+        kept: { formulas: 0, formulaVersions: 2, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 },
       }),
     ).toBe(
       "Restored from b.json: added 2 versions. Kept this device's copy of 2 versions.",
@@ -527,7 +527,7 @@ const SAMPLE_CHECKS: CheckFailure[] = [
   { code: "incomplete" },
   { code: "checksum" },
   { code: "duplicates" },
-  { code: "orphans", versions: 1, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0 },
+  { code: "orphans", versions: 1, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 },
 ];
 
 /** Exported helpers that take arguments: name → sampler. */
@@ -537,9 +537,9 @@ const HELPER_SAMPLES: Record<string, () => string> = {
   restoreSummary: () =>
     restoreSummary({
       fileName: "a.json",
-      added: { formulas: 1, formulaVersions: 2, materials: 3, measurements: 4, batches: 0, curePlans: 0, productionPlans: 0 },
+      added: { formulas: 1, formulaVersions: 2, materials: 3, measurements: 4, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 },
       skippedIdentical: 5,
-      kept: { formulas: 0, formulaVersions: 1, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0 },
+      kept: { formulas: 0, formulaVersions: 1, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 },
     }),
   basisWords: () => basisWords("wax") + basisWords("total"),
   basisExplanation: () => basisExplanation(800, "wax") + basisExplanation(800, "total"),
@@ -612,6 +612,78 @@ const MESSAGE_SAMPLES: Record<string, unknown[]> = {
   "schedule.doneLimited": [20],
   "schedule.productionDate": ["Dec 2, 2026"],
   "schedule.versionOf": ["Lavender", 2],
+  "burnPhotos.count": [3, 12],
+  "burnPhotos.limitReached": [12],
+  "burnPhotos.limitStopped": [1, 12],
+  "burnPhotos.progress": [2, 3],
+  "burnPhotos.addedSummary": [2],
+  "burnPhotos.photoAlt": [2, 5],
+  "burnPhotos.openPhoto": [2, 5],
+  "burnPhotos.viewTitle": [2, 5],
+  "burnPhotos.storageUsage": ["5.0 MB", "100.0 MB"],
+  "burnPhotos.errorNotImage": ["IMG_0001.jpg"],
+  "burnPhotos.errorTooLarge": ["IMG_0001.jpg"],
+  "burnPhotos.errorTooBig": ["IMG_0001.jpg"],
+  "burnPhotos.errorLimit": [12],
+  "burn.compareLatest": [3],
+  "burn.rowCandles": [2],
+  "burn.rowPhotos": [3],
+  "burn.rowPlanned": ["Planned burn test"],
+  "burn.defaultTitle": ["Nov 18, 2026"],
+  "burn.newDescription": ["Batch 3F2A91C0", "Nov 18, 2026"],
+  "burn.editDescription": ["Batch 3F2A91C0"],
+  "burn.errDateBeforeProduced": ["Nov 18, 2026"],
+  "burn.errLabelTooLong": [60],
+  "burn.plannedOption": ["Planned burn test", "Dec 2, 2026"],
+  "burn.plannedOptionTaken": ["Planned burn test", "Dec 2, 2026"],
+  "burn.candleHeading": [2],
+  "burn.defaultCandleLabel": [2],
+  "burn.candleLimit": [8],
+  "burn.removeCandleFor": [2],
+  "burn.candleGroup": [2],
+  "burn.errCandleLabelTooLong": [40],
+  "burn.wickArchived": ["CD-10"],
+  "burn.errWickTooLong": [80],
+  "burn.errTextTooLong": [2000],
+  "burn.burnHeading": [2],
+  "burn.burnGroup": [1, 2],
+  "burn.burnLimit": [40],
+  "burn.removeBurnFor": [1, 2],
+  "burn.errDurationRange": [1440],
+  "burn.errMmRange": [500],
+  "burn.versionText": [2],
+  "burn.wickLine": ["CD-10"],
+  "burn.plannedLine": ["Planned burn test", "Dec 2, 2026"],
+  "burn.plannedDoneOn": ["Dec 2, 2026"],
+  "burn.meltCell": ["62 mm", "18 mm"],
+  "burn.totalBurns": [3],
+  "burn.totalTime": ["4 h 30 min"],
+  "burn.totalLoss": ["3.25 g"],
+  "burn.averageRate": ["3.25 g/h"],
+  "burn.lastMelt": ["62 mm"],
+  "burn.maxDepth": ["18 mm"],
+  "burn.maxFlame": ["30 mm"],
+  "burn.sootSeen": ["light"],
+  "burn.deleteBody": ["Burn test, Nov 18, 2026"],
+  "burn.deletePhotos": [3],
+  "burn.batchDeleteBlocked": [2],
+  "burnCompare.candleCount": [2],
+  "burnCompare.photoCount": [3],
+  "burnCompare.versionText": [2],
+  "burnCompare.sessionFallbackTitle": ["Nov 18, 2026"],
+  "burnCompare.batchFallbackTitle": ["3F2A91C0"],
+  "burnCompare.selectLabel": ["Lavender trial"],
+  "burnCompare.selectedCount": [2, 4],
+  "burnCompare.selectionFull": [4],
+  "burnCompare.compareSomeMissing": [["abc", "def"]],
+  "burnCompare.compareTruncated": [4],
+  "burnCompare.reportGenerated": ["Nov 18, 2026"],
+  "burnCompare.reportSessionHeading": [1, 2],
+  "burnCompare.reportCandleHeading": [1, "A"],
+  "burnCompare.reportBurnsCaption": ["A"],
+  "burnCompare.backupFileSize": ["4.2 MB"],
+  "burnCompare.backupDevicePhotos": [3, "1.2 MB"],
+  "burnCompare.backupTooLarge": ["300.0 MB", "256 MB"],
   "formula.measuredFieldLabel": ["Lavender"],
   "formula.versionNumber": [2],
   "formula.originRevisionRow": ["cedar added"],
@@ -621,20 +693,20 @@ const MESSAGE_SAMPLES: Record<string, unknown[]> = {
   "scale.newWax": ["1000.0 g"],
   "backup.lastBackup": ["3 days ago", 4],
   "backup.exportedLine": ["Nov 14, 14:05", 12, 31],
-  "backup.previewAdd": [{ formulas: 9, formulaVersions: 22, materials: 14, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0 }],
-  "backup.previewAlreadyHere": [{ formulas: 3, formulaVersions: 9, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0 }],
-  "backup.previewConflicts": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0 }],
-  "backup.previewReplace": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0 }],
+  "backup.previewAdd": [{ formulas: 9, formulaVersions: 22, materials: 14, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 }],
+  "backup.previewAlreadyHere": [{ formulas: 3, formulaVersions: 9, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 }],
+  "backup.previewConflicts": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 }],
+  "backup.previewReplace": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 }],
   "backup.previewVersionConflicts": [2],
   "backup.previewRenumbered": [1],
   "backup.previewMissingMaterials": [3],
-  "backup.replaceAffects": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0 }],
-  "backup.replacedSentence": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0 }],
+  "backup.replaceAffects": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 }],
+  "backup.replacedSentence": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 }],
   "backup.renumberedSentence": ["Lavender Vanilla", 3, 4],
   "backup.renumberedMany": [5],
   "backup.replaceSummary": [
     "candlelab-backup-20261114-140512.json",
-    { formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0 },
+    { formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 },
   ],
 };
 
@@ -715,5 +787,20 @@ describe("wording scan: no candle, fragrance level or wick is called safe or com
     collectStrings(MESSAGES, "", strings);
     const emoji = /\p{Extended_Pictographic}/u;
     expect(strings.filter((s) => emoji.test(s.text))).toEqual([]);
+  });
+});
+
+// ─────────────── BurnMatrix: observations, not verdicts (v0.2) ───────────────
+
+const VERDICT = /\b(pass|passed|passes|fail|failed|fails|cured|ready|good|bad|best|worst|recommended|approved|safe|safety)\b/i;
+
+describe("wording scan: BurnMatrix messages record observations, never verdicts", () => {
+  it("no string in the burn, burnCompare, burnPhotos or burnCsv sections contains a verdict word", () => {
+    const strings: { path: string; text: string }[] = [];
+    for (const section of ["burn", "burnCompare", "burnPhotos", "burnCsv"] as const) {
+      collectStrings(MESSAGES[section], section, strings);
+    }
+    expect(strings.length).toBeGreaterThan(100);
+    expect(strings.filter((s) => VERDICT.test(s.text)).map((s) => `${s.path}: ${s.text}`)).toEqual([]);
   });
 });

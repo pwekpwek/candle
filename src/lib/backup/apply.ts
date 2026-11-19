@@ -11,6 +11,7 @@ import type {
   ReadDeviceData,
   RestorePlan,
 } from "./contract";
+import { photoFromBackup, photoToBackup } from "./photos";
 import { planRestore } from "./plan";
 
 function byId<T extends { id: string }>(rows: T[]): T[] {
@@ -29,6 +30,8 @@ async function readStores(db: CandleDatabase): Promise<DeviceData> {
   const batches = await db.batches.toArray();
   const curePlans = await db.curePlans.toArray();
   const productionPlans = await db.productionPlans.toArray();
+  const burnSessions = await db.burnSessions.toArray();
+  const burnPhotos = await db.burnPhotos.toArray();
   return {
     materials: byId(materials),
     formulas: byId(formulas),
@@ -37,6 +40,9 @@ async function readStores(db: CandleDatabase): Promise<DeviceData> {
     batches: byId(batches),
     curePlans: byId(curePlans),
     productionPlans: byId(productionPlans),
+    burnSessions: byId(burnSessions),
+    // BurnMatrix: the backup form (base64), synchronous, safe inside the transaction.
+    burnPhotos: byId(burnPhotos).map(photoToBackup),
   };
 }
 
@@ -50,6 +56,8 @@ function dataTables(db: CandleDatabase) {
     db.batches,
     db.curePlans,
     db.productionPlans,
+    db.burnSessions,
+    db.burnPhotos,
   ];
 }
 
@@ -63,6 +71,7 @@ export function deviceIdsOf(device: DeviceData): DeviceIds {
     formulaIds: new Set(device.formulas.map((formula) => formula.id)),
     versionIds: new Set(device.formulaVersions.map((version) => version.id)),
     batchIds: new Set(device.batches.map((batch) => batch.id)),
+    burnSessionIds: new Set(device.burnSessions.map((session) => session.id)),
   };
 }
 
@@ -139,6 +148,8 @@ export const applyRestore: ApplyRestore = async (db, plan, options = {}) => {
             await db.batches.clear();
             await db.curePlans.clear();
             await db.productionPlans.clear();
+            await db.burnSessions.clear();
+            await db.burnPhotos.clear();
           }
           for (const store of DATA_STORES) {
             await writeStore(db, store, plan);
@@ -204,12 +215,28 @@ async function writeStore(db: CandleDatabase, store: DataStoreName, plan: Restor
     case "productionPlans":
       await db.productionPlans.bulkPut(plan.puts.productionPlans);
       return;
+    case "burnSessions":
+      await db.burnSessions.bulkPut(plan.puts.burnSessions);
+      return;
+    case "burnPhotos":
+      // Decoded here (synchronous); the check step verified every photo.
+      await db.burnPhotos.bulkPut(plan.puts.burnPhotos.map(photoFromBackup));
+      return;
   }
 }
 
 async function readCounts(db: CandleDatabase): Promise<BackupCounts> {
-  const [materials, formulas, formulaVersions, measurements, batches, curePlans, productionPlans] =
-    await Promise.all([
+  const [
+    materials,
+    formulas,
+    formulaVersions,
+    measurements,
+    batches,
+    curePlans,
+    productionPlans,
+    burnSessions,
+    burnPhotos,
+  ] = await Promise.all([
       db.materials.count(),
       db.formulas.count(),
       db.formulaVersions.count(),
@@ -217,6 +244,18 @@ async function readCounts(db: CandleDatabase): Promise<BackupCounts> {
       db.batches.count(),
       db.curePlans.count(),
       db.productionPlans.count(),
+      db.burnSessions.count(),
+      db.burnPhotos.count(),
     ]);
-  return { materials, formulas, formulaVersions, measurements, batches, curePlans, productionPlans };
+  return {
+    materials,
+    formulas,
+    formulaVersions,
+    measurements,
+    batches,
+    curePlans,
+    productionPlans,
+    burnSessions,
+    burnPhotos,
+  };
 }

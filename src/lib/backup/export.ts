@@ -9,6 +9,7 @@ import {
   type BackupEnvelope,
 } from "@/lib/types";
 import { canonicalJson, sha256Hex } from "./canonical";
+import { photoToBackup } from "./photos";
 import type { BackupFileName, ExportBackup } from "./contract";
 
 const ISO = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?Z$/;
@@ -39,6 +40,24 @@ export const backupFileName: BackupFileName = (exportedAt) => {
   return `candlelab-backup-${y}${mo}${d}-${h}${mi}${s}.json`;
 };
 
+/** UTF-8 byte length of a string, without encoding it (backups with photos are large). */
+export function utf8Length(text: string): number {
+  let bytes = 0;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff && i + 1 < text.length) {
+      const next = text.charCodeAt(i + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        bytes += 4;
+        i += 1;
+      } else bytes += 3;
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
 function byId<T extends { id: string }>(rows: T[]): T[] {
   return [...rows].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
@@ -58,10 +77,21 @@ export const exportBackup: ExportBackup = async (db, options) => {
         db.batches,
         db.curePlans,
         db.productionPlans,
+        db.burnSessions,
+        db.burnPhotos,
       ],
       async () => {
-        const [materials, formulas, formulaVersions, measurements, batches, curePlans, productionPlans] =
-          await Promise.all([
+        const [
+          materials,
+          formulas,
+          formulaVersions,
+          measurements,
+          batches,
+          curePlans,
+          productionPlans,
+          burnSessions,
+          burnPhotos,
+        ] = await Promise.all([
             db.materials.toArray(),
             db.formulas.toArray(),
             db.formulaVersions.toArray(),
@@ -69,6 +99,8 @@ export const exportBackup: ExportBackup = async (db, options) => {
             db.batches.toArray(),
             db.curePlans.toArray(),
             db.productionPlans.toArray(),
+            db.burnSessions.toArray(),
+            db.burnPhotos.toArray(),
           ]);
         return {
           materials: byId(materials),
@@ -78,6 +110,9 @@ export const exportBackup: ExportBackup = async (db, options) => {
           batches: byId(batches),
           curePlans: byId(curePlans),
           productionPlans: byId(productionPlans),
+          burnSessions: byId(burnSessions),
+          // BurnMatrix: photos go into the file as base64 (synchronous).
+          burnPhotos: byId(burnPhotos).map(photoToBackup),
         };
       },
     ),
@@ -92,6 +127,8 @@ export const exportBackup: ExportBackup = async (db, options) => {
     batches: data.batches.length,
     curePlans: data.curePlans.length,
     productionPlans: data.productionPlans.length,
+    burnSessions: data.burnSessions.length,
+    burnPhotos: data.burnPhotos.length,
   };
   // Hashing happens outside any Dexie transaction.
   const checksum = { algorithm: "SHA-256" as const, value: await sha256Hex(canonicalJson(data)) };
@@ -108,6 +145,7 @@ export const exportBackup: ExportBackup = async (db, options) => {
   };
   const json = JSON.stringify(envelope, null, 2);
   const fileName = backupFileName(exportedAt);
+  const sizeBytes = utf8Length(json);
 
   // Accepted gap: a write committed between the read above and this reset is not in the file, yet its counter bump is wiped.
   await guard(() =>
@@ -123,5 +161,5 @@ export const exportBackup: ExportBackup = async (db, options) => {
     }),
   );
 
-  return { envelope, json, fileName };
+  return { envelope, json, fileName, sizeBytes };
 };

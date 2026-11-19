@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   BatchSchema,
+  BurnPhotoBackupSchema,
+  BurnSessionSchema,
   CurePlanSchema,
   FormulaSchema,
   FormulaVersionSchema,
@@ -10,10 +12,11 @@ import {
   TimestampSchema,
 } from "@/lib/schemas";
 import { BACKUP_FORMAT, BACKUP_FORMAT_VERSION, DATA_STORES } from "@/lib/types";
-import type { BackupData, BackupEnvelope, DataStoreName } from "@/lib/types";
+import type { BackupData, BackupEnvelope, BurnPhotoBackup, DataStoreName } from "@/lib/types";
 import { canonicalJson, sha256Hex } from "./canonical";
 import { MAX_BACKUP_BYTES } from "./contract";
 import type { CheckBackupText, CheckFailure, CheckResult } from "./contract";
+import { checkPhotoData } from "./photos";
 
 /**
  * The envelope's own shape. `data` is only checked to hold its format's arrays here;
@@ -73,18 +76,40 @@ const EnvelopeShapeV3Schema = z.strictObject({
   }),
 });
 
+const V3_COUNTS = {
+  ...V1_COUNTS,
+  batches: z.int().min(0),
+  curePlans: z.int().min(0),
+  productionPlans: z.int().min(0),
+};
+const V3_DATA = {
+  ...V1_DATA,
+  batches: z.array(z.unknown()),
+  curePlans: z.array(z.unknown()),
+  productionPlans: z.array(z.unknown()),
+};
+
+/** Format 4 (v0.2 BurnMatrix): adds `burnSessions` and `burnPhotos`. */
+const EnvelopeShapeV4Schema = z.strictObject({
+  ...ENVELOPE_FIELDS,
+  counts: z.strictObject({ ...V3_COUNTS, burnSessions: z.int().min(0), burnPhotos: z.int().min(0) }),
+  data: z.strictObject({ ...V3_DATA, burnSessions: z.array(z.unknown()), burnPhotos: z.array(z.unknown()) }),
+});
+
 /** The envelope shape of each format this app reads. */
 const SHAPE_FOR_FORMAT = {
   1: EnvelopeShapeV1Schema,
   2: EnvelopeShapeV2Schema,
   3: EnvelopeShapeV3Schema,
+  4: EnvelopeShapeV4Schema,
 } as const;
 
 /** The stores each format holds. */
 const STORES_IN_FORMAT: Record<number, readonly DataStoreName[]> = {
   1: ["materials", "formulas", "formulaVersions", "measurements"],
   2: ["materials", "formulas", "formulaVersions", "measurements", "batches"],
-  3: DATA_STORES,
+  3: ["materials", "formulas", "formulaVersions", "measurements", "batches", "curePlans", "productionPlans"],
+  4: DATA_STORES,
 };
 
 const RECORD_SCHEMAS = {
@@ -95,6 +120,8 @@ const RECORD_SCHEMAS = {
   batches: BatchSchema,
   curePlans: CurePlanSchema,
   productionPlans: ProductionPlanSchema,
+  burnSessions: BurnSessionSchema,
+  burnPhotos: BurnPhotoBackupSchema,
 } as const;
 
 const RECORD_NOUNS: Record<DataStoreName, string> = {
@@ -105,6 +132,8 @@ const RECORD_NOUNS: Record<DataStoreName, string> = {
   batches: "batch",
   curePlans: "cure plan",
   productionPlans: "planned production entry",
+  burnSessions: "burn test",
+  burnPhotos: "photo",
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -205,6 +234,8 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
     batches: [],
     curePlans: [],
     productionPlans: [],
+    burnSessions: [],
+    burnPhotos: [],
   };
   for (const store of stores) {
     const records: unknown = shape.success
@@ -217,6 +248,16 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
       else note(labelFor(RECORD_NOUNS[store], record, index), describeIssue(result.error.issues[0]!, record));
     });
   }
+  // BurnMatrix: a photo whose bytes do not match its record is invalid too.
+  // Checked after the schema pass, one photo at a time, so a damaged photo is
+  // named and never stored.
+  const soundPhotos: unknown[] = [];
+  for (const [index, photo] of (valid.burnPhotos as BurnPhotoBackup[]).entries()) {
+    const problem = await checkPhotoData(photo);
+    if (problem === null) soundPhotos.push(photo);
+    else note(labelFor(RECORD_NOUNS.burnPhotos, photo, index), problem);
+  }
+  valid.burnPhotos = soundPhotos;
   if (!shape.success || count > 0) {
     return fail({ code: "invalid", count, firstLabel, firstProblem });
   }
@@ -237,6 +278,8 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
       batches: fileCounts.batches ?? 0,
       curePlans: fileCounts.curePlans ?? 0,
       productionPlans: fileCounts.productionPlans ?? 0,
+      burnSessions: fileCounts.burnSessions ?? 0,
+      burnPhotos: fileCounts.burnPhotos ?? 0,
     },
     checksum: shape.data.checksum as BackupEnvelope["checksum"],
     data: valid as unknown as BackupData,
@@ -295,8 +338,32 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
     if (versionOfBatch !== undefined) return versionOfBatch !== entry.versionId;
     return !device.batchIds.has(entry.batchId);
   }).length;
-  if (versions > 0 || measurements > 0 || batches > 0 || curePlans > 0 || productionPlans > 0) {
-    return fail({ code: "orphans", versions, measurements, batches, curePlans, productionPlans });
+  // BurnMatrix (format 4). The milestone link and the wick material are soft
+  // links and are not checked here (docs/v0.2-burnmatrix.md).
+  const burnSessions = envelope.data.burnSessions.filter((session) => !batchKnown(session.batchId)).length;
+  const fileSessionIds = new Set(envelope.data.burnSessions.map((session) => session.id));
+  const burnPhotos = envelope.data.burnPhotos.filter(
+    (photo) => !fileSessionIds.has(photo.sessionId) && !device.burnSessionIds.has(photo.sessionId),
+  ).length;
+  if (
+    versions > 0 ||
+    measurements > 0 ||
+    batches > 0 ||
+    curePlans > 0 ||
+    productionPlans > 0 ||
+    burnSessions > 0 ||
+    burnPhotos > 0
+  ) {
+    return fail({
+      code: "orphans",
+      versions,
+      measurements,
+      batches,
+      curePlans,
+      productionPlans,
+      burnSessions,
+      burnPhotos,
+    });
   }
 
   return { ok: true, envelope };

@@ -14,13 +14,29 @@ export class DataError extends Error implements DataErrorLike {
 
 /**
  * Turns anything thrown into a DataError. A DataError passes through (also
- * when Dexie wrapped it in `inner`); everything else is an IndexedDB or
- * Dexie failure and becomes "storage".
+ * when Dexie wrapped it in `inner`); a QuotaExceededError becomes
+ * "storage-full"; everything else is an IndexedDB or Dexie failure and
+ * becomes "storage".
  */
+/** True when the browser refused a write for lack of space, also when Dexie wrapped the error. */
+export function isQuotaError(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current !== null && typeof current === "object"; depth++) {
+    const name = (current as { name?: unknown }).name;
+    if (name === "QuotaExceededError" || name === "NS_ERROR_DOM_QUOTA_REACHED") return true;
+    current = (current as { inner?: unknown }).inner;
+  }
+  return false;
+}
+
 export function toDataError(error: unknown): DataError {
   if (error instanceof DataError) return error;
   const inner = (error as { inner?: unknown } | null)?.inner;
   if (inner instanceof DataError) return inner;
+  if (isQuotaError(error)) {
+    // BurnMatrix: a full device gets its own code so screens can say so.
+    return new DataError("storage-full", "Storage is full. The browser refused the write.");
+  }
   const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
   return new DataError("storage", `Storage failure. ${detail}`);
 }

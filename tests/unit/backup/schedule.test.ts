@@ -93,17 +93,19 @@ async function asFormat2(env: BackupEnvelope): Promise<string> {
   const data = copy.data as unknown as Record<string, unknown>;
   delete data.curePlans;
   delete data.productionPlans;
+  delete data.burnSessions;
+  delete data.burnPhotos;
   copy.formatVersion = 2;
   copy.schemaVersion = 2;
   return rebuild(copy);
 }
 
-describe("backup format 3 export", () => {
-  it("exports cure plans and production entries with format 3, schema 3, counts and a checksum over every store", async () => {
+describe("backup export with cure plans (format 4 since BurnMatrix)", () => {
+  it("exports cure plans and production entries with the current format and schema, counts and a checksum over every store", async () => {
     const { device, curePlan, open, made } = await sourceWithSchedule();
     const { envelope, json } = await exportBackup(device.db, { now: () => NOW });
-    expect(envelope.formatVersion).toBe(3);
-    expect(envelope.schemaVersion).toBe(3);
+    expect(envelope.formatVersion).toBe(4);
+    expect(envelope.schemaVersion).toBe(4);
     expect(envelope.counts).toMatchObject({ batches: 2, curePlans: 1, productionPlans: 2 });
     expect(envelope.data.curePlans).toEqual([curePlan]);
     expect(envelope.data.productionPlans.map((p) => p.id)).toEqual([open.id, made.id].sort());
@@ -116,6 +118,8 @@ describe("backup format 3 export", () => {
       "batches",
       "curePlans",
       "productionPlans",
+      "burnSessions",
+      "burnPhotos",
     ]);
     expect(BackupEnvelopeSchema.safeParse(JSON.parse(json)).success).toBe(true);
   });
@@ -207,7 +211,7 @@ describe("older backup formats", () => {
     const result = await check(text, fresh);
     if (!result.ok) throw new Error(result.failure.code);
     expect(result.envelope.checksum).toEqual(file.checksum);
-    expect(result.envelope.counts).toEqual({ ...file.counts, curePlans: 0, productionPlans: 0 });
+    expect(result.envelope.counts).toEqual({ ...file.counts, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 });
     const applied = await applyRestore(fresh.db, await planFor(fresh.db, result.envelope));
     expect(applied.ok).toBe(true);
     const batches = await fresh.db.batches.toArray();
@@ -229,7 +233,7 @@ describe("older backup formats", () => {
     expect(result.envelope.formatVersion).toBe(2);
     expect(result.envelope.data.curePlans).toEqual([]);
     expect(result.envelope.data.productionPlans).toEqual([]);
-    expect(result.envelope.counts).toMatchObject({ batches: 2, curePlans: 0, productionPlans: 0 });
+    expect(result.envelope.counts).toMatchObject({ batches: 2, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 });
     const applied = await applyRestore(fresh.db, await planFor(fresh.db, result.envelope));
     expect(applied.ok).toBe(true);
     expect(await fresh.db.batches.count()).toBe(2);
@@ -247,10 +251,10 @@ describe("older backup formats", () => {
     expect(await failureOf(await rebuild(v3Without), setup())).toMatchObject({ code: "invalid" });
   });
 
-  it("refuses a format 4 file as newer", async () => {
+  it("refuses a format 5 file as newer", async () => {
     const { device } = await sourceWithSchedule();
     const { envelope } = await exportBackup(device.db, { now: () => NOW });
-    envelope.formatVersion = 4;
+    envelope.formatVersion = 5;
     expect(await failureOf(await rebuild(envelope), setup())).toEqual({ code: "newer" });
   });
 });
@@ -275,6 +279,8 @@ describe("cure plan and entry links on restore (orphan check)", () => {
       batches: 0,
       curePlans: 1,
       productionPlans: 0,
+      burnSessions: 0,
+      burnPhotos: 0,
     });
   });
 

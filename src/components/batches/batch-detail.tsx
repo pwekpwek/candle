@@ -15,8 +15,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { BurnTestsSection } from "@/components/burn/session";
 import { CuringSection } from "@/components/schedule/curing-section";
-import { getDataLayer } from "@/lib/db";
+import { DataError, getDataLayer } from "@/lib/db";
 import type { BatchInput, BatchListItem } from "@/lib/db";
 import { MESSAGES } from "@/lib/messages";
 import { ArchivedBadge } from "./archived-badge";
@@ -26,6 +27,7 @@ import { batchTitle, formatProducedOn, versionHref } from "./text";
 const B = MESSAGES.batches;
 const F = MESSAGES.formula;
 const S = MESSAGES.schedule;
+const BT = MESSAGES.burn;
 
 type Loaded =
   | { status: "ok"; item: BatchListItem; latestNumber: number }
@@ -199,6 +201,8 @@ function DetailBody({
 
       <CuringSection batchId={batch.id} producedOn={batch.producedOn} className="mt-8" />
 
+      <BurnTestsSection batchId={batch.id} className="mt-8" />
+
       <DeleteBatchDialog
         title={batchTitle(batch)}
         batchId={batch.id}
@@ -248,7 +252,7 @@ function DeleteBatchDialog({
 type Impact =
   | { state: "loading" }
   | { state: "failed" }
-  | { state: "ready"; milestones: number; productionPlans: number };
+  | { state: "ready"; milestones: number; productionPlans: number; burnSessions: number };
 
 function DeleteBody({
   title,
@@ -263,6 +267,8 @@ function DeleteBody({
 }) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Set when the delete is refused because burn tests appeared in the meantime.
+  const [refused, setRefused] = useState(false);
   // What else goes with the batch (CurePilot). "failed" still allows the delete: the base text stands.
   const [impact, setImpact] = useState<Impact>({ state: "loading" });
   const submitting = useRef(false);
@@ -290,26 +296,33 @@ function DeleteBody({
     try {
       await getDataLayer().batches.delete(batchId);
       onDeleted();
-    } catch {
-      setFailed(true);
+    } catch (error) {
+      if (error instanceof DataError && error.code === "in-use") setRefused(true);
+      else setFailed(true);
       submitting.current = false;
       setBusy(false);
     }
   }
 
+  // Burn tests keep the batch: it cannot be deleted until they are deleted.
+  const burnCount = impact.state === "ready" ? impact.burnSessions : 0;
+  const blocked = burnCount > 0 || refused;
+
   return (
     <div className="grid gap-4">
       {failed ? <Notice variant="error">{B.deleteFailed}</Notice> : null}
-      <p className="text-sm text-foreground">{B.deleteBody(title)}</p>
+      {refused && burnCount === 0 ? <Notice variant="error">{BT.batchDeleteInUse}</Notice> : null}
+      {blocked ? null : <p className="text-sm text-foreground">{B.deleteBody(title)}</p>}
       {impact.state === "loading" ? (
         <p role="status" className="text-sm text-text-secondary">
           {B.deleteChecking}
         </p>
       ) : null}
-      {impact.state === "ready" && impact.milestones > 0 ? (
+      {burnCount > 0 ? <p className="text-sm text-foreground">{BT.batchDeleteBlocked(burnCount)}</p> : null}
+      {!blocked && impact.state === "ready" && impact.milestones > 0 ? (
         <p className="text-sm text-foreground">{B.deleteCureNote(impact.milestones)}</p>
       ) : null}
-      {impact.state === "ready" && impact.productionPlans > 0 ? (
+      {!blocked && impact.state === "ready" && impact.productionPlans > 0 ? (
         <p className="text-sm text-foreground">{B.deletePlanNote}</p>
       ) : null}
       <DialogFooter>
@@ -317,15 +330,17 @@ function DeleteBody({
         <Button type="button" variant="secondary" onClick={onCancel}>
           {B.deleteKeep}
         </Button>
-        <Button
-          type="button"
-          variant="destructive"
-          busy={busy}
-          disabled={impact.state === "loading"}
-          onClick={confirm}
-        >
-          {B.deleteConfirm}
-        </Button>
+        {blocked ? null : (
+          <Button
+            type="button"
+            variant="destructive"
+            busy={busy}
+            disabled={impact.state === "loading"}
+            onClick={confirm}
+          >
+            {B.deleteConfirm}
+          </Button>
+        )}
       </DialogFooter>
     </div>
   );

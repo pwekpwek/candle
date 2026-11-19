@@ -3,18 +3,28 @@
 import { useRef, useState } from "react";
 import { Notice } from "@/components/common/notice";
 import { Button } from "@/components/ui/button";
-import { exportBackup } from "@/lib/backup";
+import { MAX_BACKUP_BYTES, exportBackup } from "@/lib/backup";
+import { getDataLayer } from "@/lib/db";
 import { MESSAGES } from "@/lib/messages";
 import { formatRelativeTime } from "@/lib/time";
 import { backupDatabase } from "./database";
 import { downloadText } from "./download";
 import { FocusRegion } from "./focus-region";
-import { formatExportedAt } from "./format";
+import { formatExportedAt, formatFileSize } from "./format";
 import type { BackupStatus } from "./status";
 
 const B = MESSAGES.backup;
+const BC = MESSAGES.burnCompare;
 
-type Done = { exportedAt: string; formulas: number; versions: number; key: number };
+type Done = {
+  exportedAt: string;
+  formulas: number;
+  versions: number;
+  sizeBytes: number;
+  /** Photos on this device, or null when they could not be counted. */
+  photos: { count: number; bytes: number } | null;
+  key: number;
+};
 
 /** F6, PRD-24, PRD-27: the last-backup line, "Export backup", and its outcome. */
 export function ExportSection({
@@ -42,11 +52,16 @@ export function ExportSection({
     try {
       const out = await exportBackup(backupDatabase());
       downloadText(out.fileName, out.json);
+      const photos = await getDataLayer()
+        .burnPhotos.usage()
+        .catch(() => null);
       counter.current += 1;
       setDone({
         exportedAt: out.envelope.exportedAt,
         formulas: out.envelope.counts.formulas,
         versions: out.envelope.counts.formulaVersions,
+        sizeBytes: out.sizeBytes,
+        photos,
         key: counter.current,
       });
       await onExported().catch(() => {});
@@ -91,6 +106,19 @@ export function ExportSection({
               {B.exportedLine(formatExportedAt(done.exportedAt), done.formulas, done.versions)}
             </span>
           </Notice>
+          <p className="mt-2 text-sm text-text-secondary tabular-nums">
+            {BC.backupFileSize(formatFileSize(done.sizeBytes))}
+          </p>
+          {done.photos ? (
+            <p className="text-sm text-text-secondary tabular-nums">
+              {BC.backupDevicePhotos(done.photos.count, formatFileSize(done.photos.bytes))}
+            </p>
+          ) : null}
+          {done.sizeBytes > MAX_BACKUP_BYTES ? (
+            <Notice variant="warning" className="mt-2">
+              {BC.backupTooLarge(formatFileSize(done.sizeBytes), formatFileSize(MAX_BACKUP_BYTES))}
+            </Notice>
+          ) : null}
         </FocusRegion>
       ) : null}
       {failed !== null ? (

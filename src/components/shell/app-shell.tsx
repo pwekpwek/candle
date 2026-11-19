@@ -37,10 +37,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-dvh [--bottom-bar-height:calc(4rem_+_env(safe-area-inset-bottom))] sm:flex">
+    <div className="min-h-dvh [--bottom-bar-height:calc(4rem_+_env(safe-area-inset-bottom))] sm:flex print:block">
       <a
         href="#main"
-        className="sr-only z-50 rounded-md bg-card px-3 py-2 text-sm font-semibold text-foreground focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+        className="sr-only z-50 print:hidden rounded-md bg-card px-3 py-2 text-sm font-semibold text-foreground focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
       >
         Skip to main content
       </a>
@@ -48,7 +48,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="min-w-0 flex-1">
         <main
           id="main"
-          className="mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[calc(var(--bottom-bar-height)_+_1rem)] sm:px-6 sm:pt-8 sm:pb-8 lg:px-8"
+          className="mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[calc(var(--bottom-bar-height)_+_1rem)] sm:px-6 sm:pt-8 sm:pb-8 lg:px-8 print:max-w-none print:p-0"
         >
           {status === "blocked" ? (
             <Notice variant="warning" title={MESSAGES.app.notSavingTitle} className="mb-6">

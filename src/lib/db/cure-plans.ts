@@ -2,6 +2,7 @@ import { CurePlanSchema } from "@/lib/schemas";
 import type { CureMilestone, CurePlan } from "@/lib/types";
 import type { CandleDatabase, CureMilestoneInput, CurePlansRepo } from "./contract";
 import { DataError, guard, notFound, parseRecord } from "./errors";
+import { unlinkSessions } from "./burn-sessions";
 import { bumpChangeCounter } from "./meta";
 
 function optionalText(value: string | undefined): string | undefined {
@@ -54,7 +55,7 @@ export function createCurePlansRepo(
 
     save: (batchId, milestones) =>
       guard(() =>
-        db.transaction("rw", [db.curePlans, db.batches, db.meta], async () => {
+        db.transaction("rw", [db.curePlans, db.batches, db.burnSessions, db.meta], async () => {
           if (!(await db.batches.get(batchId))) throw notFound("Batch", batchId);
           const existing = await db.curePlans.get(batchId);
           const timestamp = now();
@@ -69,6 +70,10 @@ export function createCurePlansRepo(
             "cure plan",
           );
           await db.curePlans.put(plan);
+          // BurnMatrix: sessions linked to a milestone that is gone or no
+          // longer a burn test lose their link, in this transaction.
+          const burnTests = new Set(plan.milestones.filter((m) => m.kind === "burnTest").map((m) => m.id));
+          await unlinkSessions(db, batchId, burnTests, timestamp);
           await bumpChangeCounter(db);
           return plan;
         }),
@@ -101,9 +106,10 @@ export function createCurePlansRepo(
 
     delete: (batchId) =>
       guard(() =>
-        db.transaction("rw", [db.curePlans, db.meta], async () => {
+        db.transaction("rw", [db.curePlans, db.burnSessions, db.meta], async () => {
           if (!(await db.curePlans.get(batchId))) throw notFound("Cure plan", batchId);
           await db.curePlans.delete(batchId);
+          await unlinkSessions(db, batchId, new Set(), now());
           await bumpChangeCounter(db);
         }),
       ),

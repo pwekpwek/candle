@@ -177,19 +177,26 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
 
     deletionImpact: (id) =>
       guard(() =>
-        db.transaction("r", [db.curePlans, db.productionPlans], async () => {
+        db.transaction("r", [db.curePlans, db.productionPlans, db.burnSessions], async () => {
           const plan = await db.curePlans.get(id);
           return {
             milestones: plan?.milestones.length ?? 0,
             productionPlans: await db.productionPlans.where("batchId").equals(id).count(),
+            burnSessions: await db.burnSessions.where("batchId").equals(id).count(),
           };
         }),
       ),
 
     delete: (id) =>
       guard(() =>
-        db.transaction("rw", [db.batches, db.curePlans, db.productionPlans, db.meta], async () => {
+        db.transaction("rw", [db.batches, db.curePlans, db.productionPlans, db.burnSessions, db.meta], async () => {
           if (!(await db.batches.get(id))) throw notFound("Batch", id);
+          // BurnMatrix: burn tests are observations of the batch; they are
+          // never deleted with it (docs/v0.2-burnmatrix.md, Archive and delete).
+          const sessions = await db.burnSessions.where("batchId").equals(id).count();
+          if (sessions > 0) {
+            throw new DataError("in-use", `Batch ${id} has ${sessions} burn test(s).`);
+          }
           // CurePilot: the batch's cure plan goes with it, and an entry that
           // made it becomes open again (docs/v0.2-curepilot.md, Archive and delete).
           await db.curePlans.delete(id);

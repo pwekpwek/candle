@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { BackupView, formatExportedAt } from "@/components/backup";
+import { formatFileSize } from "@/components/backup/format";
 import { MAX_BACKUP_BYTES, checkBackupText, deviceIdsOf, readDeviceData } from "@/lib/backup";
 import { getDataLayer, openDatabase } from "@/lib/db";
 import type { DataLayer } from "@/lib/db";
@@ -16,6 +17,7 @@ const calls = vi.hoisted(() => ({
   download: vi.fn<(fileName: string, text: string) => void>(),
   gate: null as null | Promise<void>,
   applyCount: 0,
+  sizeOverride: null as null | number,
 }));
 
 vi.mock("@/components/backup/download", () => ({
@@ -29,6 +31,10 @@ vi.mock("@/lib/backup", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/backup")>();
   return {
     ...real,
+    exportBackup: async (...args: Parameters<typeof real.exportBackup>) => {
+      const out = await real.exportBackup(...args);
+      return calls.sizeOverride === null ? out : { ...out, sizeBytes: calls.sizeOverride };
+    },
     applyRestore: async (...args: Parameters<typeof real.applyRestore>) => {
       calls.order.push("apply");
       calls.applyCount += 1;
@@ -77,12 +83,18 @@ beforeEach(async () => {
   calls.download.mockReset();
   calls.gate = null;
   calls.applyCount = 0;
+  calls.sizeOverride = null;
   const db = openDatabase();
   await Promise.all([
     db.materials.clear(),
     db.formulas.clear(),
     db.formulaVersions.clear(),
     db.measurements.clear(),
+    db.batches.clear(),
+    db.curePlans.clear(),
+    db.productionPlans.clear(),
+    db.burnSessions.clear(),
+    db.burnPhotos.clear(),
     db.drafts.clear(),
     db.meta.clear(),
   ]);
@@ -157,6 +169,51 @@ describe("export (PRD-24, PRD-27)", () => {
       await screen.findByText(B.exportedLine(formatExportedAt(parsed.exportedAt), 1, 1)),
     ).toBeTruthy();
     expect(await screen.findByText(/^Last backup: just now · 0 changes since$/)).toBeTruthy();
+  });
+
+  it("shows the file size and the photos on this device after an export", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: B.exportBackup }));
+    await screen.findByText(/^Exported /);
+    const [, json] = calls.download.mock.calls[0];
+    const bytes = new TextEncoder().encode(json).length;
+    expect(await screen.findByText(MESSAGES.burnCompare.backupFileSize(formatFileSize(bytes)))).toBeTruthy();
+    expect(screen.getByText(MESSAGES.burnCompare.backupDevicePhotos(0, "0 B"))).toBeTruthy();
+    expect(screen.queryByText(/cannot restore a file that large/)).toBeNull();
+  });
+
+  it("counts the photos on this device", async () => {
+    const lib = await makeLibrary(layer());
+    const saved = await layer().versions.save(newFormulaRequest(we5Input(lib)));
+    const { batch } = await layer().batches.create({
+      batchId: crypto.randomUUID(),
+      versionId: saved.version.id,
+      producedOn: "2026-11-10",
+      entries: [],
+    });
+    const { session } = await layer().burnSessions.create({
+      sessionId: crypto.randomUUID(),
+      batchId: batch.id,
+      testedOn: "2026-11-18",
+      milestoneId: null,
+      candles: [{ label: "A", wick: { text: "CD-10" }, burns: [] }],
+    });
+    const bytes = new Uint8Array(2048).fill(7);
+    bytes.set([0xff, 0xd8, 0xff, 0xe0]);
+    await layer().burnPhotos.add({ photoId: crypto.randomUUID(), sessionId: session.id, bytes, width: 10, height: 10 });
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: B.exportBackup }));
+    expect(await screen.findByText(MESSAGES.burnCompare.backupDevicePhotos(1, "2 KB"))).toBeTruthy();
+  });
+
+  it("warns when the file is larger than this app can restore, and still downloads it", async () => {
+    calls.sizeOverride = MAX_BACKUP_BYTES + 1;
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: B.exportBackup }));
+    expect(
+      await screen.findByText(MESSAGES.burnCompare.backupTooLarge(formatFileSize(MAX_BACKUP_BYTES + 1), "256 MB")),
+    ).toBeTruthy();
+    expect(calls.download).toHaveBeenCalledTimes(1);
   });
 
   it("exports once on a double click", async () => {
@@ -303,14 +360,14 @@ describe("restore, add to what is here (PRD-26)", () => {
     fireEvent.click(restoreButton());
     const summary = restoreSummary({
       fileName: GOOD_NAME,
-      added: { formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0 },
+      added: { formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 },
       skippedIdentical: 0,
-      kept: { formulas: 0, formulaVersions: 0, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0 },
+      kept: { formulas: 0, formulaVersions: 0, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 },
     });
     expect(await screen.findByText(summary)).toBeTruthy();
     const link = screen.getByRole("link", { name: B.openSaved });
     expect(link.getAttribute("href")).toBe("/");
-    expect(await deviceData()).toEqual({ ...(good.data as object), batches: [], curePlans: [], productionPlans: [] });
+    expect(await deviceData()).toEqual({ ...(good.data as object), batches: [], curePlans: [], productionPlans: [], burnSessions: [], burnPhotos: [] });
     // The chosen file and the preview are gone.
     expect(screen.queryByText(B.addToWhatsHere)).toBeNull();
     expect(calls.download).not.toHaveBeenCalled();
@@ -369,10 +426,10 @@ describe("restore, add to what is here (PRD-26)", () => {
     await waitFor(() => expect(restoreButton().hasAttribute("disabled")).toBe(false));
     fireEvent.click(restoreButton());
     expect(
-      await screen.findByText(B.replacedSentence({ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0 })),
+      await screen.findByText(B.replacedSentence({ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 })),
     ).toBeTruthy();
     expect((await layer().materials.get(cedar.id))?.name).toBe("Cedarwood");
-    expect(await deviceData()).toEqual({ ...(good.data as object), batches: [], curePlans: [], productionPlans: [] });
+    expect(await deviceData()).toEqual({ ...(good.data as object), batches: [], curePlans: [], productionPlans: [], burnSessions: [], burnPhotos: [] });
   });
 
   it("Cancel clears the chosen file and the preview", async () => {
@@ -459,7 +516,7 @@ describe("restore, replace everything (DATA-23, FLOW-09)", () => {
     expect(dialog.textContent).toContain(B.replaceTitle);
     expect(dialog.textContent).toContain(B.replaceWarning);
     expect(dialog.textContent).toContain(
-      B.replaceAffects({ materials: 6, formulas: 1, formulaVersions: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0 }),
+      B.replaceAffects({ materials: 6, formulas: 1, formulaVersions: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 }),
     );
 
     // Pressing confirm without the word explains what is missing and does nothing.
@@ -480,7 +537,7 @@ describe("restore, replace everything (DATA-23, FLOW-09)", () => {
     expect(await screen.findByText(B.resultTitle)).toBeTruthy();
     expect(
       screen.getByText(
-        B.replaceSummary(GOOD_NAME, { formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0 }),
+        B.replaceSummary(GOOD_NAME, { formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 }),
       ),
     ).toBeTruthy();
     expect(calls.order).toHaveLength(2);
@@ -492,7 +549,7 @@ describe("restore, replace everything (DATA-23, FLOW-09)", () => {
     const safety = JSON.parse(json) as { data: typeof before };
     expect(safety.data).toEqual(before);
 
-    expect(await deviceData()).toEqual({ ...(good.data as object), batches: [], curePlans: [], productionPlans: [] });
+    expect(await deviceData()).toEqual({ ...(good.data as object), batches: [], curePlans: [], productionPlans: [], burnSessions: [], burnPhotos: [] });
   });
 
   it("replaces nothing when the earlier backup cannot be downloaded", async () => {

@@ -18,8 +18,9 @@
  *
  * Rules every write follows:
  *   - DATA-13: each committed write to materials, formulas, formulaVersions,
- *     measurements, batches, curePlans or productionPlans adds 1 to meta `changesSinceBackup`, inside the same
- *     transaction as the write.
+ *     measurements, batches, curePlans, productionPlans, burnSessions or
+ *     burnPhotos adds 1 to meta `changesSinceBackup`, inside the same
+ *     transaction as the write (one bump per repository call).
  *   - Timestamps come from the injected clock (`createDataLayer(db, { now })`),
  *     default `() => new Date().toISOString()`. IDs come from the injected
  *     `newId`, default `() => crypto.randomUUID()`.
@@ -33,6 +34,9 @@ import type { EntityTable } from "dexie";
 import type { EditorFields, ValidatedFormulaInput } from "@/lib/gramguard/contract";
 import type {
   Batch,
+  BurnPhoto,
+  BurnSession,
+  CureMilestone,
   CureMilestoneKind,
   CurePlan,
   Formula,
@@ -42,6 +46,7 @@ import type {
   Measurement,
   MeasurementEntry,
   ProductionPlan,
+  SootLevel,
   VersionOrigin,
   VersionScale,
   VesselDetails,
@@ -58,8 +63,13 @@ export type DataErrorCode =
   | "storage"
   /** The calculation engine refused the input (V-14, V-15). */
   | "calculation"
-  /** Another record refers to this one, so it cannot be removed (v0.2: a formula with batches). */
-  | "in-use";
+  /**
+   * Another record refers to this one, so it cannot be removed (v0.2: a
+   * formula with batches; BurnMatrix: a batch with burn sessions).
+   */
+  | "in-use"
+  /** BurnMatrix: the browser refused the write because device storage is full (QuotaExceededError). */
+  | "storage-full";
 
 /**
  * Shape of the error every data-layer function throws. `@/lib/db` exports
@@ -75,8 +85,8 @@ export interface DataErrorLike extends Error {
 export type MetaRow = { key: string; value: unknown };
 
 /**
- * The Dexie database. Stores and indexes (schema version 3; batches added in
- * 2, curePlans and productionPlans in 3):
+ * The Dexie database. Stores and indexes (schema version 4; batches added in
+ * 2, curePlans and productionPlans in 3, burnSessions and burnPhotos in 4):
  *   materials        id, type, archivedAt
  *   formulas         id, updatedAt, archivedAt
  *   formulaVersions  id, formulaId, &[formulaId+number]
@@ -84,6 +94,8 @@ export type MetaRow = { key: string; value: unknown };
  *   batches          id, formulaId, versionId, producedOn
  *   curePlans        id            (the batch id)
  *   productionPlans  id, formulaId, versionId, plannedOn, batchId
+ *   burnSessions     id, batchId, milestoneId, testedOn
+ *   burnPhotos       id, sessionId
  *   drafts           key
  *   meta             key
  */
@@ -95,6 +107,8 @@ export type CandleDatabase = Dexie & {
   batches: EntityTable<Batch, "id">;
   curePlans: EntityTable<CurePlan, "id">;
   productionPlans: EntityTable<ProductionPlan, "id">;
+  burnSessions: EntityTable<BurnSession, "id">;
+  burnPhotos: EntityTable<BurnPhoto, "id">;
   drafts: EntityTable<Draft, "key">;
   meta: EntityTable<MetaRow, "key">;
 };
@@ -295,12 +309,16 @@ export type BatchesRepo = {
   create(request: CreateBatchRequest): Promise<{ batch: Batch; created: boolean }>;
   /** Replaces the editable fields. `formulaId`, `versionId`, `id` and `createdAt` never change. */
   update(id: string, input: BatchInput): Promise<Batch>;
-  /** For the delete confirmation (CurePilot): what goes or changes with the batch. */
-  deletionImpact(id: string): Promise<{ milestones: number; productionPlans: number }>;
+  /**
+   * For the delete confirmation (CurePilot): what goes or changes with the
+   * batch. BurnMatrix: `burnSessions` > 0 means the delete will be refused.
+   */
+  deletionImpact(id: string): Promise<{ milestones: number; productionPlans: number; burnSessions: number }>;
   /**
    * Removes one batch, after the maker confirmed. CurePilot: its cure plan is
    * deleted in the same transaction, and a planned production entry that made
-   * it becomes open again (`batchId` back to null).
+   * it becomes open again (`batchId` back to null). BurnMatrix: refused with
+   * "in-use" while the batch has burn sessions (they are observations).
    */
   delete(id: string): Promise<void>;
 };
@@ -323,6 +341,9 @@ export type CureMilestoneInput = {
 };
 
 export type CurePlansRepo = {
+  // BurnMatrix: `save` also clears `milestoneId` on burn sessions whose
+  // milestone it removes or turns into another kind, and `delete` clears it on
+  // every session of that batch, in the same transaction.
   /** The batch's plan, or undefined when it has none. */
   get(batchId: string): Promise<CurePlan | undefined>;
   /**
@@ -398,6 +419,144 @@ export type ScheduleRepo = {
   read(): Promise<ScheduleData>;
 };
 
+// ───────────────────────────── BurnMatrix (v0.2) ─────────────────────────────
+
+/** One burn as the session editor sends it. Weights in whole mg, sizes in whole mm. */
+export type BurnRecordInput = {
+  /** Id of a burn already stored on this candle, to keep it; absent for a new burn. */
+  id?: string;
+  durationMin: number;
+  weightBeforeMg?: number;
+  weightAfterMg?: number;
+  meltPoolDiameterMm?: number;
+  meltPoolDepthMm?: number;
+  flameHeightMm?: number;
+  soot?: SootLevel;
+  /** Trimmed; blank means none. */
+  notes?: string;
+};
+
+/**
+ * A candle's wick as the editor sends it: a wick material from the library
+ * (its name is looked up and stored as a snapshot), or free text.
+ */
+export type BurnWickInput = { materialId: string } | { text: string };
+
+export type BurnCandleInput = {
+  /** Id of a candle already in this session, to keep it; absent for a new candle. */
+  id?: string;
+  /** Trimmed, 1–40 characters. */
+  label: string;
+  wick: BurnWickInput;
+  burns: BurnRecordInput[];
+  coldThrow?: string;
+  hotThrow?: string;
+  notes?: string;
+};
+
+/** What the maker can set on a burn session. `batchId` is fixed at creation. */
+export type BurnSessionInput = {
+  /** YYYY-MM-DD. The screens refuse a future date or one before the batch's production date. */
+  testedOn: string;
+  label?: string;
+  /** A burnTest milestone of the batch's cure plan not linked to another session, or null. */
+  milestoneId: string | null;
+  /** 1–8 candles. */
+  candles: BurnCandleInput[];
+  conclusion?: string;
+  notes?: string;
+};
+
+export type CreateBurnSessionRequest = BurnSessionInput & {
+  /** Chosen by the caller and reused on retry: an existing id writes nothing. */
+  sessionId: string;
+  batchId: string;
+};
+
+/** A session in a list: its batch, formula and version, and how many photos it has. */
+export type BurnSessionListItem = {
+  session: BurnSession;
+  batch: Batch;
+  formula: Formula;
+  version: FormulaVersion;
+  photoCount: number;
+};
+
+/** One session for the session page, editor and report. */
+export type BurnSessionDetail = BurnSessionListItem & {
+  /**
+   * The linked milestone as it is in the cure plan now, or null when the
+   * session has no link or the link no longer resolves (soft link: a restore
+   * that kept another copy of the cure plan can leave it dangling).
+   */
+  milestone: CureMilestone | null;
+};
+
+/** A burnTest milestone the session editor can offer. */
+export type BurnTestOption = {
+  milestone: CureMilestone;
+  /** The session already linked to it, or null when it is free. */
+  linkedSessionId: string | null;
+};
+
+export type BurnSessionsRepo = {
+  /** Every session with its sources: latest `testedOn` first, then newest created. Damaged links are left out. */
+  list(): Promise<BurnSessionListItem[]>;
+  /** One batch's sessions, same order. */
+  listByBatch(batchId: string): Promise<BurnSessionListItem[]>;
+  get(id: string): Promise<BurnSessionDetail | undefined>;
+  /** The batch's burnTest milestones, by offset, for the editor's link picker. */
+  burnTestOptions(batchId: string): Promise<BurnTestOption[]>;
+  /**
+   * One transaction over burnSessions, batches, materials, curePlans and meta.
+   * "not-found" when the batch is missing or a wick material is missing;
+   * "invalid" for a bad field, a material that is not a wick, a milestone that
+   * is not a burnTest of this batch's plan or is linked to another session.
+   * A linked milestone is marked done on `testedOn` in the same transaction.
+   * One counter bump.
+   */
+  create(request: CreateBurnSessionRequest): Promise<{ session: BurnSession; created: boolean }>;
+  /**
+   * Replaces the editable fields; `id`, `batchId`, `createdAt` never change.
+   * Candles and burns sent with a known id keep it; a wick whose material is
+   * unchanged keeps its stored name snapshot. A linked milestone is (re)marked
+   * done on `testedOn`. Unlinking leaves the old milestone as it is.
+   */
+  update(id: string, input: BurnSessionInput): Promise<BurnSession>;
+  /** For the delete confirmation. */
+  deletionImpact(id: string): Promise<{ photos: number }>;
+  /** Removes the session and its photos in one transaction. A linked milestone stays as it is. */
+  delete(id: string): Promise<void>;
+};
+
+export type AddBurnPhotoRequest = {
+  /** Chosen by the caller and reused on retry: an existing id writes nothing. */
+  photoId: string;
+  sessionId: string;
+  /** JPEG bytes, already shrunk (src/lib/photos). 1 to MAX_PHOTO_BYTES. */
+  bytes: Uint8Array;
+  width: number;
+  height: number;
+  caption?: string;
+};
+
+export type BurnPhotosRepo = {
+  /** A session's photos with their bytes, oldest first. */
+  listBySession(sessionId: string): Promise<BurnPhoto[]>;
+  /**
+   * Hashes the bytes (outside the transaction), then one transaction over
+   * burnPhotos, burnSessions and meta. "not-found" when the session is
+   * missing; "invalid" when the bytes are not a JPEG, too big, or the session
+   * already has MAX_SESSION_PHOTOS photos; "storage-full" when the browser
+   * refuses for lack of space.
+   */
+  add(request: AddBurnPhotoRequest): Promise<{ photo: BurnPhoto; created: boolean }>;
+  /** "not-found" when the photo is gone. */
+  delete(photoId: string): Promise<void>;
+  /** Photo count and total bytes on this device, for the backup page. */
+  usage(): Promise<{ count: number; bytes: number }>;
+};
+
 // ───────────────────────────── Drafts ─────────────────────────────
 
 /**
@@ -468,6 +627,8 @@ export type DataLayer = {
   curePlans: CurePlansRepo;
   productionPlans: ProductionPlansRepo;
   schedule: ScheduleRepo;
+  burnSessions: BurnSessionsRepo;
+  burnPhotos: BurnPhotosRepo;
   drafts: DraftsRepo;
   meta: MetaRepo;
   example: ExampleRepo;
