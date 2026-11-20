@@ -307,7 +307,11 @@ export type BatchesRepo = {
    * "invalid" for a bad date, label or entry. Bumps the change counter.
    */
   create(request: CreateBatchRequest): Promise<{ batch: Batch; created: boolean }>;
-  /** Replaces the editable fields. `formulaId`, `versionId`, `id` and `createdAt` never change. */
+  /**
+   * Replaces the editable fields. `formulaId`, `versionId`, `id` and `createdAt` never change.
+   * Integration QA: throws "invalid" when `producedOn` is later than the batch's earliest
+   * burn test (`testedOn`), since a burn test is never dated before its batch was made.
+   */
   update(id: string, input: BatchInput): Promise<Batch>;
   /**
    * For the delete confirmation (CurePilot): what goes or changes with the

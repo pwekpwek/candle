@@ -700,6 +700,9 @@ export const MESSAGES = {
     dateRequired: "Enter the production date.",
     dateInvalid: "Enter a valid date.",
     dateFuture: "The production date cannot be in the future.",
+    // WRITTEN HERE (v0.2 integration QA)
+    errProducedAfterBurnTest: (date: string) =>
+      `A burn test on this batch is dated ${date}. The production date can't be later than that.`,
     labelTooLong: "Use 40 characters or fewer.",
     measuredHeading: "Measured weights",
     measuredHint:

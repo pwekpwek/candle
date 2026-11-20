@@ -119,6 +119,18 @@ function DetailBody({
   const searchParams = useSearchParams();
   const [confirming, setConfirming] = useState(false);
   const here = `/batches/${batch.id}`;
+  // The earliest burn test date: the production date cannot move past it.
+  const earliestTest = useLiveQuery<string | null>(async () => {
+    try {
+      const sessions = await getDataLayer().burnSessions.listByBatch(batch.id);
+      return sessions.reduce<string | null>(
+        (min, s) => (min === null || s.session.testedOn < min ? s.session.testedOn : min),
+        null,
+      );
+    } catch {
+      return null;
+    }
+  }, [batch.id]);
 
   // "?created=1" shows the confirmation once, then leaves the URL clean.
   const [createdNotice] = useState(() => searchParams.get("created") === "1");
@@ -196,6 +208,7 @@ function DetailBody({
         failureText={B.saveFailed}
         successText={B.changesSaved}
         showBlend
+        latestProducedOn={earliestTest ?? null}
         onSubmit={save}
       />
 

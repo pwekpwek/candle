@@ -28,6 +28,7 @@ import {
   fmt,
   iso,
   milestoneRow,
+  productionDate,
   restoreFile,
   visible,
 } from "./helpers-schedule";
@@ -285,6 +286,17 @@ test("record a burn test: errors, two candles, link to the planned test, figures
   });
   await expect(burnsSection(page).getByTestId("burn-row")).toContainText("1 candle");
   await expectNoVerdicts(page, "batch page");
+
+  // The production date cannot move past the burn test.
+  const later = iso(-1);
+  await productionDate(page).fill(later);
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(
+    page.getByText(`A burn test on this batch is dated ${fmt(movedDate)}. The production date can't be later than that.`),
+  ).toBeVisible();
+  await page.reload();
+  await waitForHeading(page, "BT-01");
+  await expect(productionDate(page)).toHaveValue(produced);
 });
 
 test("photos: add, view, delete, bad file, the limit of 12", async ({ page }) => {

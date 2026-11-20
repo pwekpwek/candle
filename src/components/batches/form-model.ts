@@ -3,7 +3,7 @@ import { MESSAGES, messageForIssue } from "@/lib/messages";
 import { MAX_BATCH_LABEL_LENGTH } from "@/lib/types";
 import type { BatchInput } from "@/lib/db";
 import type { MeasurementEntry } from "@/lib/types";
-import { isRealDate } from "./text";
+import { formatProducedOn, isRealDate } from "./text";
 
 const B = MESSAGES.batches;
 
@@ -21,11 +21,21 @@ export type FormErrors = {
   measured: Record<string, string>;
 };
 
-/** Required, a real date, and not after the device's local today. */
-export function checkDate(value: string, today: string): string | null {
+/**
+ * Required, a real date, not after the device's local today, and not after the
+ * batch's earliest burn test (`latestProducedOn`), when it has one.
+ */
+export function checkDate(
+  value: string,
+  today: string,
+  latestProducedOn: string | null = null,
+): string | null {
   if (value.trim() === "") return B.dateRequired;
   if (!isRealDate(value)) return B.dateInvalid;
   if (value > today) return B.dateFuture;
+  if (latestProducedOn && value > latestProducedOn) {
+    return B.errProducedAfterBurnTest(formatProducedOn(latestProducedOn));
+  }
   return null;
 }
 
@@ -57,9 +67,10 @@ export function validateForm(
   values: FormValues,
   componentIds: readonly string[],
   today: string,
+  latestProducedOn: string | null = null,
 ): { errors: FormErrors; input: BatchInput | null } {
   const errors: FormErrors = { measured: {} };
-  const dateError = checkDate(values.producedOn, today);
+  const dateError = checkDate(values.producedOn, today, latestProducedOn);
   if (dateError) errors.producedOn = dateError;
   const labelError = checkLabel(values.label);
   if (labelError) errors.label = labelError;

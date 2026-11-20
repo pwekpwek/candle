@@ -39,7 +39,7 @@ import {
 const M = MESSAGES.burn;
 
 const SELECT_CLASS =
-  "h-10 w-full min-w-0 rounded-md border border-input bg-card px-3 text-base text-foreground outline-none aria-invalid:border-destructive pointer-coarse:min-h-11";
+  "h-10 w-full min-w-0 rounded-md border border-input bg-card px-3 text-base text-foreground aria-invalid:border-destructive pointer-coarse:min-h-11";
 
 type Props = { mode: "new"; batchId: string } | { mode: "edit"; sessionId: string };
 

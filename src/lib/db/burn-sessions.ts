@@ -167,6 +167,20 @@ async function linkMilestone(
   );
 }
 
+/**
+ * Integration QA: a burn test is never dated before its batch was made (the
+ * editor already refuses it; this keeps the rule when a screen does not).
+ * The date's format is the schema's job, so only a well-formed date is compared.
+ */
+function checkTestedOn(testedOn: unknown, batch: Batch): void {
+  if (typeof testedOn === "string" && /^\d{4}-\d{2}-\d{2}$/.test(testedOn) && testedOn < batch.producedOn) {
+    throw new DataError(
+      "invalid",
+      `Burn test date ${testedOn} is before batch ${batch.id} was made (${batch.producedOn}).`,
+    );
+  }
+}
+
 /** The editable part of a session, ready for the schema. */
 async function editable(
   db: CandleDatabase,
@@ -277,7 +291,9 @@ export function createBurnSessionsRepo(
           // Idempotent: a retry with the same id writes nothing.
           const already = await db.burnSessions.get(request.sessionId);
           if (already) return { session: already, created: false };
-          if (!(await db.batches.get(request.batchId))) throw notFound("Batch", request.batchId);
+          const batch = await db.batches.get(request.batchId);
+          if (!batch) throw notFound("Batch", request.batchId);
+          checkTestedOn(request.testedOn, batch);
           const timestamp = now();
           const session = parseRecord(
             BurnSessionSchema,
@@ -300,9 +316,12 @@ export function createBurnSessionsRepo(
 
     update: (id, input) =>
       guard(() =>
-        db.transaction("rw", [db.burnSessions, db.materials, db.curePlans, db.meta], async () => {
+        db.transaction("rw", [db.burnSessions, db.batches, db.materials, db.curePlans, db.meta], async () => {
           const existing = await db.burnSessions.get(id);
           if (!existing) throw notFound("Burn session", id);
+          const batch = await db.batches.get(existing.batchId);
+          if (!batch) throw notFound("Batch", existing.batchId);
+          checkTestedOn(input.testedOn, batch);
           const timestamp = now();
           const session = parseRecord(
             BurnSessionSchema,

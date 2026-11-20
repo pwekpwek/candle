@@ -28,7 +28,7 @@ const TYPE_ORDER: readonly MaterialType[] = ["wax", "fragranceOil", "wick", "ves
 
 /** Same look as Input, for the native basis select. */
 const SELECT_CLASS =
-  "h-10 w-full min-w-0 rounded-md border border-input bg-card px-3 text-base text-foreground outline-none aria-invalid:border-destructive";
+  "h-10 w-full min-w-0 rounded-md border border-input bg-card px-3 text-base text-foreground aria-invalid:border-destructive";
 
 export type FormTarget =
   | { kind: "add"; type: MaterialType | null }

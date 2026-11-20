@@ -588,6 +588,7 @@ const MESSAGE_SAMPLES: Record<string, unknown[]> = {
   "batches.weighedStatus": [3, 4],
   "batches.sourcePlannedTotal": ["1080.0 g"],
   "batches.notLatestNotice": [1, 2],
+  "batches.errProducedAfterBurnTest": ["Nov 12, 2026"],
   "batches.deleteBody": ["Batch 3F2A91C0"],
   "batches.formulaDeleteRefused": [2],
   "batches.deleteCureNote": [3],
