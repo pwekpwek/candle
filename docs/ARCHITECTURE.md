@@ -151,3 +151,14 @@ Full design and compatibility notes: `docs/v0.2-burnmatrix.md`.
 - **Schema 4** adds `burnSessions` and `burnPhotos` only. **Backup format 4** adds both. Formats 1 to 3 are migrated in memory after their own checksum is verified. `MAX_BACKUP_BYTES` is 256 MiB, and export reports the file size.
 - **Reports** are printable pages (browser Print / Save as PDF) plus a CSV; there is no PDF library. The burn tests list is reached from the Batches page and each batch's Burn tests section, not from the nav.
 - **Wording:** observations only. The messages test scans every string for verdict words.
+
+## v0.2 integration decisions (2026-11-21)
+
+Plan, findings and how to rerun: `docs/v0.2-integration-qa.md`.
+
+- **Burn test dates follow the batch:** a burn test is never dated before its batch's production date, in the data layer as well as the screens. `batches.update` refuses a production date later than the earliest burn test; `burnSessions.create` and `update` refuse a test date before the production date. Both throw `invalid`. A restore does not check this rule (recorded for v0.3).
+- **One focus style, really:** focusable controls must not carry `outline-none`. In Tailwind 4 it is `outline-style: none` in the utilities layer and beats the global `:focus-visible` outline in the base layer. Only non-interactive programmatic focus targets (`tabIndex={-1}` result regions, the dialog container) keep it.
+- **Stored records are never refused for the date rule or a shared link (M-1, M-2):** a date already stored is accepted on edit, and so is a session's existing link to a planned burn test that another session shares. Only new or changed values must follow the rules. A restore never refuses a file over either one. Its preview counts them instead (`RestorePlan.burnChecks`).
+- **Focus is returned:** the shared `DialogContent` returns focus to whatever opened it. Row removal moves focus with `focusAfterRemove` (`data-row-remove` / `data-add-row`).
+- **E2E port:** `playwright.config.ts` reads `E2E_PORT` (default 3000), so a second checkout or QA run can use its own dev server.
+- **Upgrade chain:** schema changes are proven with `tests/upgrade-chain/`, which serves real builds of every schema in one Chromium profile on port 3000 and diffs every store. Reuse it for the next schema.

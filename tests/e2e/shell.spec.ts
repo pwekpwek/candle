@@ -75,7 +75,12 @@ test.describe("desktop (1280px)", () => {
     page,
   }) => {
     await page.goto("/");
-    await page.getByRole("link", { name: "New formula" }).click();
+    // On an empty home page "New formula" is both the page-header action and the
+    // empty-state call to action. Scope to the header, which is always rendered.
+    await page
+      .locator("main header")
+      .getByRole("link", { name: "New formula" })
+      .click();
     await expect(page).toHaveURL("/formulas/new");
     await expect(
       page.getByRole("heading", { level: 1, name: "New formula" }),
@@ -97,6 +102,12 @@ test.describe("desktop (1280px)", () => {
     page,
   }) => {
     await page.goto("/");
+    // Readiness: the nav is first rendered as a server fallback and swapped for
+    // the live one when React hydrates, which drops focus from a fallback link.
+    // The home page only leaves its "Loading" state after hydration (it is a
+    // client-side Dexie read), so wait for that before touching the keyboard.
+    await expect(page.getByRole("status").filter({ hasText: /loading/i })).toHaveCount(0);
+    await expect(page.getByRole("heading", { level: 1, name: "Saved formulas" })).toBeVisible();
     const link = page
       .getByRole("navigation", { name: "Main" })
       .getByRole("link", { name: "Materials" });

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { BackupView, formatExportedAt } from "@/components/backup";
 import { formatFileSize } from "@/components/backup/format";
-import { MAX_BACKUP_BYTES, checkBackupText, deviceIdsOf, readDeviceData } from "@/lib/backup";
+import { MAX_BACKUP_BYTES, checkBackupText, exportBackup, deviceIdsOf, readDeviceData } from "@/lib/backup";
 import { getDataLayer, openDatabase } from "@/lib/db";
 import type { DataLayer } from "@/lib/db";
 import { MESSAGES, messageForCheckFailure, restoreSummary } from "@/lib/messages";
@@ -430,6 +430,58 @@ describe("restore, add to what is here (PRD-26)", () => {
     ).toBeTruthy();
     expect((await layer().materials.get(cedar.id))?.name).toBe("Cedarwood");
     expect(await deviceData()).toEqual({ ...(good.data as object), batches: [], curePlans: [], productionPlans: [], burnSessions: [], burnPhotos: [] });
+  });
+
+  it("lists burn tests dated before their batch and shared planned burn tests, and still restores", async () => {
+    const { container } = renderPage();
+    await screen.findByText(B.neverBackedUp.title);
+    const lib = await makeLibrary(layer());
+    const { version } = await layer().versions.save(newFormulaRequest(we5Input(lib)));
+    const { batch } = await layer().batches.create({
+      batchId: crypto.randomUUID(),
+      versionId: version.id,
+      producedOn: "2026-11-10",
+      entries: [],
+    });
+    const cure = await layer().curePlans.save(batch.id, [{ kind: "burnTest", offsetDays: 2 }]);
+    const milestoneId = cure.milestones[0]!.id;
+    const candles = [{ label: "A", wick: { text: "CD-10" }, burns: [{ durationMin: 60 }] }];
+    const first = crypto.randomUUID();
+    await layer().burnSessions.create({ sessionId: first, batchId: batch.id, testedOn: "2026-11-12", milestoneId, candles });
+    const db = openDatabase();
+    let text: string;
+    try {
+      const stored = (await db.burnSessions.get(first))!;
+      await db.burnSessions.put({
+        ...stored,
+        id: crypto.randomUUID(),
+        testedOn: "2026-11-01",
+        candles: stored.candles.map((c) => ({ ...c, id: crypto.randomUUID(), burns: c.burns.map((b) => ({ ...b, id: crypto.randomUUID() })) })),
+      });
+      text = (await exportBackup(db, { now: () => "2026-11-16T09:00:00.000Z" })).json;
+      await Promise.all(db.tables.map((t) => t.clear()));
+    } finally {
+      db.close();
+    }
+    choose(container, text, GOOD_NAME);
+    expect(await screen.findByText(GOOD_NAME)).toBeTruthy();
+    expect(screen.getByText(B.previewBurnDatesBeforeBatch(1))).toBeTruthy();
+    expect(screen.getByText(B.previewSharedPlannedTests(1))).toBeTruthy();
+    expect(B.previewBurnDatesBeforeBatch(2)).toBe(
+      "2 burn tests will be dated before their batches' production date. Check those dates after restoring.",
+    );
+    fireEvent.click(restoreButton());
+    expect(await screen.findByText(B.resultTitle)).toBeTruthy();
+    expect(await layer().burnSessions.get(first)).toBeTruthy();
+  });
+
+  it("shows no burn lines for an ordinary file", async () => {
+    const { container } = renderPage();
+    await screen.findByText(B.neverBackedUp.title);
+    choose(container, goodText, GOOD_NAME);
+    await screen.findByText(GOOD_NAME);
+    expect(screen.queryByText(/dated before/)).toBeNull();
+    expect(screen.queryByText(/more than one burn test/)).toBeNull();
   });
 
   it("Cancel clears the chosen file and the preview", async () => {

@@ -221,6 +221,34 @@ describe("batch page", () => {
     expect(saved?.batch.versionId).toBe(s.version.id);
   });
 
+  it("refuses a production date after the earliest burn test", async () => {
+    const s = await seedBatch();
+    await layer().burnSessions.create({
+      sessionId: crypto.randomUUID(),
+      batchId: s.batch.id,
+      testedOn: "2026-11-12",
+      milestoneId: null,
+      candles: [{ label: "A", wick: { text: "CD-10" }, burns: [{ durationMin: 60 }] }],
+    });
+    render(<BatchDetail batchId={s.batch.id} />);
+    await screen.findByLabelText(B.labelFieldLabel);
+    const message = B.errProducedAfterBurnTest("Nov 12, 2026");
+    // The Burn tests section lists the session once the page has loaded it.
+    await screen.findByText("Nov 12, 2026");
+    fireEvent.change(dateField(), { target: { value: "2026-11-13" } });
+    fireEvent.blur(dateField());
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: B.saveChanges }));
+    expect(screen.getByText(message)).toBeInTheDocument();
+    expect(screen.queryByText(B.changesSaved)).toBeNull();
+    expect((await layer().batches.get(s.batch.id))?.batch.producedOn).toBe("2026-11-10");
+    // The same day is fine.
+    fireEvent.change(dateField(), { target: { value: "2026-11-12" } });
+    fireEvent.click(screen.getByRole("button", { name: B.saveChanges }));
+    expect(await screen.findByText(B.changesSaved)).toBeInTheDocument();
+    expect((await layer().batches.get(s.batch.id))?.batch.producedOn).toBe("2026-11-12");
+  });
+
   it("deletes after confirmation", async () => {
     const s = await seedBatch();
     render(<BatchDetail batchId={s.batch.id} />);

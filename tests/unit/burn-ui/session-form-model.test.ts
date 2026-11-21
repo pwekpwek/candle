@@ -223,3 +223,16 @@ describe("stored session to form", () => {
     expect(gramsText(10)).toBe("0.01");
   });
 });
+
+describe("test date already stored", () => {
+  const editing: Context = { ...ctx, storedTestedOn: "2026-10-20" };
+
+  it("accepts the stored date even when it is before production", () => {
+    expect(checkDate("2026-10-20", editing)).toBeNull();
+  });
+
+  it("still refuses a different date before production, and any when nothing is stored", () => {
+    expect(checkDate("2026-10-21", editing)).toBe(M.errDateBeforeProduced("on 2026-11-01"));
+    expect(checkDate("2026-10-20", ctx)).toBe(M.errDateBeforeProduced("on 2026-11-01"));
+  });
+});

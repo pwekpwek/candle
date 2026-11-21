@@ -99,7 +99,7 @@ function BatchRow({ item }: { item: BatchListItem }) {
     >
       <Link
         href={`/batches/${batch.id}`}
-        className="flex min-h-11 items-center text-base font-semibold break-words text-foreground underline-offset-4 outline-none after:absolute after:inset-0 hover:underline"
+        className="flex min-h-11 items-center text-base font-semibold break-words text-foreground underline-offset-4 after:absolute after:inset-0 hover:underline"
       >
         {batchTitle(batch)}
       </Link>

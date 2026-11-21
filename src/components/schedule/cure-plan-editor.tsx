@@ -15,6 +15,7 @@ import { DataError, getDataLayer } from "@/lib/db";
 import type { BatchListItem } from "@/lib/db";
 import { MESSAGES } from "@/lib/messages";
 import { milestoneDueOn } from "@/lib/schedule";
+import { focusAfterRemove } from "@/lib/focus-after-remove";
 import { MAX_MILESTONES } from "@/lib/types";
 import type { CurePlan } from "@/lib/types";
 import {
@@ -35,7 +36,7 @@ const S = MESSAGES.schedule;
 const B = MESSAGES.batches;
 
 const SELECT_CLASS =
-  "h-10 w-full min-w-0 rounded-md border border-input bg-card px-3 text-base text-foreground outline-none aria-invalid:border-destructive";
+  "h-10 w-full min-w-0 rounded-md border border-input bg-card px-3 text-base text-foreground aria-invalid:border-destructive";
 
 type Loaded =
   | { status: "ok"; item: BatchListItem; plan: CurePlan | undefined }
@@ -266,6 +267,7 @@ function CureForm({ item, initialPlan }: { item: BatchListItem; initialPlan: Cur
               disabled={atLimit}
               className="pointer-coarse:min-h-11"
               onMouseDown={(event) => event.preventDefault()}
+              data-add-row=""
               onClick={() => addRow("burnTest")}
             >
               {S.addBurnTest}
@@ -276,6 +278,7 @@ function CureForm({ item, initialPlan }: { item: BatchListItem; initialPlan: Cur
               disabled={atLimit}
               className="pointer-coarse:min-h-11"
               onMouseDown={(event) => event.preventDefault()}
+              data-add-row=""
               onClick={() => addRow("check")}
             >
               {S.addOther}
@@ -412,8 +415,13 @@ function RowEditor({
             size="sm"
             className="pointer-coarse:min-h-11"
             aria-label={S.removeRowFor(index)}
+            data-row-remove=""
             onMouseDown={(event) => event.preventDefault()}
-            onClick={onRemove}
+            onClick={(event) => {
+              const button = event.currentTarget;
+              onRemove();
+              focusAfterRemove(button);
+            }}
           >
             {S.removeRow}
           </Button>

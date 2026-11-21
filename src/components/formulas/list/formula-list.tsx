@@ -271,7 +271,7 @@ function FormulaRow({ item, now }: { item: FormulaListItem; now: number }) {
       <span role="cell" className="min-w-0 sm:py-1">
         <Link
           href={`/formulas/${formula.id}`}
-          className="flex min-h-11 items-center text-base font-semibold break-words text-foreground underline-offset-4 outline-none after:absolute after:inset-0 hover:underline"
+          className="flex min-h-11 items-center text-base font-semibold break-words text-foreground underline-offset-4 after:absolute after:inset-0 hover:underline"
         >
           {formula.name}
         </Link>

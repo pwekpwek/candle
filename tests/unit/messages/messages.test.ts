@@ -588,6 +588,7 @@ const MESSAGE_SAMPLES: Record<string, unknown[]> = {
   "batches.weighedStatus": [3, 4],
   "batches.sourcePlannedTotal": ["1080.0 g"],
   "batches.notLatestNotice": [1, 2],
+  "batches.errProducedAfterBurnTest": ["Nov 12, 2026"],
   "batches.deleteBody": ["Batch 3F2A91C0"],
   "batches.formulaDeleteRefused": [2],
   "batches.deleteCureNote": [3],
@@ -700,6 +701,8 @@ const MESSAGE_SAMPLES: Record<string, unknown[]> = {
   "backup.previewVersionConflicts": [2],
   "backup.previewRenumbered": [1],
   "backup.previewMissingMaterials": [3],
+  "backup.previewBurnDatesBeforeBatch": [2],
+  "backup.previewSharedPlannedTests": [1],
   "backup.replaceAffects": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 }],
   "backup.replacedSentence": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 }],
   "backup.renumberedSentence": ["Lavender Vanilla", 3, 4],
@@ -802,5 +805,43 @@ describe("wording scan: BurnMatrix messages record observations, never verdicts"
     }
     expect(strings.length).toBeGreaterThan(100);
     expect(strings.filter((s) => VERDICT.test(s.text)).map((s) => `${s.path}: ${s.text}`)).toEqual([]);
+  });
+});
+
+// ─────────── v0.2 sections: broad judgement scan (integration QA, M-5) ───────────
+
+/**
+ * Broad judgement words. The app records observations and scheduling only, so
+ * none of these may describe a candle, batch, cure or burn.
+ */
+const JUDGEMENT =
+  /\b(ready|cured|cure complete|pass|passed|passes|fail|failed|fails|good|bad|safe|safety|approved|certified|verified|complete|completed|finished|success|successful|successfully|ideal|optimal|perfect|best|worst|better|worse|recommended|rating|rated)\b/i;
+
+/**
+ * Exact operation phrases that may contain a judgement word. Each describes what
+ * the app did with data (saving, restoring, downloading), never a candle, batch,
+ * cure or burn. Keys are "path" so a reworded string is scanned again.
+ */
+const OPERATION_ALLOWLIST: Record<string, string> = {
+  "backup.intro": "Spec wording: 'somewhere safe' is where to store the backup file, not a claim about a candle.",
+  "backup.replaceWarning": "'Safety backup' is the spec's term for the copy of current data that downloads first (F7 step 5, DATA-23).",
+  "backup.resultTitle": "'Restore finished.' reports that the app's restore operation ended; it says nothing about a candle.",
+  "backup.failMismatch": "'The restore finished, but...' reports a data-count mismatch after the app's restore operation.",
+  "backup.failMismatchReplace": "'The restore finished, but...' reports a data-count mismatch after the app's Replace operation.",
+};
+
+describe("wording scan: v0.2 batches, schedule and backup sections make no judgement of a candle", () => {
+  it("no string contains a judgement word, except the listed app-operation phrases", () => {
+    const strings: { path: string; text: string }[] = [];
+    for (const section of ["batches", "schedule", "backup"] as const) {
+      collectStrings(MESSAGES[section], section, strings);
+    }
+    expect(strings.length).toBeGreaterThan(150);
+    const hits = strings.filter((s) => JUDGEMENT.test(s.text));
+    const unexpected = hits.filter((s) => !(s.path in OPERATION_ALLOWLIST));
+    expect(unexpected.map((s) => `${s.path}: ${s.text}`)).toEqual([]);
+    for (const allowed of Object.keys(OPERATION_ALLOWLIST)) {
+      expect(hits.map((h) => h.path), `stale allowlist entry ${allowed}`).toContain(allowed);
+    }
   });
 });

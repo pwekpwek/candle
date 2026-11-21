@@ -48,6 +48,19 @@ function editable(version: FormulaVersion, input: BatchInput) {
   };
 }
 
+/**
+ * The date of the batch's earliest burn test, or null without any. Only Dexie
+ * operations are awaited, so it can run inside a transaction over burnSessions.
+ */
+export async function earliestTestedOn(db: CandleDatabase, batchId: string): Promise<string | null> {
+  const sessions = await db.burnSessions.where("batchId").equals(batchId).toArray();
+  let earliest: string | null = null;
+  for (const session of sessions) {
+    if (earliest === null || session.testedOn < earliest) earliest = session.testedOn;
+  }
+  return earliest;
+}
+
 export function createBatchesRepo(db: CandleDatabase, now: () => string): BatchesRepo {
   /** Joins batches with their formula and version. A batch whose source is missing is left out. */
   async function withSources(batches: Batch[]): Promise<BatchListItem[]> {
@@ -151,11 +164,22 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
 
     update: (id, input) =>
       guard(() =>
-        db.transaction("rw", [db.batches, db.formulaVersions, db.meta], async () => {
+        db.transaction("rw", [db.batches, db.formulaVersions, db.burnSessions, db.meta], async () => {
           const existing = await db.batches.get(id);
           if (!existing) throw notFound("Batch", id);
           const version = await db.formulaVersions.get(existing.versionId);
           if (!version) throw notFound("Version", existing.versionId);
+          // Integration QA: a burn test is never dated before its batch was
+          // made, so the production date cannot move past the earliest test.
+          // A date already stored is kept as it is (a restore can bring one
+          // in, M-2), so other edits of such a batch still save.
+          const earliest = await earliestTestedOn(db, id);
+          if (earliest !== null && input.producedOn > earliest && input.producedOn !== existing.producedOn) {
+            throw new DataError(
+              "invalid",
+              `Batch ${id} has a burn test dated ${earliest}; the production date cannot be later.`,
+            );
+          }
           const batch = parseRecord(
             BatchSchema,
             {

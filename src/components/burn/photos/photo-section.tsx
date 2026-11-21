@@ -307,6 +307,7 @@ function PhotoViewer({
                   type="button"
                   variant="secondary"
                   size="lg"
+                  autoFocus
                   disabled={deleting}
                   onClick={() => {
                     setConfirming(false);

@@ -133,6 +133,25 @@ describe("cure-plan editor: edit", () => {
     expect(plan!.milestones.find((m) => m.id === cure.id)?.offsetDays).toBe(21);
   });
 
+  it("moves focus to a neighbouring row, then the Add button, after Remove", async () => {
+    const s = await seedBatch(daysFromToday(-5));
+    await renderEditor(s.batch.id);
+    fireEvent.click(screen.getByRole("button", { name: S.addOther }));
+    fireEvent.click(screen.getByRole("button", { name: S.addOther }));
+    expect(rows()).toHaveLength(2);
+    const frame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
+
+    fireEvent.click(screen.getByRole("button", { name: S.removeRowFor(1) }));
+    await frame();
+    expect(rows()).toHaveLength(1);
+    expect(rows()[0].contains(document.activeElement)).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: S.removeRowFor(1) }));
+    await frame();
+    expect(screen.queryAllByTestId("cure-row")).toHaveLength(0);
+    expect(screen.getByRole("button", { name: S.addBurnTest })).toHaveFocus();
+  });
+
   it("clearing the cure time removes the cure end", async () => {
     const s = await seedBatch(daysFromToday(-5));
     await layer().curePlans.save(s.batch.id, [

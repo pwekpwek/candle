@@ -28,6 +28,7 @@ import {
   fmt,
   iso,
   milestoneRow,
+  productionDate,
   restoreFile,
   visible,
 } from "./helpers-schedule";
@@ -285,6 +286,17 @@ test("record a burn test: errors, two candles, link to the planned test, figures
   });
   await expect(burnsSection(page).getByTestId("burn-row")).toContainText("1 candle");
   await expectNoVerdicts(page, "batch page");
+
+  // The production date cannot move past the burn test.
+  const later = iso(-1);
+  await productionDate(page).fill(later);
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(
+    page.getByText(`A burn test on this batch is dated ${fmt(movedDate)}. The production date can't be later than that.`),
+  ).toBeVisible();
+  await page.reload();
+  await waitForHeading(page, "BT-01");
+  await expect(productionDate(page)).toHaveValue(produced);
 });
 
 test("photos: add, view, delete, bad file, the limit of 12", async ({ page }) => {
@@ -476,7 +488,7 @@ test("compare two burn tests and download the CSV", async ({ page }) => {
     "Cold throw",
     "Hot throw",
     "Candle notes",
-    "Conclusion",
+    "Maker's conclusion",
   ]);
   // Burns: A1 x2, A2 x1, B1 x1.
   expect(rows.length, "header plus one row per burn").toBe(1 + 4);
@@ -494,7 +506,7 @@ test("compare two burn tests and download the CSV", async ({ page }) => {
   expect(Number(col(a1[0], "Weight loss (g)"))).toBe(11.5);
   expect(Number(col(a1[0], "Rate (g/h)"))).toBeCloseTo(2.88, 2);
   expect(col(a1[0], "Soot")).toBe("Light");
-  expect(col(a1[0], "Conclusion")).toBe("Run A: the melt pool reached the edge by hour three.");
+  expect(col(a1[0], "Maker's conclusion")).toBe("Run A: the melt pool reached the edge by hour three.");
   expect(col(rows.find((r) => col(r, "Candle") === "B1")!, "Session")).toBe("Run B");
 
   // The session page has its own CSV: three burns for Run A.
