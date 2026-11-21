@@ -80,6 +80,14 @@ Branch `feat/v0.2-integration`, from `feat/v0.2-burnmatrix` (`359fa76`); its PR 
 
 Models: lead (Opus) wrote the QA plan, the upgrade chain, the cross-slice review and the data-layer fix with its unit tests, and ran the final checks. Sonnet wrote the workflow test, the wording and keyboard audit, the shell test fixes, the batch form error and the focus ring fix.
 
+- **Medium findings fixed (second commit, owner's request):**
+  - M-1 and M-2: stored dates and existing shared links are kept on edit, and the restore preview counts them.
+  - M-3: the CSV column says "Maker's conclusion".
+  - M-4: the Replace warning names every kind of record it removes.
+  - M-5: the judgement-word scan covers `batches`, `schedule` and `backup`.
+  - M-6: dialogs return focus to their opener.
+  - M-7: focus moves to a neighbour after a row is removed.
+
 v0.2 is complete pending Codex verification. Next: v0.3 (vault Tasks note).
 
 ## Wave 3 handover
@@ -247,3 +255,4 @@ Done by the lead orchestrator. No Critical or High finding is open.
 - **2026-11-18, wave 9.** Run in the same chat at the owner's instruction ("Wave 9 here"), lead chat on Opus 5.5. T23 round trip and 375px pass, T24 validation, double save, empty states and bad restore, both on Sonnet in parallel against one dev server the orchestrator started for them. No escalations. Neither agent changed app code; both reported no app defect. Review fix by the orchestrator, from T23's report of a timing workaround: on the formula page the autosave pill could show "Saved" while the last typed weight was still waiting for its pause, and a reload in that moment lost the value. The pill now shows "Saving…" while anything waits, and a waiting value is saved on `pagehide` (two unit tests). Commands on the final tree: `npm run lint` clean; `npm run typecheck` clean; `npm test` 49 files, 1065 tests passed; `npm run build` passed (4 static routes plus `/_not-found`, 3 partial-prerender dynamic routes); `npm run test:e2e` 36 passed with Playwright starting its own server (also 36 of 36 twice on the shared server before that; T24 reported 96 of 96 on a four-times repeat of its files).
 - **2026-11-18, wave 10 (T25).** Integration review by the lead orchestrator (Opus 5.5, as the strongest model in use). Results under "T25 integration review" above. Code changes: the reference cross-check test, the shell and pill strings moved into messages, the phone bar's short "Backup" label, the V-04 wording without "0.0". The CALC-13 decision is written back into `docs/specs/2 Calculation Rules.md` (and into the vault spec at T27). T26 (`npm ci`, lint, typecheck, unit, end-to-end, build on the exact commit) and the T27 handoff note are recorded in the vault handoff note `Projects/apps/candle/Sessions/2026-11-18 - v0.1 GramGuard - Development Handoff.md`, so this file does not change after the tested commit.
 - **2026-11-21, v0.2 integration QA.** Lead on Opus 5.5, Sonnet subagents for the workflow test, the audit, the shell test fixes and the two screen fixes. No escalations. Two High findings fixed (H-1 burn test dates vs production date, H-2 invisible focus ring); 7 Medium and 12 Low recorded in `docs/v0.2-integration-qa.md`. Results in the vault handoff.
+- **2026-11-21, v0.2 integration QA, Medium fixes.** At the owner's request ("Fix Medium findings"), M-1 to M-7 fixed on the same branch: data layer and restore plan by the lead; wording, scan, focus return and the screen side by Sonnet (three agents, no file overlap). Low findings stay recorded.

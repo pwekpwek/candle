@@ -209,6 +209,7 @@ function DetailBody({
         successText={B.changesSaved}
         showBlend
         latestProducedOn={earliestTest ?? null}
+        storedProducedOn={batch.producedOn}
         onSubmit={save}
       />
 

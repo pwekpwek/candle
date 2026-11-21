@@ -171,8 +171,10 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
           if (!version) throw notFound("Version", existing.versionId);
           // Integration QA: a burn test is never dated before its batch was
           // made, so the production date cannot move past the earliest test.
+          // A date already stored is kept as it is (a restore can bring one
+          // in, M-2), so other edits of such a batch still save.
           const earliest = await earliestTestedOn(db, id);
-          if (earliest !== null && input.producedOn > earliest) {
+          if (earliest !== null && input.producedOn > earliest && input.producedOn !== existing.producedOn) {
             throw new DataError(
               "invalid",
               `Batch ${id} has a burn test dated ${earliest}; the production date cannot be later.`,

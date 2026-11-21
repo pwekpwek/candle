@@ -23,17 +23,20 @@ export type FormErrors = {
 
 /**
  * Required, a real date, not after the device's local today, and not after the
- * batch's earliest burn test (`latestProducedOn`), when it has one.
+ * batch's earliest burn test (`latestProducedOn`), when it has one. A date equal
+ * to the stored one (`storedProducedOn`) is accepted as it is: a restore can
+ * bring in a batch dated after its burn test.
  */
 export function checkDate(
   value: string,
   today: string,
   latestProducedOn: string | null = null,
+  storedProducedOn: string | null = null,
 ): string | null {
   if (value.trim() === "") return B.dateRequired;
   if (!isRealDate(value)) return B.dateInvalid;
   if (value > today) return B.dateFuture;
-  if (latestProducedOn && value > latestProducedOn) {
+  if (latestProducedOn && value > latestProducedOn && value !== storedProducedOn) {
     return B.errProducedAfterBurnTest(formatProducedOn(latestProducedOn));
   }
   return null;
@@ -68,9 +71,10 @@ export function validateForm(
   componentIds: readonly string[],
   today: string,
   latestProducedOn: string | null = null,
+  storedProducedOn: string | null = null,
 ): { errors: FormErrors; input: BatchInput | null } {
   const errors: FormErrors = { measured: {} };
-  const dateError = checkDate(values.producedOn, today, latestProducedOn);
+  const dateError = checkDate(values.producedOn, today, latestProducedOn, storedProducedOn);
   if (dateError) errors.producedOn = dateError;
   const labelError = checkLabel(values.label);
   if (labelError) errors.label = labelError;

@@ -63,6 +63,8 @@ export type BatchFormProps = {
   successText?: string;
   /** The batch's earliest burn test date. The production date cannot be later. */
   latestProducedOn?: string | null;
+  /** The production date already stored. Keeping it is never an error. */
+  storedProducedOn?: string | null;
   /** Show the actual-blend card above the table. */
   showBlend?: boolean;
   /** Saves the validated input. Reject to show `failureText`. */
@@ -107,6 +109,7 @@ export function BatchForm({
   successText,
   showBlend = false,
   latestProducedOn = null,
+  storedProducedOn = null,
   onSubmit,
 }: BatchFormProps) {
   const { precisionMg } = version.inputs;
@@ -179,6 +182,7 @@ export function BatchForm({
       componentIds,
       today,
       latestProducedOn,
+      storedProducedOn,
     );
     setErrors(found);
     if (input === null) {
@@ -214,11 +218,11 @@ export function BatchForm({
               onChange={(e) => {
                 touched();
                 setProducedOn(e.target.value);
-                if (errors.producedOn && checkDate(e.target.value, today, latestProducedOn) === null) {
+                if (errors.producedOn && checkDate(e.target.value, today, latestProducedOn, storedProducedOn) === null) {
                   setDateError(null);
                 }
               }}
-              onBlur={() => setDateError(checkDate(producedOn, today, latestProducedOn))}
+              onBlur={() => setDateError(checkDate(producedOn, today, latestProducedOn, storedProducedOn))}
             />
           )}
         </Field>

@@ -1097,8 +1097,9 @@ export const MESSAGES = {
     keepDeviceCopy: "Keep this device's copy",
     useBackupCopy: "Use the backup's copy",
     /** Replace confirmation. WRITTEN HERE, except "safety backup" (F7 step 5, DATA-23). */
+    // WRITTEN HERE (v0.2 integration QA): names everything Replace removes.
     replaceWarning:
-      "This removes every formula, version, material, measurement and batch on this device and writes the backup in their place. A safety backup of current data downloads first.",
+      "This removes every formula, version, material, measurement, batch, cure plan, planned production entry, burn test and burn test photo on this device and writes the backup in their place. A safety backup of current data downloads first.",
     typeReplace: "Type REPLACE to confirm.",
     dontCloseTab: "Don't close this tab.",
     openSaved: "Open saved formulas",
@@ -1126,6 +1127,12 @@ export const MESSAGES = {
       `${countOf(n, "version")} will get a new number because ${n === 1 ? "its number is" : "their numbers are"} already used on this device.`,
     previewMissingMaterials: (n: number) =>
       `${countOf(n, "material")} used by these versions ${n === 1 ? "is" : "are"} not in the library. Saved versions keep their own copy of the material details, so nothing is lost.`,
+    // WRITTEN HERE (v0.2 integration QA)
+    previewBurnDatesBeforeBatch: (n: number) =>
+      `${countOf(n, "burn test")} will be dated before ${n === 1 ? "its batch's" : "their batches'"} production date. Check ${n === 1 ? "that date" : "those dates"} after restoring.`,
+    // WRITTEN HERE (v0.2 integration QA)
+    previewSharedPlannedTests: (n: number) =>
+      `${countOf(n, "planned burn test")} will be linked to more than one burn test. Open those burn tests to choose which one stays linked.`,
     replaceTitle: "Replace everything on this device?",
     replaceAffects: (counts: BackupCounts) => {
       const list = countsList(counts);
@@ -1197,7 +1204,8 @@ export const MESSAGES = {
     coldThrow: "Cold throw",
     hotThrow: "Hot throw",
     candleNotes: "Candle notes",
-    conclusion: "Conclusion",
+    // WRITTEN HERE (v0.2 integration QA)
+    conclusion: "Maker's conclusion",
     sootNone: "None seen",
     sootLight: "Light",
     sootModerate: "Moderate",

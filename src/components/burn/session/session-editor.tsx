@@ -18,6 +18,7 @@ import { milestoneDueOn, todayLocal } from "@/lib/schedule";
 import { MAX_BURN_CANDLES, MAX_BURNS_PER_CANDLE } from "@/lib/types";
 import type { Material } from "@/lib/types";
 import { milestoneName } from "@/components/schedule/names";
+import { focusAfterRemove } from "@/lib/focus-after-remove";
 import {
   SOOT_LEVELS,
   WICK_OWN,
@@ -161,6 +162,20 @@ export function SessionEditor(props: Props) {
   return <EditorForm key={sourceId} loaded={loaded} />;
 }
 
+/**
+ * A planned burn test is taken when another session is linked to it, unless it
+ * is the one this session is already linked to (a restore can leave two
+ * sessions on one planned test; the stored link stays).
+ */
+export function isPlannedTestTaken(
+  option: BurnTestOption,
+  sessionId: string,
+  storedMilestoneId: string | null,
+): boolean {
+  if (storedMilestoneId !== null && option.milestone.id === storedMilestoneId) return false;
+  return option.linkedSessionId !== null && option.linkedSessionId !== sessionId;
+}
+
 const newKey = () => crypto.randomUUID();
 
 type OkLoaded = Extract<Loaded, { status: "ok" }>;
@@ -195,8 +210,9 @@ function EditorForm({ loaded }: { loaded: OkLoaded }) {
       today: todayLocal(),
       producedOn: batch.producedOn,
       formatDate: formatProducedOn,
+      ...(session ? { storedTestedOn: session.session.testedOn } : {}),
     }),
-    [batch.producedOn],
+    [batch.producedOn, session],
   );
 
   // A save found problems: focus the first invalid field once it is marked.
@@ -337,7 +353,7 @@ function EditorForm({ loaded }: { loaded: OkLoaded }) {
 
   const sessionHref = editing ? `/burn-tests/${sessionId}` : `/batches/${batch.id}`;
   const taken = (option: BurnTestOption) =>
-    option.linkedSessionId !== null && option.linkedSessionId !== sessionId;
+    isPlannedTestTaken(option, sessionId, session?.session.milestoneId ?? null);
   const candleCount = values.candles.length;
 
   return (
@@ -439,6 +455,7 @@ function EditorForm({ loaded }: { loaded: OkLoaded }) {
             disabled={candleCount >= MAX_BURN_CANDLES}
             className="pointer-coarse:min-h-11"
             onMouseDown={(event) => event.preventDefault()}
+            data-add-row=""
             onClick={addCandle}
           >
             {M.addCandle}
@@ -577,8 +594,13 @@ function CandleEditor({
               size="sm"
               className="pointer-coarse:min-h-11"
               aria-label={M.removeCandleFor(number)}
+              data-row-remove=""
               onMouseDown={(event) => event.preventDefault()}
-              onClick={onRemove}
+              onClick={(event) => {
+                const button = event.currentTarget;
+                onRemove();
+                focusAfterRemove(button);
+              }}
             >
               {M.removeCandle}
             </Button>
@@ -674,6 +696,7 @@ function CandleEditor({
               disabled={atBurnLimit}
               className="pointer-coarse:min-h-11"
               onMouseDown={(event) => event.preventDefault()}
+              data-add-row=""
               onClick={onAddBurn}
             >
               {M.addBurn}
@@ -794,8 +817,13 @@ function BurnEditor({
             size="sm"
             className="pointer-coarse:min-h-11"
             aria-label={M.removeBurnFor(candleNumber, number)}
+            data-row-remove=""
             onMouseDown={(event) => event.preventDefault()}
-            onClick={onRemove}
+            onClick={(event) => {
+              const button = event.currentTarget;
+              onRemove();
+              focusAfterRemove(button);
+            }}
           >
             {M.removeBurn}
           </Button>

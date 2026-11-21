@@ -497,6 +497,16 @@ export function RestoreSection({
                 {B.previewMissingMaterials(plan.missingMaterialIds.length)}
               </p>
             ) : null}
+            {plan.burnChecks.datesBeforeBatch > 0 ? (
+              <p className="text-text-secondary">
+                {B.previewBurnDatesBeforeBatch(plan.burnChecks.datesBeforeBatch)}
+              </p>
+            ) : null}
+            {plan.burnChecks.sharedPlannedTests > 0 ? (
+              <p className="text-text-secondary">
+                {B.previewSharedPlannedTests(plan.burnChecks.sharedPlannedTests)}
+              </p>
+            ) : null}
           </div>
 
           <RadioGroup

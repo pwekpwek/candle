@@ -143,6 +143,7 @@ async function linkMilestone(
   db: CandleDatabase,
   session: BurnSession,
   timestamp: string,
+  previousMilestoneId: string | null = null,
 ): Promise<CurePlan | undefined> {
   const milestoneId = session.milestoneId;
   if (milestoneId === null) return undefined;
@@ -152,7 +153,10 @@ async function linkMilestone(
     throw new DataError("invalid", `Milestone ${milestoneId} is not a planned burn test of this batch.`);
   }
   const others = await db.burnSessions.where("milestoneId").equals(milestoneId).toArray();
-  if (others.some((other) => other.id !== session.id)) {
+  // A link the session already had is kept even if a merge restore left a
+  // second session on the same milestone (M-1); only a new link must be free.
+  const isNewLink = milestoneId !== previousMilestoneId;
+  if (isNewLink && others.some((other) => other.id !== session.id)) {
     throw new DataError("invalid", `Milestone ${milestoneId} is already linked to another burn test.`);
   }
   if (milestone.doneOn === session.testedOn) return undefined;
@@ -321,7 +325,9 @@ export function createBurnSessionsRepo(
           if (!existing) throw notFound("Burn session", id);
           const batch = await db.batches.get(existing.batchId);
           if (!batch) throw notFound("Batch", existing.batchId);
-          checkTestedOn(input.testedOn, batch);
+          // A test date already stored is kept as it is (a restore can bring
+          // one in, M-2); only a changed date must follow the rule.
+          if (input.testedOn !== existing.testedOn) checkTestedOn(input.testedOn, batch);
           const timestamp = now();
           const session = parseRecord(
             BurnSessionSchema,
@@ -335,7 +341,7 @@ export function createBurnSessionsRepo(
             },
             "burn session",
           );
-          const plan = await linkMilestone(db, session, timestamp);
+          const plan = await linkMilestone(db, session, timestamp, existing.milestoneId);
           await db.burnSessions.put(session);
           if (plan) await db.curePlans.put(plan);
           await bumpChangeCounter(db);

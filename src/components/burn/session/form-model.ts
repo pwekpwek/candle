@@ -76,6 +76,8 @@ export type Context = {
   producedOn: string;
   /** Formats a YYYY-MM-DD for the "before production" message. */
   formatDate: (date: string) => string;
+  /** The test date already stored, when editing. Keeping it is never an error. */
+  storedTestedOn?: string;
 };
 
 export const burnKeyOf = (burnKey: string, field: string) => `${burnKey}.${field}`;
@@ -87,7 +89,7 @@ export function checkDate(value: string, ctx: Context): string | null {
   if (value.trim() === "") return M.errDateRequired;
   if (!isLocalDate(value)) return M.errDateInvalid;
   if (value > ctx.today) return M.errDateFuture;
-  if (value < ctx.producedOn) return M.errDateBeforeProduced(ctx.formatDate(ctx.producedOn));
+  if (value < ctx.producedOn && value !== ctx.storedTestedOn) return M.errDateBeforeProduced(ctx.formatDate(ctx.producedOn));
   return null;
 }
 

@@ -51,15 +51,36 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  onOpenAutoFocus,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  // Dialogs here are mostly controlled and have no DialogTrigger, so Radix has
+  // nothing to hand focus back to. Remember what had focus as the dialog opens
+  // (before Radix moves focus inside) and return to it on close.
+  const opener = React.useRef<HTMLElement | null>(null)
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        onOpenAutoFocus={(event) => {
+          opener.current =
+            document.activeElement instanceof HTMLElement ? document.activeElement : null
+          onOpenAutoFocus?.(event)
+        }}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event)
+          if (event.defaultPrevented) return
+          const target = opener.current
+          opener.current = null
+          if (target && target !== document.body && target.isConnected) {
+            event.preventDefault()
+            target.focus()
+          }
+        }}
         className={cn(
           "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl bg-popover p-4 text-sm text-popover-foreground shadow-dialog duration-200 outline-none sm:max-w-[480px] sm:p-6 max-sm:inset-x-0 max-sm:top-auto max-sm:bottom-0 max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))] data-open:animate-in data-open:fade-in-0 sm:data-open:zoom-in-95 max-sm:data-open:slide-in-from-bottom-10 data-closed:animate-out data-closed:fade-out-0 sm:data-closed:zoom-out-95 max-sm:data-closed:slide-out-to-bottom-10",
           className

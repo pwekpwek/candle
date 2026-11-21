@@ -2,7 +2,9 @@ import { DATA_STORES } from "@/lib/types";
 import type {
   BackupCounts,
   BackupData,
+  Batch,
   BurnPhotoBackup,
+  BurnSession,
   DataStoreName,
   Formula,
   FormulaVersion,
@@ -173,8 +175,41 @@ function planReplace(
       new Set(data.materials.map((material) => material.id)),
     ),
     expectedCounts: { ...fileCounts },
+    burnChecks: burnChecksAfter(data.batches, data.burnSessions),
     basis: { envelope, device: structuredClone(device) },
   };
+}
+
+
+/**
+ * Integration QA (M-1, M-2): what the burn tests will look like once the plan
+ * is applied, for two informational preview lines. A restore never refuses a
+ * file over these (the milestone link is a soft link, and older app versions
+ * could write a burn test dated before its batch); the maker is told instead.
+ */
+export function burnChecksAfter(
+  batches: readonly Batch[],
+  sessions: readonly BurnSession[],
+): RestorePlan["burnChecks"] {
+  const producedOn = new Map(batches.map((batch) => [batch.id, batch.producedOn]));
+  let datesBeforeBatch = 0;
+  const linkCount = new Map<string, number>();
+  for (const session of sessions) {
+    const made = producedOn.get(session.batchId);
+    if (made !== undefined && session.testedOn < made) datesBeforeBatch += 1;
+    if (session.milestoneId !== null) {
+      linkCount.set(session.milestoneId, (linkCount.get(session.milestoneId) ?? 0) + 1);
+    }
+  }
+  const sharedPlannedTests = [...linkCount.values()].filter((n) => n > 1).length;
+  return { datesBeforeBatch, sharedPlannedTests };
+}
+
+/** Device records with the plan's puts laid over them, by id. */
+function after<T extends { id: string }>(device: readonly T[], puts: readonly T[]): T[] {
+  const byIdMap = new Map(device.map((row) => [row.id, row]));
+  for (const row of puts) byIdMap.set(row.id, row);
+  return [...byIdMap.values()];
 }
 
 /** DATA-19 to DATA-23. Pure; never touches the database and never mutates its inputs. */
@@ -408,6 +443,10 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
     renumbered,
     missingMaterialIds: missingMaterials(data.formulaVersions, present),
     expectedCounts,
+    burnChecks: burnChecksAfter(
+      after(device.batches, puts.batches),
+      after(device.burnSessions, puts.burnSessions),
+    ),
     // The stale check in applyRestore re-plans against this (contract).
     basis: { envelope, device: structuredClone(device) },
   };

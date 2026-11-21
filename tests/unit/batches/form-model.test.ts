@@ -27,3 +27,19 @@ describe("batch date against the earliest burn test", () => {
     expect(checkDate("2026-11-13", TODAY)).toBeNull();
   });
 });
+
+describe("batch date already stored", () => {
+  const message = B.errProducedAfterBurnTest("Nov 12, 2026");
+
+  it("accepts the stored date even when it is after the earliest burn test", () => {
+    expect(checkDate("2026-11-15", TODAY, "2026-11-12", "2026-11-15")).toBeNull();
+    const { errors, input } = validateForm(values("2026-11-15"), [], TODAY, "2026-11-12", "2026-11-15");
+    expect(errors.producedOn).toBeUndefined();
+    expect(input).not.toBeNull();
+  });
+
+  it("still refuses a different later date", () => {
+    expect(checkDate("2026-11-16", TODAY, "2026-11-12", "2026-11-15")).toBe(message);
+    expect(validateForm(values("2026-11-16"), [], TODAY, "2026-11-12", "2026-11-15").input).toBeNull();
+  });
+});

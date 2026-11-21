@@ -231,6 +231,13 @@ export type RestorePlan = {
   /** What each store must hold after commit (DATA-26). */
   expectedCounts: BackupCounts;
   /**
+   * Integration QA (M-1, M-2), informational: burn tests that will be dated
+   * before their batch's production date, and planned burn tests that more
+   * than one burn test will link to, once the plan is applied. The restore
+   * still goes ahead; the preview tells the maker what to check.
+   */
+  burnChecks: { datesBeforeBatch: number; sharedPlannedTests: number };
+  /**
    * What the plan was built from, for the stale check in `applyRestore`
    * (DATA-24): the checked envelope (by reference) and a copy of the device
    * data taken when the plan was made. Added in wave 7.
