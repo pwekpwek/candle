@@ -1,4 +1,4 @@
-# CandleLab Studio v0.1 — Architecture and File Ownership
+# CandleLab Studio — Architecture and File Ownership (v0.1 to v0.3)
 
 Read this before any task. The specs are in `docs/specs/`. The task list is `docs/specs/6 Implementation Plan.md`. Progress is in `docs/BUILD-STATE.md`.
 
@@ -63,6 +63,10 @@ Read this before any task. The specs are in `docs/specs/`. The task list is `doc
 | `src/lib/photos/{prepare,index}.ts`, `src/components/burn/photos/**` | v0.2 BurnMatrix | Photo shrinking and the photo gallery |
 | `src/components/burn/session/**`, `src/app/burn-tests/new/**`, `src/app/burn-tests/[sessionId]/page.tsx`, `src/app/burn-tests/[sessionId]/edit/**` | v0.2 BurnMatrix | Burn tests section on the batch page, session editor and page |
 | `src/components/burn/{compare,report,list,export}/**`, `src/app/burn-tests/page.tsx`, `src/app/burn-tests/compare/**`, `src/app/burn-tests/[sessionId]/report/**` | v0.2 BurnMatrix | Burn tests list, comparison, printable reports, CSV download, backup file size |
+| `src/lib/db/{suppliers,material-lots,batch-trace}.ts`, lot links in `src/lib/db/batches.ts`, `src/lib/schemas/lots.ts`, v0.3 parts of `src/lib/{types.ts,db,backup,schemas}`, `src/lib/batchtrace/contract.ts` | v0.3 lots (lead) | Suppliers, lots, batch lot links, schema 5, backup format 5, contract |
+| `src/lib/batchtrace/{query,csv,index}.ts` | v0.3 lots | Batch search, filters, URL state, batch CSV |
+| `src/components/lots/**`, `src/app/materials/{lots,suppliers}/**`, links in `src/components/materials/materials-view.tsx` | v0.3 lots | Suppliers and lots in the material library |
+| `src/components/batches/**`, `src/app/batches/**` (v0.3 parts) | v0.3 lots | Lot pickers in the batch form, Lots on the batch page, search, filters and CSV on the Batches list |
 
 ## Routes
 
@@ -75,7 +79,9 @@ Read this before any task. The specs are in `docs/specs/`. The task list is `doc
 | `/formulas/[formulaId]/revise?from=[versionId]` | Editor (revise) |
 | `/materials` | Material library |
 | `/backup` | Backup and restore |
-| `/batches` | Batches list (v0.2) |
+| `/batches` | Batches list (v0.2). v0.3: search and filters in the URL (`?q=&formula=&from=&to=&lot=&supplier=&cure=yes\|no&burn=yes\|no`), Export CSV |
+| `/materials/lots` | Lots of library materials, `?material=[materialId]` filters (v0.3) |
+| `/materials/suppliers` | Suppliers (v0.3) |
 | `/batches/new?version=[versionId]` | Create batch from a saved version (v0.2) |
 | `/batches/[batchId]` | Batch detail and edit, with its Curing section (v0.2) |
 | `/batches/[batchId]/cure-plan` | Cure-plan editor (v0.2 CurePilot) |
@@ -162,3 +168,14 @@ Plan, findings and how to rerun: `docs/v0.2-integration-qa.md`.
 - **Focus is returned:** the shared `DialogContent` returns focus to whatever opened it. Row removal moves focus with `focusAfterRemove` (`data-row-remove` / `data-add-row`).
 - **E2E port:** `playwright.config.ts` reads `E2E_PORT` (default 3000), so a second checkout or QA run can use its own dev server.
 - **Upgrade chain:** schema changes are proven with `tests/upgrade-chain/`, which serves real builds of every schema in one Chromium profile on port 3000 and diffs every store. Reuse it for the next schema.
+
+## v0.3 lots and suppliers decisions (2026-11-21)
+
+Full design and compatibility notes: `docs/v0.3-lots.md`.
+
+- **Suppliers** are their own device-only list (name, contact notes). **Lots** belong to one material (fixed at creation) and optionally one supplier, with a code, an optional received date and notes. No quantities or stock.
+- **Lot links on batches** are optional, one per component (wax and oil rows by `componentId`, the wick and vessel by part). A link stores the lot id plus a snapshot of the code and supplier. Snapshots never change by themselves; screens show "now recorded as …" when the lot differs. `BatchInput.lots` left out on update keeps the stored links.
+- **Archive and delete:** a lot a batch uses, and a supplier a lot or batch snapshot names, can only be archived (`in-use` on delete). Unused ones can be deleted after confirmation.
+- **Schema 5** adds `suppliers` and `materialLots` only; batches gain an optional `lots` field, so no records move. **Backup format 5** adds both stores; formats 1 to 4 are read, their batches checked without `lots`. Orphan checks: a lot's material and supplier, a batch's linked lot.
+- **Search and filters** run in memory over `batchTrace.read()`; their state lives in the URL and the list writes it with `router.replace`. The CSV is one row per component of each filtered batch.
+- The material's v0.1 free-text `supplier` field stays as a library note, separate from the supplier list (owner decision for later).

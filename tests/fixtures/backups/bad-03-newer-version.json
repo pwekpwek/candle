@@ -1,6 +1,6 @@
 {
   "format": "candlelab-backup",
-  "formatVersion": 5,
+  "formatVersion": 6,
   "schemaVersion": 1,
   "appVersion": "0.1.0",
   "exportedAt": "2026-11-14T06:05:12.000Z",

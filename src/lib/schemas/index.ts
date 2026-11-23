@@ -7,3 +7,4 @@ export * from "./batch";
 export * from "./schedule";
 export * from "./backup";
 export * from "./burn";
+export * from "./lots";

@@ -32,6 +32,8 @@ async function readStores(db: CandleDatabase): Promise<DeviceData> {
   const productionPlans = await db.productionPlans.toArray();
   const burnSessions = await db.burnSessions.toArray();
   const burnPhotos = await db.burnPhotos.toArray();
+  const suppliers = await db.suppliers.toArray();
+  const materialLots = await db.materialLots.toArray();
   return {
     materials: byId(materials),
     formulas: byId(formulas),
@@ -43,6 +45,8 @@ async function readStores(db: CandleDatabase): Promise<DeviceData> {
     burnSessions: byId(burnSessions),
     // BurnMatrix: the backup form (base64), synchronous, safe inside the transaction.
     burnPhotos: byId(burnPhotos).map(photoToBackup),
+    suppliers: byId(suppliers),
+    materialLots: byId(materialLots),
   };
 }
 
@@ -58,6 +62,8 @@ function dataTables(db: CandleDatabase) {
     db.productionPlans,
     db.burnSessions,
     db.burnPhotos,
+    db.suppliers,
+    db.materialLots,
   ];
 }
 
@@ -72,6 +78,9 @@ export function deviceIdsOf(device: DeviceData): DeviceIds {
     versionIds: new Set(device.formulaVersions.map((version) => version.id)),
     batchIds: new Set(device.batches.map((batch) => batch.id)),
     burnSessionIds: new Set(device.burnSessions.map((session) => session.id)),
+    materialIds: new Set(device.materials.map((material) => material.id)),
+    supplierIds: new Set(device.suppliers.map((supplier) => supplier.id)),
+    lotIds: new Set(device.materialLots.map((lot) => lot.id)),
   };
 }
 
@@ -150,6 +159,8 @@ export const applyRestore: ApplyRestore = async (db, plan, options = {}) => {
             await db.productionPlans.clear();
             await db.burnSessions.clear();
             await db.burnPhotos.clear();
+            await db.suppliers.clear();
+            await db.materialLots.clear();
           }
           for (const store of DATA_STORES) {
             await writeStore(db, store, plan);
@@ -222,6 +233,12 @@ async function writeStore(db: CandleDatabase, store: DataStoreName, plan: Restor
       // Decoded here (synchronous); the check step verified every photo.
       await db.burnPhotos.bulkPut(plan.puts.burnPhotos.map(photoFromBackup));
       return;
+    case "suppliers":
+      await db.suppliers.bulkPut(plan.puts.suppliers);
+      return;
+    case "materialLots":
+      await db.materialLots.bulkPut(plan.puts.materialLots);
+      return;
   }
 }
 
@@ -236,6 +253,8 @@ async function readCounts(db: CandleDatabase): Promise<BackupCounts> {
     productionPlans,
     burnSessions,
     burnPhotos,
+    suppliers,
+    materialLots,
   ] = await Promise.all([
       db.materials.count(),
       db.formulas.count(),
@@ -246,6 +265,8 @@ async function readCounts(db: CandleDatabase): Promise<BackupCounts> {
       db.productionPlans.count(),
       db.burnSessions.count(),
       db.burnPhotos.count(),
+      db.suppliers.count(),
+      db.materialLots.count(),
     ]);
   return {
     materials,
@@ -257,5 +278,7 @@ async function readCounts(db: CandleDatabase): Promise<BackupCounts> {
     productionPlans,
     burnSessions,
     burnPhotos,
+    suppliers,
+    materialLots,
   };
 }

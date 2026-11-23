@@ -1,14 +1,17 @@
 import { z } from "zod";
 import {
   BatchSchema,
+  BatchSchemaV2,
   BurnPhotoBackupSchema,
   BurnSessionSchema,
   CurePlanSchema,
   FormulaSchema,
   FormulaVersionSchema,
+  MaterialLotSchema,
   MaterialSchema,
   MeasurementSchema,
   ProductionPlanSchema,
+  SupplierSchema,
   TimestampSchema,
 } from "@/lib/schemas";
 import { BACKUP_FORMAT, BACKUP_FORMAT_VERSION, DATA_STORES } from "@/lib/types";
@@ -89,11 +92,21 @@ const V3_DATA = {
   productionPlans: z.array(z.unknown()),
 };
 
+const V4_COUNTS = { ...V3_COUNTS, burnSessions: z.int().min(0), burnPhotos: z.int().min(0) };
+const V4_DATA = { ...V3_DATA, burnSessions: z.array(z.unknown()), burnPhotos: z.array(z.unknown()) };
+
 /** Format 4 (v0.2 BurnMatrix): adds `burnSessions` and `burnPhotos`. */
 const EnvelopeShapeV4Schema = z.strictObject({
   ...ENVELOPE_FIELDS,
-  counts: z.strictObject({ ...V3_COUNTS, burnSessions: z.int().min(0), burnPhotos: z.int().min(0) }),
-  data: z.strictObject({ ...V3_DATA, burnSessions: z.array(z.unknown()), burnPhotos: z.array(z.unknown()) }),
+  counts: z.strictObject(V4_COUNTS),
+  data: z.strictObject(V4_DATA),
+});
+
+/** Format 5 (v0.3): adds `suppliers` and `materialLots`; batches may carry `lots`. */
+const EnvelopeShapeV5Schema = z.strictObject({
+  ...ENVELOPE_FIELDS,
+  counts: z.strictObject({ ...V4_COUNTS, suppliers: z.int().min(0), materialLots: z.int().min(0) }),
+  data: z.strictObject({ ...V4_DATA, suppliers: z.array(z.unknown()), materialLots: z.array(z.unknown()) }),
 });
 
 /** The envelope shape of each format this app reads. */
@@ -102,6 +115,7 @@ const SHAPE_FOR_FORMAT = {
   2: EnvelopeShapeV2Schema,
   3: EnvelopeShapeV3Schema,
   4: EnvelopeShapeV4Schema,
+  5: EnvelopeShapeV5Schema,
 } as const;
 
 /** The stores each format holds. */
@@ -109,8 +123,25 @@ const STORES_IN_FORMAT: Record<number, readonly DataStoreName[]> = {
   1: ["materials", "formulas", "formulaVersions", "measurements"],
   2: ["materials", "formulas", "formulaVersions", "measurements", "batches"],
   3: ["materials", "formulas", "formulaVersions", "measurements", "batches", "curePlans", "productionPlans"],
-  4: DATA_STORES,
+  4: [
+    "materials",
+    "formulas",
+    "formulaVersions",
+    "measurements",
+    "batches",
+    "curePlans",
+    "productionPlans",
+    "burnSessions",
+    "burnPhotos",
+  ],
+  5: DATA_STORES,
 };
+
+/** The record schema of a store in a given format: batches before format 5 have no `lots`. */
+function recordSchemaFor(store: DataStoreName, formatVersion: number): z.ZodType {
+  if (store === "batches" && formatVersion < 5) return BatchSchemaV2;
+  return RECORD_SCHEMAS[store];
+}
 
 const RECORD_SCHEMAS = {
   materials: MaterialSchema,
@@ -122,6 +153,8 @@ const RECORD_SCHEMAS = {
   productionPlans: ProductionPlanSchema,
   burnSessions: BurnSessionSchema,
   burnPhotos: BurnPhotoBackupSchema,
+  suppliers: SupplierSchema,
+  materialLots: MaterialLotSchema,
 } as const;
 
 const RECORD_NOUNS: Record<DataStoreName, string> = {
@@ -134,6 +167,8 @@ const RECORD_NOUNS: Record<DataStoreName, string> = {
   productionPlans: "planned production entry",
   burnSessions: "burn test",
   burnPhotos: "photo",
+  suppliers: "supplier",
+  materialLots: "lot",
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -236,14 +271,17 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
     productionPlans: [],
     burnSessions: [],
     burnPhotos: [],
+    suppliers: [],
+    materialLots: [],
   };
   for (const store of stores) {
     const records: unknown = shape.success
       ? (shape.data.data as Record<string, unknown>)[store]
       : rawData[store];
     if (!Array.isArray(records)) continue;
+    const schema = recordSchemaFor(store, formatVersion);
     records.forEach((record: unknown, index) => {
-      const result = RECORD_SCHEMAS[store].safeParse(record);
+      const result = schema.safeParse(record);
       if (result.success) valid[store].push(result.data);
       else note(labelFor(RECORD_NOUNS[store], record, index), describeIssue(result.error.issues[0]!, record));
     });
@@ -280,6 +318,8 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
       productionPlans: fileCounts.productionPlans ?? 0,
       burnSessions: fileCounts.burnSessions ?? 0,
       burnPhotos: fileCounts.burnPhotos ?? 0,
+      suppliers: fileCounts.suppliers ?? 0,
+      materialLots: fileCounts.materialLots ?? 0,
     },
     checksum: shape.data.checksum as BackupEnvelope["checksum"],
     data: valid as unknown as BackupData,
@@ -345,6 +385,20 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
   const burnPhotos = envelope.data.burnPhotos.filter(
     (photo) => !fileSessionIds.has(photo.sessionId) && !device.burnSessionIds.has(photo.sessionId),
   ).length;
+  // v0.3 (format 5). A lot needs its material and, when set, its supplier; a
+  // batch's lot links need their lots. A batch snapshot's supplierId is soft
+  // (its name is snapshotted) and is not checked (docs/v0.3-lots.md).
+  const fileMaterialIds = new Set(envelope.data.materials.map((material) => material.id));
+  const fileSupplierIds = new Set(envelope.data.suppliers.map((supplier) => supplier.id));
+  const fileLotIds = new Set(envelope.data.materialLots.map((lot) => lot.id));
+  const materialLots = envelope.data.materialLots.filter(
+    (lot) =>
+      (!fileMaterialIds.has(lot.materialId) && !device.materialIds.has(lot.materialId)) ||
+      (lot.supplierId !== null && !fileSupplierIds.has(lot.supplierId) && !device.supplierIds.has(lot.supplierId)),
+  ).length;
+  const batchLots = envelope.data.batches.filter((batch) =>
+    (batch.lots ?? []).some((link) => !fileLotIds.has(link.lotId) && !device.lotIds.has(link.lotId)),
+  ).length;
   if (
     versions > 0 ||
     measurements > 0 ||
@@ -352,7 +406,9 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
     curePlans > 0 ||
     productionPlans > 0 ||
     burnSessions > 0 ||
-    burnPhotos > 0
+    burnPhotos > 0 ||
+    materialLots > 0 ||
+    batchLots > 0
   ) {
     return fail({
       code: "orphans",
@@ -363,6 +419,8 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
       productionPlans,
       burnSessions,
       burnPhotos,
+      materialLots,
+      batchLots,
     });
   }
 

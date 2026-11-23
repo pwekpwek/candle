@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | `bad-01-not-json.json` | Not JSON at all: the text `this is not a backup file {` | 01 not-backup |
 | `bad-02-wrong-format.json` | `format` is `candlelab-export` | 02 not-backup |
-| `bad-03-newer-version.json` | `formatVersion` is `5` (v0.2 BurnMatrix reads 1 to 4) | 03 newer |
+| `bad-03-newer-version.json` | `formatVersion` is `6` (v0.3 reads 1 to 5) | 03 newer |
 | `bad-04-missing-field.json` | `targets` removed from `data.formulaVersions[0]` (checksum recomputed) | 04 invalid |
 | `bad-05-wrong-type.json` | `data.formulas[0].name` is the number `42` (checksum recomputed) | 05 invalid |
 | `bad-06-negative-weight.json` | `data.measurements[0].entries[0].actualMg` is `-5000` (checksum recomputed) | 06 invalid |

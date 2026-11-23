@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
 import { PackageIcon, PlusIcon } from "lucide-react";
 import { EmptyState } from "@/components/common/empty-state";
@@ -28,7 +29,7 @@ const FILTERS: { value: Filter; label: string }[] = [
 ];
 
 type Loaded =
-  | { ok: true; materials: Material[]; counts: Map<string, number> }
+  | { ok: true; materials: Material[]; counts: Map<string, number>; lotCounts: Map<string, number> }
   | { ok: false };
 
 /** What the maker is told after a save or an archive change. */
@@ -46,11 +47,14 @@ export function MaterialsView() {
   const loaded = useLiveQuery<Loaded>(async () => {
     try {
       const layer = getDataLayer();
-      const [materials, counts] = await Promise.all([
+      const [materials, counts, lots] = await Promise.all([
         layer.materials.list({ includeArchived: true }),
         layer.materials.usageCounts(),
+        layer.materialLots.list({ includeArchived: true }),
       ]);
-      return { ok: true, materials, counts };
+      const lotCounts = new Map<string, number>();
+      for (const lot of lots) lotCounts.set(lot.materialId, (lotCounts.get(lot.materialId) ?? 0) + 1);
+      return { ok: true, materials, counts, lotCounts };
     } catch {
       return { ok: false };
     }
@@ -139,6 +143,7 @@ export function MaterialsView() {
           <MaterialTable
             materials={visible}
             counts={loaded.counts}
+            lotCounts={loaded.lotCounts}
             onOpen={(material) => {
               setStatus(null);
               setEditor({ kind: "edit", material });
@@ -166,10 +171,18 @@ export function MaterialsView() {
         title={M.title}
         description={M.description}
         action={
-          <Button onClick={openAdd}>
-            <PlusIcon aria-hidden="true" strokeWidth={1.75} />
-            {M.addMaterial}
-          </Button>
+          <>
+            <Button asChild variant="outline">
+              <Link href="/materials/lots">{MESSAGES.lots.title}</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/materials/suppliers">{MESSAGES.suppliers.title}</Link>
+            </Button>
+            <Button onClick={openAdd}>
+              <PlusIcon aria-hidden="true" strokeWidth={1.75} />
+              {M.addMaterial}
+            </Button>
+          </>
         }
       />
       <div aria-live="polite">
@@ -194,6 +207,7 @@ export function MaterialsView() {
 interface MaterialTableProps {
   materials: Material[];
   counts: Map<string, number>;
+  lotCounts: Map<string, number>;
   onOpen: (material: Material) => void;
 }
 
@@ -202,7 +216,7 @@ interface MaterialTableProps {
  * below it. The name is a real button, so every row is keyboard reachable; a
  * click anywhere on the row opens it too.
  */
-function MaterialTable({ materials, counts, onOpen }: MaterialTableProps) {
+function MaterialTable({ materials, counts, lotCounts, onOpen }: MaterialTableProps) {
   const head = "px-3 py-2 text-left text-sm font-semibold text-text-secondary sm:table-cell";
   return (
     <div className="sm:overflow-hidden sm:rounded-lg sm:border sm:border-border sm:bg-card">
@@ -242,6 +256,15 @@ function MaterialTable({ materials, counts, onOpen }: MaterialTableProps) {
                     <span className="ml-2 inline-block rounded-sm border border-border px-1.5 text-xs font-semibold text-text-secondary">
                       {M.archivedTag}
                     </span>
+                  ) : null}
+                  {(lotCounts.get(material.id) ?? 0) > 0 ? (
+                    <Link
+                      href={`/materials/lots?material=${material.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="mt-1 flex min-h-11 w-fit items-center text-sm text-primary underline underline-offset-4"
+                    >
+                      {MESSAGES.lots.lotCount(lotCounts.get(material.id) ?? 0)}
+                    </Link>
                   ) : null}
                 </span>
                 <span role="cell" className="text-sm text-text-secondary sm:table-cell sm:px-3 sm:py-3">

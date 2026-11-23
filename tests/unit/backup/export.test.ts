@@ -42,7 +42,7 @@ describe("exportBackup", () => {
     const { envelope } = await exportBackup(db, { now: () => NOW });
     expect(BackupEnvelopeSchema.safeParse(envelope).success).toBe(true);
     expect(envelope.exportedAt).toBe(NOW);
-    expect(envelope.counts).toEqual({ materials: 3, formulas: 2, formulaVersions: 4, measurements: 2, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 });
+    expect(envelope.counts).toEqual({ materials: 3, formulas: 2, formulaVersions: 4, measurements: 2, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 });
     for (const store of ["materials", "formulas", "formulaVersions", "measurements"] as const) {
       expect(envelope.counts[store]).toBe(envelope.data[store].length);
       expect(envelope.counts[store]).toBe(await db[store].count());
@@ -140,7 +140,7 @@ describe("exportBackup", () => {
     const { db, layer } = setup();
     const { envelope } = await exportBackup(db, { now: () => NOW });
     expect(BackupEnvelopeSchema.safeParse(envelope).success).toBe(true);
-    expect(envelope.counts).toEqual({ materials: 0, formulas: 0, formulaVersions: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 });
+    expect(envelope.counts).toEqual({ materials: 0, formulas: 0, formulaVersions: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 });
     expect(envelope.checksum.value).toBe(await sha256Hex(canonicalJson(envelope.data)));
     const meta = await layer.meta.get();
     expect(meta.lastBackupAt).toBe(NOW);

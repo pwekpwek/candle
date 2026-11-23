@@ -24,8 +24,10 @@ import type {
   Formula,
   FormulaVersion,
   Material,
+  MaterialLot,
   Measurement,
   ProductionPlan,
+  Supplier,
 } from "@/lib/types";
 
 // ───────────────────────────── Export ─────────────────────────────
@@ -85,7 +87,9 @@ export const MAX_BACKUP_BYTES = 256 * 1024 * 1024;
  *                production entry's version (same formula rule as batches),
  *                or a production entry's batch when set (a batch in the file
  *                must be of the entry's version). BurnMatrix (format 4): a
- *                burn session's batch, or a photo's session.
+ *                burn session's batch, or a photo's session. v0.3 (format
+ *                5): a lot's material, a lot's supplier when set, or a
+ *                batch's linked lot.
  */
 export type CheckFailure =
   | { code: "not-backup" }
@@ -111,6 +115,10 @@ export type CheckFailure =
       productionPlans: number;
       burnSessions: number;
       burnPhotos: number;
+      /** v0.3 (format 5): lots whose material, or supplier when set, is missing. */
+      materialLots: number;
+      /** v0.3 (format 5): batches with a lot link whose lot is missing. */
+      batchLots: number;
     };
 
 export type CheckResult =
@@ -125,6 +133,12 @@ export type DeviceIds = {
   batchIds: ReadonlySet<string>;
   /** BurnMatrix: for photos that name a session. */
   burnSessionIds: ReadonlySet<string>;
+  /** v0.3: for lots that name a material. */
+  materialIds: ReadonlySet<string>;
+  /** v0.3: for lots that name a supplier. */
+  supplierIds: ReadonlySet<string>;
+  /** v0.3: for batches that link a lot. */
+  lotIds: ReadonlySet<string>;
 };
 
 /**
@@ -133,7 +147,8 @@ export type DeviceIds = {
  * "newer".
  *
  * Format 1 (v0.1, no batches), format 2 (BatchTrace, no cure plans or
- * production entries) and format 3 (CurePilot, no burn sessions or photos)
+ * production entries), format 3 (CurePilot, no burn sessions or photos) and
+ * format 4 (BurnMatrix, no suppliers or lots; its batches have no `lots`)
  * are migrated in memory: the file is checked against its
  * own format's shape, its checksum is verified over the data section exactly
  * as written, and only then are the stores it lacks added as empty arrays
@@ -257,6 +272,8 @@ export type DeviceData = {
   burnSessions: BurnSession[];
   /** Photos in their backup form (base64), so every restore step compares one shape. */
   burnPhotos: BurnPhotoBackup[];
+  suppliers: Supplier[];
+  materialLots: MaterialLot[];
 };
 
 export type PlanRestore = (

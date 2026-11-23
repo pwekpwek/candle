@@ -7,6 +7,7 @@ import { MeasurementSchema } from "./measurement";
 import { TimestampSchema } from "./primitives";
 import { BurnPhotoBackupSchema, BurnSessionSchema } from "./burn";
 import { CurePlanSchema, ProductionPlanSchema } from "./schedule";
+import { MaterialLotSchema, SupplierSchema } from "./lots";
 import { FormulaVersionSchema } from "./version";
 
 /** BackupCounts: one whole number per exported store. */
@@ -20,9 +21,11 @@ export const BackupCountsSchema = z.strictObject({
   productionPlans: z.int().min(0),
   burnSessions: z.int().min(0),
   burnPhotos: z.int().min(0),
+  suppliers: z.int().min(0),
+  materialLots: z.int().min(0),
 });
 
-/** The exported stores (DATA-15), current format (4). Drafts and meta are not exported (DATA-17). */
+/** The exported stores (DATA-15), current format (5). Drafts and meta are not exported (DATA-17). */
 export const BackupDataSchema = z.strictObject({
   materials: z.array(MaterialSchema),
   formulas: z.array(FormulaSchema),
@@ -33,6 +36,8 @@ export const BackupDataSchema = z.strictObject({
   productionPlans: z.array(ProductionPlanSchema),
   burnSessions: z.array(BurnSessionSchema),
   burnPhotos: z.array(BurnPhotoBackupSchema),
+  suppliers: z.array(SupplierSchema),
+  materialLots: z.array(MaterialLotSchema),
 });
 
 /** SHA-256 of the data section, lowercase hex (DATA-16). */

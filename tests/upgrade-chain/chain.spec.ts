@@ -26,6 +26,7 @@ import {
   batchLabel,
   buildWE5,
   milestoneRow,
+  openBatch,
   openSchedule,
   planProduction,
   productionDate,
@@ -35,6 +36,15 @@ import {
   waitForHeading,
 } from "../e2e/helpers-schedule";
 import { addPhotos, createSession } from "../e2e/helpers-burn";
+import {
+  batchRows,
+  createLot,
+  createSupplier,
+  lotDetailRow,
+  openBatches,
+  saveBatchChanges,
+  setBatchLot,
+} from "../e2e/helpers-lots";
 
 const PHASE = process.env.PHASE ?? "";
 const PROFILE = process.env.CHAIN_PROFILE ?? "";
@@ -50,7 +60,12 @@ const DATA_STORES = [
   "productionPlans",
   "burnSessions",
   "burnPhotos",
+  "suppliers",
+  "materialLots",
 ] as const;
+
+/** IndexedDB version of the final build the restore phases run on (v0.3: schema 5). */
+const FINAL_IDB_VERSION = 50;
 
 type Dump = { version: number; stores: Record<string, unknown[]> };
 
@@ -339,6 +354,112 @@ test("bm: BurnMatrix build keeps CurePilot data and records a linked burn test w
   });
 });
 
+/**
+ * v0.3 schema 4 -> 5 check, in its own fresh profile (`run-v03.sh`): the v0.2
+ * integration build (c922234, schema 4) makes WE-5, a batch with a cure plan,
+ * and a linked burn test with a photo, then exports format 4.
+ */
+test("v02: v0.2 integration build makes a batch with a cure plan and a burn test with a photo", async () => {
+  test.skip(PHASE !== "v02");
+  await withProfile(PROFILE, async (page) => {
+    await buildWE5(page);
+    const start = await dump(page);
+    const v1 = idOf<{ id: string; number: number }>(start.stores.formulaVersions, (v) => v.number === 1);
+    await page.goto(`/batches/new?version=${v1}`);
+    await waitForHeading(page, "Create batch");
+    await productionDate(page).fill(isoOffset(-10));
+    await batchLabel(page).fill("V02-01");
+    await submitCreate(page);
+    await waitForHeading(page, "V02-01");
+    const batchId = idOf<{ id: string; label?: string }>((await dump(page)).stores.batches, (b) => b.label === "V02-01");
+    await addCurePlan(page, batchId, { cure: "14", rows: [{ kind: "burnTest", label: "First burn", offset: "3" }] });
+    await createSession(page, batchId, {
+      date: isoOffset(0),
+      label: "V02 burn",
+      planned: "First burn",
+      candles: [
+        { label: "A", wickText: "Generated wick 1", burns: [{ minutes: "240", before: "250.00", after: "238.50", soot: "None seen" }] },
+      ],
+      conclusion: "Maker's own words.",
+    });
+    await addPhotos(page, 1);
+    const end = await dump(page);
+    expect(end.version).toBe(40);
+    expect(end.stores.batches).toHaveLength(1);
+    expect(end.stores.curePlans).toHaveLength(1);
+    expect(end.stores.burnSessions).toHaveLength(1);
+    expect(end.stores.burnPhotos).toHaveLength(1);
+    save("dump-v02-end.json", end);
+    const { backup } = await exportTo(page, "v02-backup.json");
+    expect(backup.formatVersion).toBe(4);
+    console.log("v02 end", JSON.stringify(counts(end)));
+  });
+});
+
+/**
+ * v0.3 final build (`run-v03.sh`), same profile as the `v02` phase: the schema 5
+ * upgrade keeps every v0.2 record, then suppliers, lots and a lot link are
+ * added with the screens, and a format 5 backup is exported for `restore05`.
+ */
+test("lots: v0.3 build keeps the v0.2 profile and records suppliers, lots and lot links", async () => {
+  test.skip(PHASE !== "lots");
+  await withProfile(PROFILE, async (page) => {
+    await openApp(page);
+    const open = await dump(page);
+    save("dump-lots-open.json", open);
+    const log: string[] = [];
+    expectPreserved(load("dump-v02-end.json"), open, 50, log);
+    console.log("lots upgrade:\n  " + log.join("\n  "));
+
+    const before = open.stores.batches as { id: string; label?: string; versionId: string }[];
+    const v02 = before.find((b) => b.label === "V02-01");
+    expect(v02, "the V02-01 batch").toBeDefined();
+    const batchId = v02!.id;
+    const versionId = v02!.versionId;
+
+    await createSupplier(page, "Example Wax Co");
+    await createLot(page, { material: WE5.wax, supplier: "Example Wax Co", code: "LOT-TEST-001" });
+
+    // Link it from the batch's edit form and save.
+    await openBatch(page, batchId, "V02-01");
+    await setBatchLot(page, WE5.wax, "LOT-TEST-001");
+    await saveBatchChanges(page);
+    await openBatch(page, batchId, "V02-01");
+    const waxRow = lotDetailRow(page, WE5.wax);
+    await expect(waxRow).toContainText("LOT-TEST-001", { timeout: SLOW });
+    await expect(waxRow).toContainText("Example Wax Co");
+
+    // Search finds the batch by the lot code.
+    await openBatches(page, "?q=LOT-TEST-001");
+    await expect(batchRows(page)).toHaveCount(1, { timeout: SLOW });
+    await expect(batchRows(page).first()).toContainText("V02-01");
+
+    const end = await dump(page);
+    expect(end.stores.suppliers).toHaveLength(1);
+    expect(end.stores.materialLots).toHaveLength(1);
+    const batch = (end.stores.batches as { id: string; lots?: unknown[] }[]).find((b) => b.id === batchId);
+    expect(batch?.lots).toHaveLength(1);
+    // The cure plan and the burn test the v0.2 build made are untouched.
+    expect(end.stores.curePlans).toEqual(open.stores.curePlans);
+    expect(end.stores.burnSessions).toEqual(open.stores.burnSessions);
+    expect(end.stores.burnPhotos).toEqual(open.stores.burnPhotos);
+    save("dump-lots-end.json", end);
+
+    // A second batch without lots, so the restore phase has two batches.
+    await page.goto(`/batches/new?version=${versionId}`);
+    await waitForHeading(page, "Create batch");
+    await productionDate(page).fill(isoOffset(-1));
+    await batchLabel(page).fill("V03-02");
+    await submitCreate(page);
+    await waitForHeading(page, "V03-02");
+
+    const { backup } = await exportTo(page, "lots-backup.json");
+    expect(backup.formatVersion).toBe(5);
+    expect(backup.counts).toMatchObject({ batches: 2, suppliers: 1, materialLots: 1 });
+    console.log("lots end", JSON.stringify(counts(end)));
+  });
+});
+
 for (const [phase, file, expected] of [
   ["restore01", "v01-backup.json", { materials: 4, formulas: 1, formulaVersions: 2, measurements: 1 }],
   [
@@ -351,6 +472,18 @@ for (const [phase, file, expected] of [
     "bm-backup.json",
     { batches: 3, curePlans: 1, productionPlans: 1, burnSessions: 1, burnPhotos: 2 },
   ],
+  // v0.3: the format 4 file the v0.2 integration build made in the `v02` phase,
+  // and the format 5 file this build made in the `lots` phase.
+  [
+    "restore04v02",
+    "v02-backup.json",
+    { batches: 1, curePlans: 1, burnSessions: 1, burnPhotos: 1, suppliers: 0, materialLots: 0 },
+  ],
+  [
+    "restore05",
+    "lots-backup.json",
+    { batches: 2, curePlans: 1, burnSessions: 1, burnPhotos: 1, suppliers: 1, materialLots: 1 },
+  ],
 ] as const) {
   test(`${phase}: the final build restores ${file} into a fresh profile`, async () => {
     test.skip(PHASE !== phase);
@@ -358,7 +491,7 @@ for (const [phase, file, expected] of [
       await restoreFile(page, join(OUT, file), false);
       await openApp(page);
       const after = await dump(page);
-      expect(after.version).toBe(40);
+      expect(after.version).toBe(FINAL_IDB_VERSION);
       expect(counts(after)).toMatchObject(expected);
       // Every record in the file is on the device as written (versions may only
       // differ in their display numbers, which a fresh profile never changes).
@@ -371,12 +504,22 @@ for (const [phase, file, expected] of [
         const ids = (after.stores[store] as { id: string }[]).map((r) => r.id).sort();
         expect(ids, `${store} ids`).toEqual(rows.map((r) => r.id).sort());
       }
-      if (phase === "restore04") {
+      if ((source.data.burnPhotos ?? []).length > 0) {
         const fileShas = (source.data.burnPhotos as unknown as { sha256: string }[]).map((p) => p.sha256).sort();
         const deviceShas = (after.stores.burnPhotos as { bytes: { sha256: string } }[])
           .map((p) => p.bytes.sha256)
           .sort();
         expect(deviceShas, "photo bytes match their SHA-256").toEqual(fileShas);
+      }
+      if (phase === "restore05") {
+        // Every lot link in the file is on the device as written.
+        const fileBatches = source.data.batches as unknown as { id: string; lots?: unknown[] }[];
+        const deviceBatches = after.stores.batches as { id: string; lots?: unknown[] }[];
+        for (const batch of fileBatches) {
+          expect(deviceBatches.find((b) => b.id === batch.id)?.lots, `lots of ${batch.id}`).toEqual(batch.lots);
+        }
+      }
+      if (phase === "restore04") {
         const session = after.stores.burnSessions[0] as { id: string };
         await page.goto(`/burn-tests/${session.id}`);
         await expect(page.getByText("2 of 12", { exact: true })).toBeVisible({ timeout: SLOW });

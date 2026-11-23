@@ -122,12 +122,12 @@ describe("photo base64", () => {
 });
 
 describe("backup format 4 export", () => {
-  it("exports sessions and photos (bytes as base64 with their SHA-256), format 4, schema 4, a checksum over all nine stores, and its size", async () => {
+  it("exports sessions and photos (bytes as base64 with their SHA-256), format 5, schema 5, a checksum over all eleven stores, and its size", async () => {
     const { device, session, second, photos } = await sourceWithBurns();
     const exported = await exportBackup(device.db, { now: () => NOW });
     const { envelope, json } = exported;
-    expect(envelope.formatVersion).toBe(4);
-    expect(envelope.schemaVersion).toBe(4);
+    expect(envelope.formatVersion).toBe(5);
+    expect(envelope.schemaVersion).toBe(5);
     expect(envelope.counts).toMatchObject({ burnSessions: 2, burnPhotos: 2 });
     expect(envelope.data.burnSessions.map((s) => s.id)).toEqual([session.id, second.id].sort());
     const filePhoto = envelope.data.burnPhotos.find((p) => p.id === photos[0]!.id)!;
@@ -299,6 +299,8 @@ describe("format 4 checks", () => {
       productionPlans: 0,
       burnSessions: 1,
       burnPhotos: 1,
+      materialLots: 0,
+      batchLots: 0,
     });
   });
 
@@ -353,7 +355,7 @@ describe("the real CurePilot export (good-v3.json, format 3)", () => {
     if (!result.ok) throw new Error(result.failure.code);
     expect(result.envelope.formatVersion).toBe(3);
     expect(result.envelope.checksum).toEqual(file.checksum);
-    expect(result.envelope.counts).toEqual({ ...file.counts, burnSessions: 0, burnPhotos: 0 });
+    expect(result.envelope.counts).toEqual({ ...file.counts, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 });
     expect(result.envelope.data.burnSessions).toEqual([]);
     expect(result.envelope.data.burnPhotos).toEqual([]);
   });

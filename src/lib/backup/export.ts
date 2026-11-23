@@ -79,6 +79,8 @@ export const exportBackup: ExportBackup = async (db, options) => {
         db.productionPlans,
         db.burnSessions,
         db.burnPhotos,
+        db.suppliers,
+        db.materialLots,
       ],
       async () => {
         const [
@@ -91,6 +93,8 @@ export const exportBackup: ExportBackup = async (db, options) => {
           productionPlans,
           burnSessions,
           burnPhotos,
+          suppliers,
+          materialLots,
         ] = await Promise.all([
             db.materials.toArray(),
             db.formulas.toArray(),
@@ -101,6 +105,8 @@ export const exportBackup: ExportBackup = async (db, options) => {
             db.productionPlans.toArray(),
             db.burnSessions.toArray(),
             db.burnPhotos.toArray(),
+            db.suppliers.toArray(),
+            db.materialLots.toArray(),
           ]);
         return {
           materials: byId(materials),
@@ -113,6 +119,8 @@ export const exportBackup: ExportBackup = async (db, options) => {
           burnSessions: byId(burnSessions),
           // BurnMatrix: photos go into the file as base64 (synchronous).
           burnPhotos: byId(burnPhotos).map(photoToBackup),
+          suppliers: byId(suppliers),
+          materialLots: byId(materialLots),
         };
       },
     ),
@@ -129,6 +137,8 @@ export const exportBackup: ExportBackup = async (db, options) => {
     productionPlans: data.productionPlans.length,
     burnSessions: data.burnSessions.length,
     burnPhotos: data.burnPhotos.length,
+    suppliers: data.suppliers.length,
+    materialLots: data.materialLots.length,
   };
   // Hashing happens outside any Dexie transaction.
   const checksum = { algorithm: "SHA-256" as const, value: await sha256Hex(canonicalJson(data)) };
