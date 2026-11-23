@@ -90,9 +90,9 @@ Models: lead (Opus) wrote the QA plan, the upgrade chain, the cross-slice review
 
 v0.2 is complete pending Codex verification. Next: v0.3 (vault Tasks note).
 
-## v0.3 — Lots, suppliers, batch search, filters and export (2026-11-21)
+## v0.3 — Lots, suppliers, batch search, filters and export (2026-11-24)
 
-Branch `feat/v0.3-lots`, from `feat/v0.2-integration` (`c922234`); its PR merges into that branch. Scope, data model, snapshot rules, compatibility and the CSV columns: `docs/v0.3-lots.md`. Results, the commit SHA and the migration and backup evidence are in the vault handoff `Projects/apps/candle/Sessions/2026-11-21 - v0.3 Lots and Suppliers - Development Handoff.md`.
+Branch `feat/v0.3-lots`, from `feat/v0.2-integration` (`c922234`); its PR merges into that branch. Scope, data model, snapshot rules, compatibility and the CSV columns: `docs/v0.3-lots.md`. Results, the commit SHA and the migration and backup evidence are in the vault handoff `Projects/apps/candle/Sessions/2026-11-24 - v0.3 Lots and Suppliers - Development Handoff.md`.
 
 - **Storage:** IndexedDB schema 5 (IndexedDB version 50) adds `suppliers` and `materialLots`. Batches gain an optional `lots` array (lot id plus a snapshot of the code and supplier). Schema 1 to 4 databases upgrade in place (`tests/unit/db/upgrade.test.ts` from a real schema 4 database, plus a real v0.2 browser profile, see the handoff).
 - **Backup format 5** adds both stores. Formats 1 to 4 are read and migrated in memory; their batches are checked without `lots`. `bad-03-newer-version.json` now uses format 6. Orphan checks: a lot's material and supplier, a batch's linked lot (`CheckFailure` orphans gains `materialLots` and `batchLots`).
