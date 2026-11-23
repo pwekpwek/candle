@@ -26,6 +26,8 @@ function zeroCounts(): BackupCounts {
     productionPlans: 0,
     burnSessions: 0,
     burnPhotos: 0,
+    suppliers: 0,
+    materialLots: 0,
   };
 }
 
@@ -40,6 +42,8 @@ function emptyTally(): Record<DataStoreName, StoreTally> {
     productionPlans: { new: 0, identical: 0, conflict: 0 },
     burnSessions: { new: 0, identical: 0, conflict: 0 },
     burnPhotos: { new: 0, identical: 0, conflict: 0 },
+    suppliers: { new: 0, identical: 0, conflict: 0 },
+    materialLots: { new: 0, identical: 0, conflict: 0 },
   };
 }
 
@@ -96,6 +100,8 @@ function countsOf(data: BackupData): BackupCounts {
     productionPlans: data.productionPlans.length,
     burnSessions: data.burnSessions.length,
     burnPhotos: data.burnPhotos.length,
+    suppliers: data.suppliers.length,
+    materialLots: data.materialLots.length,
   };
 }
 
@@ -127,6 +133,8 @@ function tallyAgainst(envelopeData: BackupData, device: DeviceData): Record<Data
     productionPlans: sameByCanonical,
     burnSessions: sameByCanonical,
     burnPhotos: samePhoto as (a: never, b: never) => boolean,
+    suppliers: sameByCanonical,
+    materialLots: sameByCanonical,
   };
   for (const store of DATA_STORES) {
     const deviceMap = byId(device[store] as { id: string }[]);
@@ -162,6 +170,8 @@ function planReplace(
       productionPlans: [...data.productionPlans],
       burnSessions: [...data.burnSessions],
       burnPhotos: [...data.burnPhotos],
+      suppliers: [...data.suppliers],
+      materialLots: [...data.materialLots],
     },
     clear: true,
     added: { ...fileCounts },
@@ -232,6 +242,8 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
     productionPlans: [],
     burnSessions: [],
     burnPhotos: [],
+    suppliers: [],
+    materialLots: [],
   };
 
   // Materials, measurements and batches: new, identical or conflict.
@@ -274,7 +286,18 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
   // as an ordinary conflict.
   //
   // BurnMatrix: burn sessions too (whole), and photos without their bytes.
-  const editableStores = ["batches", "curePlans", "productionPlans", "burnSessions", "burnPhotos"] as const;
+  //
+  // v0.3: suppliers and lots are editable records, compared whole. A batch's
+  // lot links are part of the batch, so they take part in its comparison.
+  const editableStores = [
+    "batches",
+    "curePlans",
+    "productionPlans",
+    "burnSessions",
+    "burnPhotos",
+    "suppliers",
+    "materialLots",
+  ] as const;
   for (const store of editableStores) {
     const deviceMap = byId<{ id: string }>(device[store]);
     const incoming: { id: string }[] = data[store];
@@ -420,6 +443,8 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
     productionPlans: device.productionPlans.length + added.productionPlans,
     burnSessions: device.burnSessions.length + added.burnSessions,
     burnPhotos: device.burnPhotos.length + added.burnPhotos,
+    suppliers: device.suppliers.length + added.suppliers,
+    materialLots: device.materialLots.length + added.materialLots,
   };
   const present = new Set([
     ...device.materials.map((material) => material.id),

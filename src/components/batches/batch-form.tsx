@@ -27,16 +27,19 @@ import {
 } from "@/lib/gramguard";
 import type { ComparisonRow, ComponentComparison } from "@/lib/gramguard";
 import { MESSAGES } from "@/lib/messages";
-import type { FormulaVersion, MeasurementEntry } from "@/lib/types";
+import type { BatchLot, FormulaVersion, MeasurementEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
   checkDate,
   checkLabel,
   checkMeasured,
   collectEntries,
+  initialLotChoices,
   validateForm,
   type FormErrors,
+  type LotChoices,
 } from "./form-model";
+import { LotsSection } from "./lots-section";
 import { localToday } from "./text";
 
 const B = MESSAGES.batches;
@@ -50,6 +53,8 @@ export type BatchFormInitial = {
   label?: string;
   notes?: string;
   entries?: readonly MeasurementEntry[];
+  /** The lots stored on the batch (v0.3). */
+  lots?: readonly BatchLot[];
 };
 
 export type BatchFormProps = {
@@ -136,6 +141,7 @@ export function BatchForm({
       (initial?.entries ?? []).map((e) => [e.componentId, formatMeasured(e.actualMg, precisionMg)]),
     ),
   );
+  const [lotChoices, setLotChoices] = useState<LotChoices>(() => initialLotChoices(initial?.lots));
   const [errors, setErrors] = useState<FormErrors>({ measured: {} });
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<"success" | "failed" | null>(null);
@@ -178,7 +184,7 @@ export function BatchForm({
     event.preventDefault();
     if (submitting.current) return; // guard double submit (FLOW-07)
     const { errors: found, input } = validateForm(
-      { producedOn, label, notes, texts },
+      { producedOn, label, notes, texts, lots: lotChoices },
       componentIds,
       today,
       latestProducedOn,
@@ -351,6 +357,16 @@ export function BatchForm({
           </tbody>
         </table>
       </section>
+
+      <LotsSection
+        version={version}
+        choices={lotChoices}
+        storedLots={initial?.lots ?? []}
+        onChange={(next) => {
+          touched();
+          setLotChoices(next);
+        }}
+      />
 
       <Field label={B.notesFieldLabel}>
         {(c) => (

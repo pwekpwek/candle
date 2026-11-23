@@ -34,6 +34,8 @@ import type { EntityTable } from "dexie";
 import type { EditorFields, ValidatedFormulaInput } from "@/lib/gramguard/contract";
 import type {
   Batch,
+  BatchLot,
+  BatchLotPart,
   BurnPhoto,
   BurnSession,
   CureMilestone,
@@ -42,11 +44,13 @@ import type {
   Formula,
   FormulaVersion,
   Material,
+  MaterialLot,
   MaterialType,
   Measurement,
   MeasurementEntry,
   ProductionPlan,
   SootLevel,
+  Supplier,
   VersionOrigin,
   VersionScale,
   VesselDetails,
@@ -85,8 +89,9 @@ export interface DataErrorLike extends Error {
 export type MetaRow = { key: string; value: unknown };
 
 /**
- * The Dexie database. Stores and indexes (schema version 4; batches added in
- * 2, curePlans and productionPlans in 3, burnSessions and burnPhotos in 4):
+ * The Dexie database. Stores and indexes (schema version 5; batches added in
+ * 2, curePlans and productionPlans in 3, burnSessions and burnPhotos in 4,
+ * suppliers and materialLots in 5):
  *   materials        id, type, archivedAt
  *   formulas         id, updatedAt, archivedAt
  *   formulaVersions  id, formulaId, &[formulaId+number]
@@ -96,6 +101,8 @@ export type MetaRow = { key: string; value: unknown };
  *   productionPlans  id, formulaId, versionId, plannedOn, batchId
  *   burnSessions     id, batchId, milestoneId, testedOn
  *   burnPhotos       id, sessionId
+ *   suppliers        id, name
+ *   materialLots     id, materialId, supplierId
  *   drafts           key
  *   meta             key
  */
@@ -109,6 +116,8 @@ export type CandleDatabase = Dexie & {
   productionPlans: EntityTable<ProductionPlan, "id">;
   burnSessions: EntityTable<BurnSession, "id">;
   burnPhotos: EntityTable<BurnPhoto, "id">;
+  suppliers: EntityTable<Supplier, "id">;
+  materialLots: EntityTable<MaterialLot, "id">;
   drafts: EntityTable<Draft, "key">;
   meta: EntityTable<MetaRow, "key">;
 };
@@ -269,6 +278,27 @@ export type BatchInput = {
   notes?: string;
   /** Measured weights. Each componentId must be a wax or oil row of the source version, once. */
   entries: MeasurementEntry[];
+  /**
+   * v0.3: the lot used for each component, at most one per component. On
+   * `update`, leaving it out keeps the stored links; `[]` clears them. See
+   * BatchLotInput and docs/v0.3-lots.md.
+   */
+  lots?: BatchLotInput[];
+};
+
+/**
+ * v0.3: one lot link as the batch form sends it. The code and supplier are
+ * snapshotted by the data layer: a link whose lot is unchanged on that
+ * component keeps its stored snapshot; a new or changed one takes a fresh one.
+ * "invalid" when the component is not in the version, the lot belongs to
+ * another material, or a new link names an archived lot; "not-found" when the
+ * lot does not exist.
+ */
+export type BatchLotInput = {
+  part: BatchLotPart;
+  /** Required when `part` is "row": a wax or oil row of the batch's version. */
+  componentId?: string;
+  lotId: string;
 };
 
 export type CreateBatchRequest = BatchInput & {
@@ -309,6 +339,7 @@ export type BatchesRepo = {
   create(request: CreateBatchRequest): Promise<{ batch: Batch; created: boolean }>;
   /**
    * Replaces the editable fields. `formulaId`, `versionId`, `id` and `createdAt` never change.
+   * v0.3: `input.lots` absent keeps the stored lot links.
    * Integration QA: throws "invalid" when `producedOn` is later than the batch's earliest
    * burn test (`testedOn`), since a burn test is never dated before its batch was made.
    */
@@ -561,6 +592,124 @@ export type BurnPhotosRepo = {
   usage(): Promise<{ count: number; bytes: number }>;
 };
 
+// ─────────────────────── Lots and suppliers (v0.3) ───────────────────────
+
+/** What the maker can set on a supplier. */
+export type SupplierInput = {
+  /** Trimmed, 1–80 characters; unique among suppliers (case-insensitive, archived included). */
+  name: string;
+  /** Contact notes. Trimmed; blank means none. */
+  notes?: string;
+};
+
+export type SupplierListItem = {
+  supplier: Supplier;
+  /** Lots that name this supplier, archived ones included. */
+  lotCount: number;
+  /** Batches whose recorded lot names this supplier. */
+  batchCount: number;
+};
+
+export type SuppliersRepo = {
+  /** Sorted by name, case-insensitive. Archived ones only when asked for. */
+  list(filter?: { includeArchived?: boolean }): Promise<Supplier[]>;
+  /** Every supplier (archived included) with its usage, by name. */
+  listItems(): Promise<SupplierListItem[]>;
+  get(id: string): Promise<Supplier | undefined>;
+  /** "invalid" for a bad or duplicate name. */
+  create(input: SupplierInput): Promise<Supplier>;
+  /** Replaces the editable fields. Batch snapshots are not touched. */
+  update(id: string, input: SupplierInput): Promise<Supplier>;
+  setArchived(id: string, archived: boolean): Promise<Supplier>;
+  /** Lots naming the supplier, and batches whose recorded lot names it. */
+  usage(id: string): Promise<{ lots: number; batches: number }>;
+  /** "in-use" while `usage` is not zero. "not-found" when it is gone. */
+  delete(id: string): Promise<void>;
+};
+
+/** What the maker can set on a lot. `materialId` is fixed after creation. */
+export type MaterialLotInput = {
+  /**
+   * On create: a library material that is not archived. On update: must equal
+   * the stored one ("invalid" otherwise).
+   */
+  materialId: string;
+  /** A supplier, or null. A new choice must not be archived (the stored one may be). */
+  supplierId: string | null;
+  /**
+   * Trimmed, 1–60 characters. Unique among lots of the same material and
+   * supplier (case-insensitive, archived included).
+   */
+  code: string;
+  /** YYYY-MM-DD, or absent/blank for unknown. The screens refuse a future date. */
+  receivedOn?: string;
+  notes?: string;
+};
+
+export type MaterialLotListItem = {
+  lot: MaterialLot;
+  /** The lot's material, or null with damaged data. */
+  material: Material | null;
+  /** The lot's supplier now, or null without one. */
+  supplier: Supplier | null;
+  /** Batches that link this lot. Above zero, the lot can only be archived. */
+  batchCount: number;
+};
+
+export type MaterialLotsRepo = {
+  /** Lots, newest received first (unknown dates last), then code. Archived ones only when asked for. */
+  list(filter?: { materialId?: string; supplierId?: string; includeArchived?: boolean }): Promise<MaterialLot[]>;
+  /** Every lot (archived included) with its material, supplier and batch count, same order. */
+  listItems(): Promise<MaterialLotListItem[]>;
+  get(id: string): Promise<MaterialLot | undefined>;
+  /**
+   * "not-found" for a missing material or supplier; "invalid" for a bad
+   * field, an archived material or supplier, or a duplicate code.
+   */
+  create(input: MaterialLotInput): Promise<MaterialLot>;
+  /** Replaces the editable fields. Batch snapshots are not touched. */
+  update(id: string, input: MaterialLotInput): Promise<MaterialLot>;
+  setArchived(id: string, archived: boolean): Promise<MaterialLot>;
+  usage(id: string): Promise<{ batches: number }>;
+  /** "in-use" while a batch links the lot. "not-found" when it is gone. */
+  delete(id: string): Promise<void>;
+};
+
+/** One recorded lot of a batch, with the lot and supplier as they are now. */
+export type BatchTraceLot = {
+  link: BatchLot;
+  /** The lot now, or null when it is missing (damaged data only). */
+  lot: MaterialLot | null;
+  /** The lot's supplier now, or null when the lot has none or it is missing. */
+  supplier: Supplier | null;
+};
+
+/** A batch with everything the list, search, filters and CSV need. */
+export type BatchTraceItem = BatchListItem & {
+  hasCurePlan: boolean;
+  burnTestCount: number;
+  /** In the batch's stored order. */
+  lots: BatchTraceLot[];
+};
+
+export type BatchTraceData = {
+  /** Same order as `batches.list()`: latest production date first. */
+  items: BatchTraceItem[];
+  /** For the filter options, archived included, sorted by name. */
+  formulas: Formula[];
+  /** Every lot, archived included, `materialLots.list` order. */
+  lots: MaterialLot[];
+  /** Every supplier, archived included, by name. */
+  suppliers: Supplier[];
+  /** Every material, archived included, by name (for lot labels). */
+  materials: Material[];
+};
+
+export type BatchTraceRepo = {
+  /** One read transaction. Batches whose formula or version is missing are left out (damaged data only). */
+  read(): Promise<BatchTraceData>;
+};
+
 // ───────────────────────────── Drafts ─────────────────────────────
 
 /**
@@ -633,6 +782,9 @@ export type DataLayer = {
   schedule: ScheduleRepo;
   burnSessions: BurnSessionsRepo;
   burnPhotos: BurnPhotosRepo;
+  suppliers: SuppliersRepo;
+  materialLots: MaterialLotsRepo;
+  batchTrace: BatchTraceRepo;
   drafts: DraftsRepo;
   meta: MetaRepo;
   example: ExampleRepo;

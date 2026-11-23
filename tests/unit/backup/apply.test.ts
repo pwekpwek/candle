@@ -63,7 +63,7 @@ describe("TEST-19: restore into an empty database", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.counts).toEqual(plan.expectedCounts);
-    expect(result.counts).toEqual({ materials: 6, formulas: 2, formulaVersions: 3, measurements: 2, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 });
+    expect(result.counts).toEqual({ materials: 6, formulas: 2, formulaVersions: 3, measurements: 2, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 });
 
     expect(await readDeviceData(target.db)).toEqual(await readDeviceData(source.db));
     const meta = await target.layer.meta.get();

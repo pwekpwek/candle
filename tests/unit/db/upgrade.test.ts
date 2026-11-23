@@ -3,14 +3,14 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Dexie from "dexie";
 import { afterEach, describe, expect, it } from "vitest";
-import { createDataLayer, openDatabase, SCHEMA_V1, SCHEMA_V2_ADDED, SCHEMA_V3_ADDED } from "@/lib/db";
+import { createDataLayer, openDatabase, SCHEMA_V1, SCHEMA_V2_ADDED, SCHEMA_V3_ADDED, SCHEMA_V4_ADDED } from "@/lib/db";
 import type { BackupEnvelope, Batch, CurePlan, ProductionPlan } from "@/lib/types";
 import { id, uniqueName } from "./harness";
 
 /**
- * DATA-29: the current schema (version 4, BurnMatrix) must open a v0.1
- * database (version 1), a BatchTrace database (version 2) and a CurePilot
- * database (version 3) with every record intact. The v0.1 data is the real v0.1 export in
+ * DATA-29: the current schema (version 5, v0.3 lots) must open a v0.1
+ * database (version 1), a BatchTrace database (version 2), a CurePilot
+ * database (version 3) and a BurnMatrix database (version 4) with every record intact. The v0.1 data is the real v0.1 export in
  * tests/fixtures/backups/good.json, written with the older schemas exactly as
  * those apps declared them (SCHEMA_V1, then SCHEMA_V2_ADDED).
  */
@@ -30,6 +30,8 @@ const ALL_STORES = [
   "productionPlans",
   "burnSessions",
   "burnPhotos",
+  "suppliers",
+  "materialLots",
 ].sort();
 
 const names: string[] = [];
@@ -119,14 +121,14 @@ function rawVersion(name: string): Promise<number> {
 
 const byId = <T extends { id: string }>(rows: T[]) => [...rows].sort((a, b) => a.id.localeCompare(b.id));
 
-describe("schema upgrade from v0.1 (version 1) to version 4", () => {
+describe("schema upgrade from v0.1 (version 1) to version 5", () => {
   it("keeps every v0.1 record, draft and meta row, and adds empty batches, curePlans and productionPlans", async () => {
     const name = fresh();
     await makeV1Database(name);
 
     const db = openDatabase(name);
     await db.open();
-    expect(db.verno).toBe(4);
+    expect(db.verno).toBe(5);
     expect(db.tables.map((t) => t.name).sort()).toEqual(ALL_STORES);
 
     expect(byId(await db.materials.toArray())).toEqual(byId(V1.data.materials));
@@ -155,7 +157,7 @@ describe("schema upgrade from v0.1 (version 1) to version 4", () => {
     });
     expect((await layer.batches.get(batch.id))?.version.id).toBe(version.id);
     db.close();
-    expect(await rawVersion(name)).toBe(40);
+    expect(await rawVersion(name)).toBe(50);
   });
 
   it("indexes on the added stores work", async () => {
@@ -173,7 +175,7 @@ describe("schema upgrade from v0.1 (version 1) to version 4", () => {
   });
 });
 
-describe("schema upgrade from BatchTrace (version 2) to version 4", () => {
+describe("schema upgrade from BatchTrace (version 2) to version 5", () => {
   it("keeps every record including batches, and adds empty curePlans and productionPlans", async () => {
     const name = fresh();
     await makeV2Database(name);
@@ -181,7 +183,7 @@ describe("schema upgrade from BatchTrace (version 2) to version 4", () => {
 
     const db = openDatabase(name);
     await db.open();
-    expect(db.verno).toBe(4);
+    expect(db.verno).toBe(5);
     expect(db.tables.map((t) => t.name).sort()).toEqual(ALL_STORES);
 
     expect(byId(await db.materials.toArray())).toEqual(byId(V1.data.materials));
@@ -193,7 +195,7 @@ describe("schema upgrade from BatchTrace (version 2) to version 4", () => {
     expect(await db.productionPlans.count()).toBe(0);
     expect((await db.drafts.get("new"))?.fields).toEqual({ name: "unsaved" });
     db.close();
-    expect(await rawVersion(name)).toBe(40);
+    expect(await rawVersion(name)).toBe(50);
   });
 
   it("upgraded batches take a cure plan, keep their batch index, and a planned run becomes a batch", async () => {
@@ -283,7 +285,7 @@ async function makeV3Database(name: string) {
   v3.close();
 }
 
-describe("schema upgrade from CurePilot (version 3) to BurnMatrix (version 4)", () => {
+describe("schema upgrade from CurePilot (version 3) to version 5", () => {
   it("keeps every record including cure plans and planned entries, and adds empty burnSessions and burnPhotos", async () => {
     const name = fresh();
     await makeV3Database(name);
@@ -291,7 +293,7 @@ describe("schema upgrade from CurePilot (version 3) to BurnMatrix (version 4)", 
 
     const db = openDatabase(name);
     await db.open();
-    expect(db.verno).toBe(4);
+    expect(db.verno).toBe(5);
     expect(db.tables.map((t) => t.name).sort()).toEqual(ALL_STORES);
     const { plan, entries } = curePilotRecords();
     expect(byId(await db.materials.toArray())).toEqual(byId(V1.data.materials));
@@ -307,7 +309,7 @@ describe("schema upgrade from CurePilot (version 3) to BurnMatrix (version 4)", 
     expect((await db.meta.get("changesSinceBackup"))?.value).toBe(3);
     expect(await db.productionPlans.where("batchId").equals(batchTraceBatches()[1]!.id).count()).toBe(1);
     db.close();
-    expect(await rawVersion(name)).toBe(40);
+    expect(await rawVersion(name)).toBe(50);
   });
 
   it("an upgraded batch takes a burn session linked to its planned burn test, and then refuses deletion", async () => {
@@ -330,6 +332,133 @@ describe("schema upgrade from CurePilot (version 3) to BurnMatrix (version 4)", 
     expect(after.milestones.find((m) => m.kind === "check")!.doneOn).toBe("2026-11-17");
     await expect(layer.batches.delete(plan.id)).rejects.toMatchObject({ code: "in-use" });
     expect((await layer.schedule.read()).cure).toHaveLength(1);
+    db.close();
+  });
+});
+
+/** A burn session and a photo as the BurnMatrix app (schema 4) stored them, on the batch with the cure plan. */
+function burnMatrixRecords() {
+  const { plan } = curePilotRecords();
+  const session = {
+    id: "cccccccc-0000-4000-8000-000000000001",
+    batchId: plan.id,
+    testedOn: "2026-11-13",
+    milestoneId: plan.milestones[1]!.id,
+    candles: [
+      {
+        id: "cccccccc-0000-4000-8000-0000000000c1",
+        label: "Candle 1",
+        wick: { materialId: null, name: "Test wick" },
+        burns: [{ id: "cccccccc-0000-4000-8000-0000000000b1", durationMin: 240, weightBeforeMg: 250000, weightAfterMg: 238500 }],
+      },
+    ],
+    conclusion: "Observed a full melt pool at 4 h.",
+    createdAt: "2026-11-13T12:00:00.000Z",
+    updatedAt: "2026-11-13T12:00:00.000Z",
+  };
+  const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 0xff, 0xd9]);
+  const photo = {
+    id: "cccccccc-0000-4000-8000-0000000000f1",
+    sessionId: session.id,
+    mimeType: "image/jpeg" as const,
+    width: 4,
+    height: 3,
+    byteLength: bytes.length,
+    sha256: "0".repeat(64),
+    bytes,
+    createdAt: "2026-11-13T12:05:00.000Z",
+  };
+  return { session, photo };
+}
+
+/** A real schema 4 database: the BurnMatrix declaration (versions 1 to 4), with every kind of record. */
+async function makeV4Database(name: string) {
+  const v4 = new Dexie(name);
+  v4.version(1).stores(SCHEMA_V1);
+  v4.version(2).stores(SCHEMA_V2_ADDED);
+  v4.version(3).stores(SCHEMA_V3_ADDED);
+  v4.version(4).stores(SCHEMA_V4_ADDED);
+  await v4.open();
+  await seedV1Stores(v4);
+  await v4.table("batches").bulkAdd(batchTraceBatches());
+  const { plan, entries } = curePilotRecords();
+  await v4.table("curePlans").add(plan);
+  await v4.table("productionPlans").bulkAdd(entries);
+  const { session, photo } = burnMatrixRecords();
+  await v4.table("burnSessions").add(session);
+  await v4.table("burnPhotos").add(photo);
+  expect(v4.verno).toBe(4);
+  v4.close();
+}
+
+describe("schema upgrade from BurnMatrix (version 4) to v0.3 lots (version 5)", () => {
+  it("keeps every record including burn sessions and photo bytes, and adds empty suppliers and materialLots", async () => {
+    const name = fresh();
+    await makeV4Database(name);
+    expect(await rawVersion(name)).toBe(40);
+
+    const db = openDatabase(name);
+    await db.open();
+    expect(db.verno).toBe(5);
+    expect(db.tables.map((t) => t.name).sort()).toEqual(ALL_STORES);
+    const { plan, entries } = curePilotRecords();
+    const { session, photo } = burnMatrixRecords();
+    expect(byId(await db.materials.toArray())).toEqual(byId(V1.data.materials));
+    expect(byId(await db.formulas.toArray())).toEqual(byId(V1.data.formulas));
+    expect(byId(await db.formulaVersions.toArray())).toEqual(byId(V1.data.formulaVersions));
+    expect(byId(await db.measurements.toArray())).toEqual(byId(V1.data.measurements));
+    expect(byId(await db.batches.toArray())).toEqual(byId(batchTraceBatches()));
+    expect(await db.curePlans.toArray()).toEqual([plan]);
+    expect(byId(await db.productionPlans.toArray())).toEqual(byId(entries));
+    expect(await db.burnSessions.toArray()).toEqual([session]);
+    const stored = (await db.burnPhotos.get(photo.id))!;
+    expect({ ...stored, bytes: Array.from(stored.bytes) }).toEqual({ ...photo, bytes: Array.from(photo.bytes) });
+    expect(await db.suppliers.count()).toBe(0);
+    expect(await db.materialLots.count()).toBe(0);
+    expect((await db.drafts.get("new"))?.fields).toEqual({ name: "unsaved" });
+    expect((await db.meta.get("changesSinceBackup"))?.value).toBe(3);
+    expect(await db.burnSessions.where("milestoneId").equals(session.milestoneId).count()).toBe(1);
+    db.close();
+    expect(await rawVersion(name)).toBe(50);
+  });
+
+  it("an upgraded batch takes lots and keeps its cure plan and burn test; the trace read sees it all", async () => {
+    const name = fresh();
+    await makeV4Database(name);
+    const db = openDatabase(name);
+    const layer = createDataLayer(db);
+    const [labelled, bare] = batchTraceBatches();
+    const version = V1.data.formulaVersions[0]!;
+    const waxRow = version.inputs.waxes[0]!;
+    const supplier = await layer.suppliers.create({ name: "Example Wax Co" });
+    const lot = await layer.materialLots.create({ materialId: waxRow.materialId, supplierId: supplier.id, code: "LOT-TEST-001" });
+
+    // An edit written before v0.3 (no `lots`) still works on an upgraded batch.
+    const edited = await layer.batches.update(labelled!.id, {
+      producedOn: labelled!.producedOn,
+      label: "Nov pour",
+      notes: "Poured at 60 °C",
+      entries: labelled!.entries,
+    });
+    expect("lots" in edited).toBe(false);
+    const linked = await layer.batches.update(labelled!.id, {
+      producedOn: labelled!.producedOn,
+      label: "Nov pour",
+      entries: labelled!.entries,
+      lots: [{ part: "row", componentId: waxRow.componentId, lotId: lot.id }],
+    });
+    expect(linked.lots).toEqual([
+      { part: "row", componentId: waxRow.componentId, lotId: lot.id, lotCode: "LOT-TEST-001", supplierId: supplier.id, supplierName: "Example Wax Co" },
+    ]);
+    expect(linked.entries).toEqual(labelled!.entries);
+
+    const trace = await layer.batchTrace.read();
+    const byBatch = new Map(trace.items.map((item) => [item.batch.id, item]));
+    // The cure plan and the burn test are on the first (labelled) batch.
+    expect(byBatch.get(labelled!.id)).toMatchObject({ hasCurePlan: true, burnTestCount: 1 });
+    expect(byBatch.get(bare!.id)).toMatchObject({ hasCurePlan: false, burnTestCount: 0, lots: [] });
+    expect(byBatch.get(labelled!.id)!.lots[0]!.lot?.id).toBe(lot.id);
+    await expect(layer.materialLots.delete(lot.id)).rejects.toMatchObject({ code: "in-use" });
     db.close();
   });
 });

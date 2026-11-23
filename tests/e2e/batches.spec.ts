@@ -405,8 +405,8 @@ test("backup round trip restores batches in a clean browser", async ({
   const idB = await createBatch(page, { date: "2026-11-17", weights: { "Soy 464": "1000.5" } });
 
   const { file, backup } = await exportBackup(page, testInfo);
-  // The app now writes format 4 (BurnMatrix); batches are unchanged by it.
-  expect(backup.formatVersion).toBe(4);
+  // The app now writes format 5 (lots); batches are unchanged by it.
+  expect(backup.formatVersion).toBe(5);
   expect(backup.data.batches).toHaveLength(2);
   expect(backup.counts).toMatchObject({ batches: 2, formulas: 1 });
   expect(backup.data.batches.map((b: { id: string }) => b.id).sort()).toEqual(

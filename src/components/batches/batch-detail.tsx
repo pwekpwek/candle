@@ -22,6 +22,7 @@ import type { BatchInput, BatchListItem } from "@/lib/db";
 import { MESSAGES } from "@/lib/messages";
 import { ArchivedBadge } from "./archived-badge";
 import { BatchForm } from "./batch-form";
+import { LotsDetail } from "./lots-detail";
 import { batchTitle, formatProducedOn, versionHref } from "./text";
 
 const B = MESSAGES.batches;
@@ -202,6 +203,7 @@ function DetailBody({
           label: batch.label,
           notes: batch.notes,
           entries: batch.entries,
+          lots: batch.lots,
         }}
         submitLabel={B.saveChanges}
         busyLabel={B.savingChanges}
@@ -212,6 +214,8 @@ function DetailBody({
         storedProducedOn={batch.producedOn}
         onSubmit={save}
       />
+
+      <LotsDetail batch={batch} version={version} className="mt-8" />
 
       <CuringSection batchId={batch.id} producedOn={batch.producedOn} className="mt-8" />
 

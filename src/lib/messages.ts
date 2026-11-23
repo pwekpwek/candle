@@ -304,6 +304,17 @@ export function messageForCheckFailure(failure: CheckFailure): string {
           `${countOf(failure.burnPhotos, "photo")} ${failure.burnPhotos === 1 ? "refers" : "refer"} to a missing burn test`,
         );
       }
+      // Lot clauses WRITTEN HERE (v0.3 lots).
+      if (failure.materialLots > 0) {
+        parts.push(
+          `${countOf(failure.materialLots, "lot")} ${failure.materialLots === 1 ? "refers" : "refer"} to a missing material or supplier`,
+        );
+      }
+      if (failure.batchLots > 0) {
+        parts.push(
+          `${countOf(failure.batchLots, "batch", "batches")} ${failure.batchLots === 1 ? "refers" : "refer"} to a missing lot`,
+        );
+      }
       return `This backup is incomplete: ${parts.join(" and ")}.`;
     }
     default:
@@ -328,6 +339,9 @@ const SUMMARY_ORDER: readonly {
   // WRITTEN HERE (v0.2 BurnMatrix).
   { key: "burnSessions", singular: "burn test", plural: "burn tests" },
   { key: "burnPhotos", singular: "photo", plural: "photos" },
+  // WRITTEN HERE (v0.3 lots).
+  { key: "suppliers", singular: "supplier", plural: "suppliers" },
+  { key: "materialLots", singular: "lot", plural: "lots" },
 ];
 
 function countsList(counts: BackupCounts): string[] {
@@ -754,6 +768,66 @@ export const MESSAGES = {
     // WRITTEN HERE (v0.2 CurePilot)
     formulaDeletePlans: (count: number) =>
       `Its ${countOf(count, "planned production entry", "planned production entries")} will be deleted too.`,
+
+    // WRITTEN HERE (v0.3 lots): lots on the batch form and the batch page.
+    lotsHeading: "Lots",
+    lotsRecordedHeading: "Recorded lots",
+    lotsHint:
+      "Optional. Record the lot used for each component, so you can trace this batch later. Lots come from the lots list on the Materials page.",
+    lotsLoading: "Loading lots…",
+    lotsLoadFailed:
+      "Lots could not be loaded. Any lots already recorded on this batch are kept when you save.",
+    lotFieldLabel: (name: string) => `Lot for ${name}`,
+    lotFieldLabelWick: (name: string) => `Lot for wick ${name}`,
+    lotFieldLabelVessel: (name: string) => `Lot for vessel ${name}`,
+    lotNone: "No lot recorded",
+    lotReceivedOn: (date: string) => `received ${date}`,
+    lotArchivedOption: (text: string) => `${text} (archived)`,
+    lotMissingOption: (code: string) => `${code} (not found)`,
+    lotNoLotsHint: (name: string) => `No lots recorded for ${name} yet.`,
+    lotAddLink: "Add a lot",
+    partWax: "Wax",
+    partOil: "Fragrance oil",
+    partWick: "Wick",
+    partVessel: "Vessel",
+    lotSupplierLabel: (name: string) => `Supplier: ${name}`,
+    lotNoSupplier: "No supplier recorded",
+    lotNowCode: (code: string) => `Lot now recorded as ${code}`,
+    lotNowSupplier: (name: string | null) =>
+      name === null ? "Supplier now recorded as none" : `Supplier now recorded as ${name}`,
+    lotArchivedBadge: "Archived",
+    lotNotFound: "This lot is no longer on this device.",
+    rowLots: (codes: string) => `Lots: ${codes}`,
+  },
+
+  // WRITTEN HERE (v0.3 lots): search, filters and export on the Batches list.
+  batchTrace: {
+    searchLabel: "Search batches",
+    searchPlaceholder: "Batch label, formula, lot code or supplier",
+    filtersToggle: (active: number) => (active > 0 ? `Filters (${active})` : "Filters"),
+    formulaLabel: "Formula",
+    allFormulas: "All formulas",
+    fromLabel: "Produced from",
+    toLabel: "Produced to",
+    dateRangeError: "The from date is after the to date.",
+    lotLabel: "Lot",
+    allLots: "All lots",
+    lotOption: (code: string, material: string) => `${code} · ${material}`,
+    supplierLabel: "Supplier",
+    allSuppliers: "All suppliers",
+    unknownOption: "Not on this device",
+    curePlanLabel: "Cure plan",
+    burnTestsLabel: "Burn tests",
+    any: "Any",
+    withIt: "With",
+    withoutIt: "Without",
+    count: (shown: number, total: number) =>
+      `${shown} of ${total} ${total === 1 ? "batch" : "batches"}`,
+    clearFilters: "Clear filters",
+    exportCsv: "Export CSV",
+    exportFailed: "The CSV could not be downloaded. Try again.",
+    noMatchTitle: "No batches match",
+    noMatchDescription: "Change the search or the filters to see more batches.",
   },
 
   /**
@@ -1053,6 +1127,144 @@ export const MESSAGES = {
     allArchived: "All your materials are archived.",
   },
 
+  // WRITTEN HERE (v0.3 lots): supplier library screen, for owner review.
+  suppliers: {
+    title: "Suppliers",
+    description: "The places your materials come from. Kept on this device only.",
+    addSupplier: "Add supplier",
+    addTitle: "Add supplier",
+    editTitle: "Edit supplier",
+    empty: {
+      title: "No suppliers yet.",
+      description: "Add a supplier to record where a lot of material came from.",
+      action: "Add supplier",
+    },
+    backToMaterials: "Materials",
+    lotsLink: "Lots",
+    showArchived: "Show archived",
+    allArchived: "All your suppliers are archived.",
+    archivedTag: "Archived",
+    lotCount: (count: number) => `${countOf(count, "lot")}`,
+    batchCount: (count: number) => `Named on ${countOf(count, "batch", "batches")}`,
+    nameLabel: "Name",
+    notesLabel: "Contact notes (optional)",
+    nameRequired: "Enter a supplier name.",
+    nameTooLong: "Use 80 characters or fewer.",
+    nameDuplicate: "A supplier with this name already exists. Archived suppliers count too.",
+    notesTooLong: "Use 2000 characters or fewer.",
+    save: "Save",
+    cancel: "Cancel",
+    edit: "Edit",
+    archive: "Archive",
+    unarchive: "Unarchive",
+    delete: "Delete",
+    editLabel: (name: string) => `Edit supplier ${name}`,
+    archiveLabel: (name: string) => `Archive supplier ${name}`,
+    unarchiveLabel: (name: string) => `Unarchive supplier ${name}`,
+    deleteLabel: (name: string) => `Delete supplier ${name}`,
+    usedHint: "Used by lots or batches, so it can only be archived.",
+    deleteTitle: "Delete this supplier?",
+    deleteBody: (name: string) =>
+      `${name} will be removed from this device. No lot or batch uses it. This cannot be undone.`,
+    deleteConfirm: "Delete supplier",
+    deleteInUse: "A lot or batch now uses this supplier, so it was not deleted. Archive it instead.",
+    deleteFailed: "Could not delete the supplier. Nothing was changed. Try again.",
+    addedDone: "Added.",
+    savedDone: "Saved.",
+    archivedDone: "Archived.",
+    unarchivedDone: "Unarchived.",
+    deletedDone: "Deleted.",
+    fixFirst: "Fix the highlighted fields, then save again.",
+    loading: "Loading suppliers…",
+    loadFailedTitle: "Could not load your suppliers.",
+    loadFailed: "Your data is still on this device. Try again.",
+    retry: "Try again",
+    saveFailedTitle: "Not saved.",
+    saveFailed: "Something went wrong and nothing was changed. Try again.",
+    saveInvalid: "The supplier was not saved. Check the name, then try again.",
+    saveGone: "This supplier could not be found, so nothing was saved.",
+    saveStorageFull:
+      "This device is out of space for this site, so the supplier was not saved. Your entries are still in the form. Making a backup and deleting old records frees space.",
+    archiveFailed: "Could not change the archived state. Try again.",
+  },
+
+  // WRITTEN HERE (v0.3 lots): material lot screen, for owner review.
+  lots: {
+    title: "Lots",
+    description: "The lot codes of the materials you hold. Kept on this device only.",
+    addLot: "Add lot",
+    addTitle: "Add lot",
+    editTitle: "Edit lot",
+    empty: {
+      title: "No lots yet.",
+      description: "Add a lot to record the code and supplier of a material you hold.",
+      action: "Add lot",
+    },
+    materialEmpty: (materialName: string) => `No lots for ${materialName} yet.`,
+    materialsLink: "Materials",
+    suppliersLink: "Suppliers",
+    filterMaterialLabel: "Filter by material",
+    filterAllMaterials: "All materials",
+    showArchived: "Show archived",
+    allArchived: "All your lots are archived.",
+    archivedTag: "Archived",
+    lotCount: (count: number) => countOf(count, "lot"),
+    usedIn: (count: number) => `Used in ${countOf(count, "batch", "batches")}`,
+    noSupplier: "No supplier",
+    received: (date: string) => `Received ${date}`,
+    receivedUnknown: "Received date not recorded",
+    materialLabel: "Material",
+    materialChoose: "Choose a material…",
+    materialFixedHint: "The material cannot be changed after the lot is added.",
+    noMaterials: "Add a material before adding a lot.",
+    supplierLabel: "Supplier",
+    supplierArchivedOption: (name: string) => `${name} (archived)`,
+    codeLabel: "Lot code",
+    receivedLabel: "Received date (optional)",
+    notesLabel: "Notes (optional)",
+    materialRequired: "Choose a material.",
+    codeRequired: "Enter a lot code.",
+    codeTooLong: "Use 60 characters or fewer.",
+    codeDuplicate: "This material and supplier already have a lot with this code.",
+    receivedInvalid: "Enter a real date.",
+    receivedFuture: "The received date cannot be in the future.",
+    notesTooLong: "Use 2000 characters or fewer.",
+    save: "Save",
+    cancel: "Cancel",
+    edit: "Edit",
+    archive: "Archive",
+    unarchive: "Unarchive",
+    delete: "Delete",
+    editLabel: (code: string) => `Edit lot ${code}`,
+    archiveLabel: (code: string) => `Archive lot ${code}`,
+    unarchiveLabel: (code: string) => `Unarchive lot ${code}`,
+    deleteLabel: (code: string) => `Delete lot ${code}`,
+    usedHint: "Used by batches, so it can only be archived.",
+    deleteTitle: "Delete this lot?",
+    deleteBody: (code: string) =>
+      `Lot ${code} will be removed from this device. No batch uses it. This cannot be undone.`,
+    deleteConfirm: "Delete lot",
+    deleteInUse: "A batch now uses this lot, so it was not deleted. Archive it instead.",
+    deleteFailed: "Could not delete the lot. Nothing was changed. Try again.",
+    addedDone: "Added.",
+    savedDone: "Saved.",
+    archivedDone: "Archived.",
+    unarchivedDone: "Unarchived.",
+    deletedDone: "Deleted.",
+    fixFirst: "Fix the highlighted fields, then save again.",
+    loading: "Loading lots…",
+    loadFailedTitle: "Could not load your lots.",
+    loadFailed: "Your data is still on this device. Try again.",
+    retry: "Try again",
+    saveFailedTitle: "Not saved.",
+    saveFailed: "Something went wrong and nothing was changed. Try again.",
+    saveInvalid: "The lot was not saved. Check the material, supplier and code, then try again.",
+    saveGone: "The lot, material or supplier could not be found, so nothing was saved.",
+    saveStorageFull:
+      "This device is out of space for this site, so the lot was not saved. Your entries are still in the form. Making a backup and deleting old records frees space.",
+    archiveFailed: "Could not change the archived state. Try again.",
+  },
+
   /** Backup and restore (F6, F7). */
   backup: {
     title: "Backup and restore",
@@ -1098,8 +1310,9 @@ export const MESSAGES = {
     useBackupCopy: "Use the backup's copy",
     /** Replace confirmation. WRITTEN HERE, except "safety backup" (F7 step 5, DATA-23). */
     // WRITTEN HERE (v0.2 integration QA): names everything Replace removes.
+    // Suppliers and lots added: WRITTEN HERE (v0.3 lots).
     replaceWarning:
-      "This removes every formula, version, material, measurement, batch, cure plan, planned production entry, burn test and burn test photo on this device and writes the backup in their place. A safety backup of current data downloads first.",
+      "This removes every formula, version, material, measurement, batch, cure plan, planned production entry, burn test, burn test photo, supplier and lot on this device and writes the backup in their place. A safety backup of current data downloads first.",
     typeReplace: "Type REPLACE to confirm.",
     dontCloseTab: "Don't close this tab.",
     openSaved: "Open saved formulas",
@@ -1210,6 +1423,30 @@ export const MESSAGES = {
     sootLight: "Light",
     sootModerate: "Moderate",
     sootHeavy: "Heavy",
+  },
+
+  // WRITTEN HERE (v0.3 lots): batch CSV headers.
+  batchCsv: {
+    batch: "Batch",
+    batchId: "Batch ID",
+    productionDate: "Production date",
+    formula: "Formula",
+    version: "Version",
+    component: "Component",
+    material: "Material",
+    plannedG: "Planned (g)",
+    measuredG: "Measured (g)",
+    lotCode: "Lot code",
+    supplier: "Supplier",
+    lotReceived: "Lot received",
+    curePlan: "Cure plan",
+    burnTests: "Burn tests",
+    componentWax: "Wax",
+    componentOil: "Fragrance oil",
+    componentWick: "Wick",
+    componentVessel: "Vessel",
+    yes: "Yes",
+    no: "No",
   },
 
   /** Photos of a burn session (v0.2 BurnMatrix). WRITTEN HERE (v0.2 BurnMatrix): for owner review. */

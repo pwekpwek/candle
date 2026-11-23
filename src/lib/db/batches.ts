@@ -1,6 +1,6 @@
-import { BatchSchema, ProductionPlanSchema } from "@/lib/schemas";
-import type { Batch, FormulaVersion, MeasurementEntry } from "@/lib/types";
-import type { BatchInput, BatchListItem, BatchesRepo, CandleDatabase } from "./contract";
+import { BatchSchema, ProductionPlanSchema, batchLotSlot } from "@/lib/schemas";
+import type { Batch, BatchLot, FormulaVersion, MeasurementEntry } from "@/lib/types";
+import type { BatchInput, BatchLotInput, BatchListItem, BatchesRepo, CandleDatabase } from "./contract";
 import { DataError, guard, notFound, parseRecord } from "./errors";
 import { bumpChangeCounter } from "./meta";
 
@@ -36,16 +36,90 @@ function checkEntries(version: FormulaVersion, entries: readonly MeasurementEntr
   return entries.map((entry) => ({ componentId: entry.componentId, actualMg: entry.actualMg }));
 }
 
-/** The editable part of a batch record, trimmed, with blank optional text left out. */
-function editable(version: FormulaVersion, input: BatchInput) {
+/**
+ * The editable part of a batch record, trimmed, with blank optional text left
+ * out. `lots` is already resolved (`resolveLots`); empty leaves the field out.
+ */
+function editable(version: FormulaVersion, input: BatchInput, lots: readonly BatchLot[]) {
   const label = optionalText(input.label);
   const notes = optionalText(input.notes);
   return {
     producedOn: input.producedOn,
     ...(label !== undefined ? { label } : {}),
     entries: checkEntries(version, input.entries ?? []),
+    ...(lots.length > 0 ? { lots: [...lots] } : {}),
     ...(notes !== undefined ? { notes } : {}),
   };
+}
+
+type LotSlot = { key: string; part: BatchLot["part"]; componentId?: string; materialId: string };
+
+/** The version's components a lot can be recorded for, in the version's order, with their material. */
+function lotSlots(version: FormulaVersion): LotSlot[] {
+  const { waxes, oils, wick, vessel } = version.inputs;
+  const slots: LotSlot[] = [...waxes, ...oils].map((row) => ({
+    key: batchLotSlot({ part: "row", componentId: row.componentId }),
+    part: "row",
+    componentId: row.componentId,
+    materialId: row.materialId,
+  }));
+  if (wick) slots.push({ key: "wick", part: "wick", materialId: wick.materialId });
+  if (vessel) slots.push({ key: "vessel", part: "vessel", materialId: vessel.materialId });
+  return slots;
+}
+
+/**
+ * v0.3: checks the lot links the form sent and snapshots them
+ * (docs/v0.3-lots.md). A link whose lot is unchanged on that component keeps
+ * the stored snapshot (`stored`); a new or changed one takes the lot's code
+ * and supplier as they are now, and must not name an archived lot. Returned in
+ * the version's order. Only Dexie operations are awaited.
+ */
+export async function resolveLots(
+  db: CandleDatabase,
+  version: FormulaVersion,
+  input: readonly BatchLotInput[],
+  stored: readonly BatchLot[],
+): Promise<BatchLot[]> {
+  const slots = lotSlots(version);
+  const slotByKey = new Map(slots.map((slot) => [slot.key, slot]));
+  const storedByKey = new Map(stored.map((link) => [batchLotSlot(link), link]));
+  const chosen = new Map<string, BatchLot>();
+  for (const link of input) {
+    if ((link.part === "row") !== (link.componentId !== undefined)) {
+      throw new DataError("invalid", "A lot on a wax or oil row names its component; a wick or vessel lot does not.");
+    }
+    const key = batchLotSlot(link);
+    const slot = slotByKey.get(key);
+    if (!slot) throw new DataError("invalid", `Component ${key} is not in version ${version.id}.`);
+    if (chosen.has(key)) throw new DataError("invalid", `Component ${key} has two lots.`);
+    const lot = await db.materialLots.get(link.lotId);
+    if (!lot) throw notFound("Lot", link.lotId);
+    if (lot.materialId !== slot.materialId) {
+      throw new DataError("invalid", `Lot ${lot.id} is not a lot of the material used for ${key}.`);
+    }
+    const kept = storedByKey.get(key);
+    if (kept && kept.lotId === lot.id) {
+      chosen.set(key, kept);
+      continue;
+    }
+    if (lot.archivedAt !== null) throw new DataError("invalid", `Lot ${lot.id} is archived.`);
+    let supplierName: string | undefined;
+    if (lot.supplierId !== null) {
+      const supplier = await db.suppliers.get(lot.supplierId);
+      if (!supplier) throw notFound("Supplier", lot.supplierId);
+      supplierName = supplier.name;
+    }
+    chosen.set(key, {
+      part: slot.part,
+      ...(slot.componentId !== undefined ? { componentId: slot.componentId } : {}),
+      lotId: lot.id,
+      lotCode: lot.code,
+      supplierId: lot.supplierId,
+      ...(supplierName !== undefined ? { supplierName } : {}),
+    });
+  }
+  return slots.map((slot) => chosen.get(slot.key)).filter((link): link is BatchLot => link !== undefined);
 }
 
 /**
@@ -115,7 +189,7 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
 
     create: (request) =>
       guard(() =>
-        db.transaction("rw", [db.batches, db.formulaVersions, db.formulas, db.productionPlans, db.meta], async () => {
+        db.transaction("rw", [db.batches, db.formulaVersions, db.formulas, db.productionPlans, db.materialLots, db.suppliers, db.meta], async () => {
           // Idempotent: a retry with the same id writes nothing.
           const already = await db.batches.get(request.batchId);
           if (already) return { batch: already, created: false };
@@ -135,6 +209,7 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
             throw new DataError("invalid", `Production plan ${entry.id} already has a batch.`);
           }
 
+          const lots = await resolveLots(db, version, request.lots ?? [], []);
           const timestamp = now();
           const batch = parseRecord(
             BatchSchema,
@@ -142,7 +217,7 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
               id: request.batchId,
               formulaId: version.formulaId,
               versionId: version.id,
-              ...editable(version, request),
+              ...editable(version, request, lots),
               createdAt: timestamp,
               updatedAt: timestamp,
             },
@@ -164,7 +239,7 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
 
     update: (id, input) =>
       guard(() =>
-        db.transaction("rw", [db.batches, db.formulaVersions, db.burnSessions, db.meta], async () => {
+        db.transaction("rw", [db.batches, db.formulaVersions, db.burnSessions, db.materialLots, db.suppliers, db.meta], async () => {
           const existing = await db.batches.get(id);
           if (!existing) throw notFound("Batch", id);
           const version = await db.formulaVersions.get(existing.versionId);
@@ -180,6 +255,9 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
               `Batch ${id} has a burn test dated ${earliest}; the production date cannot be later.`,
             );
           }
+          // v0.3: no `lots` in the input keeps the stored links as they are.
+          const stored = existing.lots ?? [];
+          const lots = input.lots === undefined ? stored : await resolveLots(db, version, input.lots, stored);
           const batch = parseRecord(
             BatchSchema,
             {
@@ -187,7 +265,7 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
               id: existing.id,
               formulaId: existing.formulaId,
               versionId: existing.versionId,
-              ...editable(version, input),
+              ...editable(version, input, lots),
               createdAt: existing.createdAt,
               updatedAt: now(),
             },

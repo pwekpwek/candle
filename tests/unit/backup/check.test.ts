@@ -7,7 +7,7 @@ import type { BackupEnvelope } from "@/lib/types";
 
 const dir = join(process.cwd(), "tests", "fixtures", "backups");
 const read = (name: string) => readFileSync(join(dir, name), "utf8");
-const none: DeviceIds = { formulaIds: new Set(), versionIds: new Set(), batchIds: new Set(), burnSessionIds: new Set<string>() };
+const none: DeviceIds = { formulaIds: new Set(), versionIds: new Set(), batchIds: new Set(), burnSessionIds: new Set<string>(), materialIds: new Set<string>(), supplierIds: new Set<string>(), lotIds: new Set<string>() };
 const UUID = "11111111-1111-4111-8111-111111111111";
 const UUID2 = "22222222-2222-4222-8222-222222222222";
 
@@ -26,13 +26,13 @@ function goodV1(): BackupEnvelope {
   return JSON.parse(read("good.json")) as BackupEnvelope;
 }
 
-/** good.json as the current format (4): the same records plus empty `batches`, `curePlans`, `productionPlans`, `burnSessions` and `burnPhotos`. */
+/** good.json as the current format (5): the same records plus empty `batches`, `curePlans`, `productionPlans`, `burnSessions`, `burnPhotos`, `suppliers` and `materialLots`. */
 function good(): BackupEnvelope {
   const env = goodV1();
-  env.formatVersion = 4;
-  env.schemaVersion = 4;
-  env.data = { ...env.data, batches: [], curePlans: [], productionPlans: [], burnSessions: [], burnPhotos: [] };
-  env.counts = { ...env.counts, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 };
+  env.formatVersion = 5;
+  env.schemaVersion = 5;
+  env.data = { ...env.data, batches: [], curePlans: [], productionPlans: [], burnSessions: [], burnPhotos: [], suppliers: [], materialLots: [] };
+  env.counts = { ...env.counts, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 };
   return env;
 }
 
@@ -54,6 +54,8 @@ async function build(
       productionPlans: env.data.productionPlans.length,
       burnSessions: env.data.burnSessions.length,
       burnPhotos: env.data.burnPhotos.length,
+      suppliers: env.data.suppliers.length,
+      materialLots: env.data.materialLots.length,
     };
   }
   if (options.checksum !== false) {
@@ -74,8 +76,8 @@ describe("TEST-23 fixtures", () => {
     if (result.ok) {
       expect(result.envelope).toEqual({
         ...parsed,
-        counts: { ...parsed.counts, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 },
-        data: { ...parsed.data, batches: [], curePlans: [], productionPlans: [], burnSessions: [], burnPhotos: [] },
+        counts: { ...parsed.counts, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 },
+        data: { ...parsed.data, batches: [], curePlans: [], productionPlans: [], burnSessions: [], burnPhotos: [], suppliers: [], materialLots: [] },
       });
     }
   });
@@ -91,7 +93,7 @@ describe("TEST-23 fixtures", () => {
     ["bad-08-checksum-mismatch.json", { code: "checksum" }],
     ["bad-09-truncated.json", { code: "not-backup" }],
     ["bad-10-duplicate-ids.json", { code: "duplicates" }],
-    ["bad-11-orphaned-version.json", { code: "orphans", versions: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 }],
+    ["bad-11-orphaned-version.json", { code: "orphans", versions: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, materialLots: 0, batchLots: 0 }],
   ])("%s is refused", async (name, expected) => {
     const f = await failure(read(name));
     expect(f).toMatchObject(expected);
@@ -240,7 +242,7 @@ describe("later checks", () => {
     const text = await build((env) => {
       env.data.measurements[0]!.versionId = UUID;
     });
-    expect(await failure(text)).toEqual({ code: "orphans", versions: 0, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 });
+    expect(await failure(text)).toEqual({ code: "orphans", versions: 0, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, materialLots: 0, batchLots: 0 });
   });
 
   it("orphans: both kinds are counted", async () => {
@@ -248,7 +250,7 @@ describe("later checks", () => {
       env.data.formulaVersions[0]!.formulaId = UUID;
       env.data.measurements[0]!.versionId = UUID;
     });
-    expect(await failure(text)).toEqual({ code: "orphans", versions: 1, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0 });
+    expect(await failure(text)).toEqual({ code: "orphans", versions: 1, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, materialLots: 0, batchLots: 0 });
   });
 
   it("orphans are satisfied by ids already on the device", async () => {
@@ -256,7 +258,7 @@ describe("later checks", () => {
       env.data.formulaVersions[0]!.formulaId = UUID;
       env.data.measurements[0]!.versionId = UUID2;
     });
-    const device: DeviceIds = { formulaIds: new Set([UUID]), versionIds: new Set([UUID2]), batchIds: new Set(), burnSessionIds: new Set<string>() };
+    const device: DeviceIds = { formulaIds: new Set([UUID]), versionIds: new Set([UUID2]), batchIds: new Set(), burnSessionIds: new Set<string>(), materialIds: new Set<string>(), supplierIds: new Set<string>(), lotIds: new Set<string>() };
     expect((await run(text, device)).ok).toBe(true);
     expect((await run(text)).ok).toBe(false);
   });
@@ -297,6 +299,6 @@ describe("order of checks", () => {
     env.counts.formulas += 1;
     delete asRecord(env.data.formulaVersions[0]).targets;
     expect((await failure(JSON.stringify(env))).code).toBe("invalid");
-    expect((await failure(JSON.stringify({ ...env, formatVersion: 5 }))).code).toBe("newer");
+    expect((await failure(JSON.stringify({ ...env, formatVersion: 6 }))).code).toBe("newer");
   });
 });

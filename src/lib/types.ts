@@ -164,9 +164,71 @@ export type Batch = {
   producedOn: string;
   /** Measured weights for the version's components. Only entered ones. */
   entries: MeasurementEntry[];
+  /**
+   * v0.3: the material lot used for each component, at most one per component,
+   * in the version's order (waxes, oils, wick, vessel). Absent when none is
+   * recorded, so every v0.2 batch stays valid. See docs/v0.3-lots.md.
+   */
+  lots?: BatchLot[];
   notes?: string;
   createdAt: string;
   updatedAt: string;
+};
+
+/** Which component of the batch's version a lot is recorded for (v0.3). */
+export type BatchLotPart = "row" | "wick" | "vessel";
+
+/**
+ * One lot recorded on a batch (v0.3). `lotId` links the lot; the code and the
+ * supplier are snapshots taken when the link was made, so the batch keeps what
+ * was recorded even after the lot or supplier is edited.
+ */
+export type BatchLot = {
+  part: BatchLotPart;
+  /** A wax or oil row of the version. Present exactly when `part` is "row". */
+  componentId?: string;
+  lotId: string;
+  /** The lot's code when it was linked. */
+  lotCode: string;
+  /** The lot's supplier when it was linked, or null. */
+  supplierId: string | null;
+  /** That supplier's name when it was linked. Absent without a supplier. */
+  supplierName?: string;
+};
+
+/**
+ * Store `suppliers` (v0.3). The maker's own list of suppliers, kept on the
+ * device. Archived suppliers are hidden from pickers for new choices.
+ */
+export type Supplier = {
+  id: string;
+  /** 1–MAX_SUPPLIER_NAME_LENGTH characters after trimming; unique, case-insensitive. */
+  name: string;
+  /** Contact notes, up to MAX_TRACE_NOTES_LENGTH characters. */
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+};
+
+/**
+ * Store `materialLots` (v0.3). One lot of one library material, optionally
+ * from one supplier. No quantities: lots are for tracing, not stock. Once a
+ * batch links it, a lot can only be archived, never deleted.
+ */
+export type MaterialLot = {
+  id: string;
+  /** Fixed at creation. */
+  materialId: string;
+  supplierId: string | null;
+  /** The lot code, 1–MAX_LOT_CODE_LENGTH characters after trimming. */
+  code: string;
+  /** Date received (YYYY-MM-DD), local calendar. Optional. */
+  receivedOn?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
 };
 
 export type CureMilestoneKind = "cureEnd" | "burnTest" | "check";
@@ -350,6 +412,8 @@ export const DATA_STORES = [
   "productionPlans",
   "burnSessions",
   "burnPhotos",
+  "suppliers",
+  "materialLots",
 ] as const;
 export type DataStoreName = (typeof DATA_STORES)[number];
 
@@ -364,24 +428,35 @@ export type BackupData = {
   burnSessions: BurnSession[];
   /** Photos in their backup form (base64 bytes); the device stores `BurnPhoto`. */
   burnPhotos: BurnPhotoBackup[];
+  /** v0.3 (format 5). */
+  suppliers: Supplier[];
+  materialLots: MaterialLot[];
 };
 
 export type BackupCounts = Record<DataStoreName, number>;
 
 export const BACKUP_FORMAT = "candlelab-backup" as const;
 /**
- * 4 since v0.2 BurnMatrix (adds `burnSessions`, `burnPhotos`); 3 added
- * `curePlans` and `productionPlans`; 2 added `batches`. Format 1 to 3 files
- * are migrated on restore.
+ * 5 since v0.3 (adds `suppliers`, `materialLots`, and lot links on batches);
+ * 4 (BurnMatrix) added `burnSessions` and `burnPhotos`; 3 added `curePlans`
+ * and `productionPlans`; 2 added `batches`. Format 1 to 4 files are migrated
+ * on restore.
  */
-export const BACKUP_FORMAT_VERSION = 4 as const;
+export const BACKUP_FORMAT_VERSION = 5 as const;
 /**
- * IndexedDB schema. 4 since v0.2 BurnMatrix; 3 (CurePilot) added cure plans
- * and production entries; 2 added the `batches` store.
+ * IndexedDB schema. 5 since v0.3 (suppliers and lots); 4 (BurnMatrix) added
+ * burn sessions and photos; 3 (CurePilot) added cure plans and production
+ * entries; 2 added the `batches` store.
  */
-export const SCHEMA_VERSION = 4 as const;
+export const SCHEMA_VERSION = 5 as const;
 export const CALC_VERSION = 1 as const;
-export const APP_VERSION = "0.2.0" as const;
+export const APP_VERSION = "0.3.0" as const;
+/** v0.3: longest supplier name after trimming. */
+export const MAX_SUPPLIER_NAME_LENGTH = 80 as const;
+/** v0.3: longest lot code after trimming. */
+export const MAX_LOT_CODE_LENGTH = 60 as const;
+/** v0.3: longest supplier or lot notes after trimming. */
+export const MAX_TRACE_NOTES_LENGTH = 2000 as const;
 /** Longest batch label after trimming. */
 export const MAX_BATCH_LABEL_LENGTH = 40 as const;
 /** Longest production entry label after trimming (same as a batch label). */
