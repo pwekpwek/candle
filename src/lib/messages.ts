@@ -2465,7 +2465,11 @@ export const MESSAGES = {
     rowTotalTime: "Total burn time",
     rowTotalLoss: "Total weight loss",
     rowAverageRate: "Average weight loss per hour",
-    rowMeltPool: "Largest melt pool diameter",
+    // Reworded after the Codex CandleFix review (2026-11-29): the figure is each candle's
+    // last recorded diameter, then the largest of those. WRITTEN HERE (v0.3 CandleFix follow-up).
+    rowMeltPool: "Last melt pool diameter (largest candle)",
+    meltPoolNote:
+      "Last melt pool diameter: the last diameter recorded for each candle, then the largest of those candles.",
     rowFlame: "Largest flame height",
     rowSoot: "Soot seen",
     notApplicable: "Not applicable",

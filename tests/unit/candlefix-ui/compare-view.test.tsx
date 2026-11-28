@@ -48,6 +48,8 @@ describe("before-and-after view", () => {
     expect(row(M.rowTotalTime).textContent).toContain("7 h");
     expect(row(M.rowTotalLoss).textContent).toContain("11.50 g");
     expect(row(M.rowMeltPool).textContent).toContain("62 mm");
+    // The label and note say how the figure is made: each candle's last diameter, then the largest.
+    expect(screen.getByTestId("melt-pool-note").textContent).toBe(M.meltPoolNote);
     expect(row(M.rowSoot).textContent).toContain(MESSAGES.burnCompare.sootLight);
     // No flame height was written down on either batch.
     expect(row(M.rowFlame).textContent).toContain(M.notRecorded);
