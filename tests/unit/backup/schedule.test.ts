@@ -97,17 +97,20 @@ async function asFormat2(env: BackupEnvelope): Promise<string> {
   delete data.burnPhotos;
   delete data.suppliers;
   delete data.materialLots;
+  delete data.investigations;
+  delete data.investigationPhotos;
+  delete data.correctiveExperiments;
   copy.formatVersion = 2;
   copy.schemaVersion = 2;
   return rebuild(copy);
 }
 
-describe("backup export with cure plans (format 4 since BurnMatrix, 5 since lots)", () => {
+describe("backup export with cure plans (format 4 since BurnMatrix, 5 since lots, 6 since CandleFix)", () => {
   it("exports cure plans and production entries with the current format and schema, counts and a checksum over every store", async () => {
     const { device, curePlan, open, made } = await sourceWithSchedule();
     const { envelope, json } = await exportBackup(device.db, { now: () => NOW });
-    expect(envelope.formatVersion).toBe(5);
-    expect(envelope.schemaVersion).toBe(5);
+    expect(envelope.formatVersion).toBe(6);
+    expect(envelope.schemaVersion).toBe(6);
     expect(envelope.counts).toMatchObject({ batches: 2, curePlans: 1, productionPlans: 2 });
     expect(envelope.data.curePlans).toEqual([curePlan]);
     expect(envelope.data.productionPlans.map((p) => p.id)).toEqual([open.id, made.id].sort());
@@ -124,6 +127,9 @@ describe("backup export with cure plans (format 4 since BurnMatrix, 5 since lots
       "burnPhotos",
       "suppliers",
       "materialLots",
+      "investigations",
+      "investigationPhotos",
+      "correctiveExperiments",
     ]);
     expect(BackupEnvelopeSchema.safeParse(JSON.parse(json)).success).toBe(true);
   });
@@ -215,7 +221,7 @@ describe("older backup formats", () => {
     const result = await check(text, fresh);
     if (!result.ok) throw new Error(result.failure.code);
     expect(result.envelope.checksum).toEqual(file.checksum);
-    expect(result.envelope.counts).toEqual({ ...file.counts, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 });
+    expect(result.envelope.counts).toEqual({ ...file.counts, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 });
     const applied = await applyRestore(fresh.db, await planFor(fresh.db, result.envelope));
     expect(applied.ok).toBe(true);
     const batches = await fresh.db.batches.toArray();
@@ -237,7 +243,7 @@ describe("older backup formats", () => {
     expect(result.envelope.formatVersion).toBe(2);
     expect(result.envelope.data.curePlans).toEqual([]);
     expect(result.envelope.data.productionPlans).toEqual([]);
-    expect(result.envelope.counts).toMatchObject({ batches: 2, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 });
+    expect(result.envelope.counts).toMatchObject({ batches: 2, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 });
     const applied = await applyRestore(fresh.db, await planFor(fresh.db, result.envelope));
     expect(applied.ok).toBe(true);
     expect(await fresh.db.batches.count()).toBe(2);
@@ -255,10 +261,10 @@ describe("older backup formats", () => {
     expect(await failureOf(await rebuild(v3Without), setup())).toMatchObject({ code: "invalid" });
   });
 
-  it("refuses a format 6 file as newer", async () => {
+  it("refuses a format 7 file as newer", async () => {
     const { device } = await sourceWithSchedule();
     const { envelope } = await exportBackup(device.db, { now: () => NOW });
-    envelope.formatVersion = 6;
+    envelope.formatVersion = 7;
     expect(await failureOf(await rebuild(envelope), setup())).toEqual({ code: "newer" });
   });
 });
@@ -287,6 +293,9 @@ describe("cure plan and entry links on restore (orphan check)", () => {
       burnPhotos: 0,
       materialLots: 0,
       batchLots: 0,
+      investigations: 0,
+      investigationPhotos: 0,
+      correctiveExperiments: 0,
     });
   });
 

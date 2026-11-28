@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { BurnPhoto } from "@/lib/types";
+import type { PhotoLike } from "./adapters";
 
 /**
  * Object URLs for stored photos, keyed by photo id. They are made after
  * mount (never while prerendering) and revoked when the photos change or
  * the component unmounts.
  */
-export function usePhotoUrls(photos: BurnPhoto[]): Record<string, string> {
+export function usePhotoUrls(photos: PhotoLike[]): Record<string, string> {
   const [urls, setUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {

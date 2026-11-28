@@ -18,8 +18,10 @@
  *
  * Rules every write follows:
  *   - DATA-13: each committed write to materials, formulas, formulaVersions,
- *     measurements, batches, curePlans, productionPlans, burnSessions or
- *     burnPhotos adds 1 to meta `changesSinceBackup`, inside the same
+ *     measurements, batches, curePlans, productionPlans, burnSessions,
+ *     burnPhotos, suppliers, materialLots, investigations,
+ *     investigationPhotos or correctiveExperiments adds 1 to meta
+ *     `changesSinceBackup`, inside the same
  *     transaction as the write (one bump per repository call).
  *   - Timestamps come from the injected clock (`createDataLayer(db, { now })`),
  *     default `() => new Date().toISOString()`. IDs come from the injected
@@ -38,11 +40,16 @@ import type {
   BatchLotPart,
   BurnPhoto,
   BurnSession,
+  CorrectiveExperiment,
   CureMilestone,
   CureMilestoneKind,
   CurePlan,
   Formula,
+  FixIssue,
   FormulaVersion,
+  HypothesisStatus,
+  Investigation,
+  InvestigationPhoto,
   Material,
   MaterialLot,
   MaterialType,
@@ -69,7 +76,9 @@ export type DataErrorCode =
   | "calculation"
   /**
    * Another record refers to this one, so it cannot be removed (v0.2: a
-   * formula with batches; BurnMatrix: a batch with burn sessions).
+   * formula with batches; BurnMatrix: a batch with burn sessions; CandleFix:
+   * a batch with an investigation or that is a follow-up, a burn test an
+   * experiment lists, a hypothesis an experiment names).
    */
   | "in-use"
   /** BurnMatrix: the browser refused the write because device storage is full (QuotaExceededError). */
@@ -89,9 +98,9 @@ export interface DataErrorLike extends Error {
 export type MetaRow = { key: string; value: unknown };
 
 /**
- * The Dexie database. Stores and indexes (schema version 5; batches added in
+ * The Dexie database. Stores and indexes (schema version 6; batches added in
  * 2, curePlans and productionPlans in 3, burnSessions and burnPhotos in 4,
- * suppliers and materialLots in 5):
+ * suppliers and materialLots in 5, the CandleFix stores in 6):
  *   materials        id, type, archivedAt
  *   formulas         id, updatedAt, archivedAt
  *   formulaVersions  id, formulaId, &[formulaId+number]
@@ -103,6 +112,9 @@ export type MetaRow = { key: string; value: unknown };
  *   burnPhotos       id, sessionId
  *   suppliers        id, name
  *   materialLots     id, materialId, supplierId
+ *   investigations         id, batchId, observedOn
+ *   investigationPhotos    id, investigationId
+ *   correctiveExperiments  id, investigationId, followUpBatchId, *burnSessionIds
  *   drafts           key
  *   meta             key
  */
@@ -118,6 +130,9 @@ export type CandleDatabase = Dexie & {
   burnPhotos: EntityTable<BurnPhoto, "id">;
   suppliers: EntityTable<Supplier, "id">;
   materialLots: EntityTable<MaterialLot, "id">;
+  investigations: EntityTable<Investigation, "id">;
+  investigationPhotos: EntityTable<InvestigationPhoto, "id">;
+  correctiveExperiments: EntityTable<CorrectiveExperiment, "id">;
   drafts: EntityTable<Draft, "key">;
   meta: EntityTable<MetaRow, "key">;
 };
@@ -342,18 +357,30 @@ export type BatchesRepo = {
    * v0.3: `input.lots` absent keeps the stored lot links.
    * Integration QA: throws "invalid" when `producedOn` is later than the batch's earliest
    * burn test (`testedOn`), since a burn test is never dated before its batch was made.
+   * CandleFix: likewise for the earliest investigation (`observedOn`).
    */
   update(id: string, input: BatchInput): Promise<Batch>;
   /**
    * For the delete confirmation (CurePilot): what goes or changes with the
    * batch. BurnMatrix: `burnSessions` > 0 means the delete will be refused.
+   * CandleFix: so does `investigations` > 0 (investigations recorded on the
+   * batch) or `followUpExperiments` > 0 (experiments that use it as their
+   * follow-up batch).
    */
-  deletionImpact(id: string): Promise<{ milestones: number; productionPlans: number; burnSessions: number }>;
+  deletionImpact(id: string): Promise<{
+    milestones: number;
+    productionPlans: number;
+    burnSessions: number;
+    investigations: number;
+    followUpExperiments: number;
+  }>;
   /**
    * Removes one batch, after the maker confirmed. CurePilot: its cure plan is
    * deleted in the same transaction, and a planned production entry that made
    * it becomes open again (`batchId` back to null). BurnMatrix: refused with
    * "in-use" while the batch has burn sessions (they are observations).
+   * CandleFix: also refused with "in-use" while the batch has an investigation
+   * or is the follow-up batch of a corrective experiment.
    */
   delete(id: string): Promise<void>;
 };
@@ -558,9 +585,15 @@ export type BurnSessionsRepo = {
    * done on `testedOn`. Unlinking leaves the old milestone as it is.
    */
   update(id: string, input: BurnSessionInput): Promise<BurnSession>;
-  /** For the delete confirmation. */
-  deletionImpact(id: string): Promise<{ photos: number }>;
-  /** Removes the session and its photos in one transaction. A linked milestone stays as it is. */
+  /**
+   * For the delete confirmation. CandleFix: `experiments` > 0 (corrective
+   * experiments that list this burn test) means the delete will be refused.
+   */
+  deletionImpact(id: string): Promise<{ photos: number; experiments: number }>;
+  /**
+   * Removes the session and its photos in one transaction. A linked milestone stays as it is.
+   * CandleFix: refused with "in-use" while a corrective experiment lists it.
+   */
   delete(id: string): Promise<void>;
 };
 
@@ -591,6 +624,179 @@ export type BurnPhotosRepo = {
   /** Photo count and total bytes on this device, for the backup page. */
   usage(): Promise<{ count: number; bytes: number }>;
 };
+
+// ─────────────────────────── CandleFix (v0.3) ───────────────────────────
+// Design: docs/v0.3-candlefix.md.
+
+/** One "thing to check" as the editor sends it. Only ticked or noted items need sending. */
+export type ChecklistTickInput = {
+  itemId: string;
+  issue: FixIssue;
+  /** The item's current text. Ignored when the investigation already holds this item (its snapshot stays). */
+  label: string;
+  checked: boolean;
+  note?: string;
+};
+
+/** A hypothesis as the editor sends it. Without `id` it is new; a known id keeps its identity and createdAt. */
+export type HypothesisInput = {
+  id?: string;
+  text: string;
+  status: HypothesisStatus;
+  notes?: string;
+};
+
+/** What the maker can set on an investigation. */
+export type InvestigationInput = {
+  /** YYYY-MM-DD; not before the batch's production date (on create, or when it changes). */
+  observedOn: string;
+  title?: string;
+  /** 1–10 issues; stored unique and in FIX_ISSUES order. */
+  issues: FixIssue[];
+  /** Required (1–80) when `issues` has "other"; ignored otherwise. */
+  otherIssue?: string;
+  notes?: string;
+  checks: ChecklistTickInput[];
+  /** In the maker's order. Leaving out a hypothesis removes it; refused ("in-use") while an experiment names it. */
+  hypotheses: HypothesisInput[];
+};
+
+export type CreateInvestigationRequest = InvestigationInput & {
+  /** Chosen by the caller and reused on retry: an existing id writes nothing. */
+  investigationId: string;
+  batchId: string;
+};
+
+/** An investigation with its batch, formula and version (the batch's own immutable version). */
+export type InvestigationListItem = {
+  investigation: Investigation;
+  batch: Batch;
+  formula: Formula;
+  version: FormulaVersion;
+  photoCount: number;
+  experimentCount: number;
+};
+
+/** An experiment with its follow-up batch and the burn tests it lists (in the experiment's order; missing ones left out). */
+export type ExperimentItem = {
+  experiment: CorrectiveExperiment;
+  followUp: BatchListItem;
+  burnSessions: BurnSessionListItem[];
+};
+
+export type InvestigationDetail = InvestigationListItem & {
+  /** Oldest first (createdAt, then id). Experiments whose follow-up batch is missing are left out (damaged data only). */
+  experiments: ExperimentItem[];
+};
+
+/** An experiment whose follow-up is a given batch, for that batch's page. */
+export type FollowUpLink = {
+  experiment: CorrectiveExperiment;
+  investigation: Investigation;
+  /** The investigation's own batch, with its formula and version. */
+  original: BatchListItem;
+};
+
+/** One batch in the before-and-after view. */
+export type ComparisonBatch = {
+  item: BatchListItem;
+  /** Original: every burn test of the batch. Follow-up: the burn tests the experiment lists, in its order. */
+  burnSessions: BurnSessionListItem[];
+  /** Investigations recorded on this batch (the original's includes the one being compared), oldest observation first. */
+  investigations: Investigation[];
+};
+
+/** Everything the before-and-after view needs, read in one transaction. */
+export type InvestigationComparisonData = {
+  investigation: Investigation;
+  original: ComparisonBatch;
+  /** Oldest first, as `InvestigationDetail.experiments`. */
+  experiments: { experiment: CorrectiveExperiment; followUp: ComparisonBatch }[];
+};
+
+export type InvestigationsRepo = {
+  /** Latest observation first (observedOn, then newest created, then id). Archived left out unless asked. Damaged links left out. */
+  list(filter?: { includeArchived?: boolean }): Promise<InvestigationListItem[]>;
+  /** A batch's investigations, archived included, same order. */
+  listByBatch(batchId: string): Promise<InvestigationListItem[]>;
+  get(id: string): Promise<InvestigationDetail | undefined>;
+  /**
+   * Creates an investigation for a batch. "not-found" when the batch is
+   * missing; "invalid" on a bad input or an observed date before the batch's
+   * production date. Idempotent by `investigationId`.
+   */
+  create(request: CreateInvestigationRequest): Promise<{ investigation: Investigation; created: boolean }>;
+  /**
+   * Replaces the editable fields; `id`, `batchId`, `archivedAt` and `createdAt`
+   * never change. A stored observed date is kept even if it no longer follows
+   * the date rule (a restore can bring one in); only a changed date must.
+   * A tick already stored keeps its label snapshot. "in-use" when a hypothesis
+   * an experiment names is left out.
+   */
+  update(id: string, input: InvestigationInput): Promise<Investigation>;
+  setArchived(id: string, archived: boolean): Promise<Investigation>;
+  /** For the delete confirmation: what goes with the investigation. */
+  deletionImpact(id: string): Promise<{ photos: number; experiments: number }>;
+  /** Removes the investigation, its photos and its experiments in one transaction. Batches and burn tests stay. */
+  delete(id: string): Promise<void>;
+  /** Experiments whose follow-up batch is `batchId`, oldest first. Damaged links left out. */
+  followUpLinks(batchId: string): Promise<FollowUpLink[]>;
+  /** For the before-and-after view. Undefined when the investigation or its batch is missing. */
+  comparison(id: string): Promise<InvestigationComparisonData | undefined>;
+};
+
+export type AddInvestigationPhotoRequest = {
+  /** Chosen by the caller and reused on retry: an existing id writes nothing. */
+  photoId: string;
+  investigationId: string;
+  /** JPEG bytes, already shrunk (src/lib/photos). 1 to MAX_PHOTO_BYTES. */
+  bytes: Uint8Array;
+  width: number;
+  height: number;
+  caption?: string;
+};
+
+/** Same rules as `BurnPhotosRepo`, with MAX_INVESTIGATION_PHOTOS per investigation. */
+export type InvestigationPhotosRepo = {
+  /** Oldest first. */
+  listByInvestigation(investigationId: string): Promise<InvestigationPhoto[]>;
+  add(request: AddInvestigationPhotoRequest): Promise<{ photo: InvestigationPhoto; created: boolean }>;
+  delete(photoId: string): Promise<void>;
+  usage(): Promise<{ count: number; bytes: number }>;
+};
+
+/** What the maker can change on an experiment after creating it. */
+export type CorrectiveExperimentInput = {
+  /** 0–8 burn tests of the follow-up batch, unique, in the maker's order. */
+  burnSessionIds: string[];
+  change?: string;
+  notes?: string;
+};
+
+export type CreateCorrectiveExperimentRequest = CorrectiveExperimentInput & {
+  /** Chosen by the caller and reused on retry: an existing id writes nothing. */
+  experimentId: string;
+  investigationId: string;
+  hypothesisId: string;
+  followUpBatchId: string;
+};
+
+export type CorrectiveExperimentsRepo = {
+  /** Oldest first (createdAt, then id). */
+  listByInvestigation(investigationId: string): Promise<CorrectiveExperiment[]>;
+  get(id: string): Promise<CorrectiveExperiment | undefined>;
+  /**
+   * "not-found" when the investigation, hypothesis, follow-up batch or a
+   * listed burn test is missing; "invalid" when the follow-up is the
+   * investigation's own batch or a listed burn test is of another batch.
+   */
+  create(request: CreateCorrectiveExperimentRequest): Promise<{ experiment: CorrectiveExperiment; created: boolean }>;
+  /** Burn tests, change and notes only; the links are fixed. "not-found"/"invalid" as `create` for the burn tests. */
+  update(id: string, input: CorrectiveExperimentInput): Promise<CorrectiveExperiment>;
+  /** Removes the experiment only; its follow-up batch and burn tests stay. */
+  delete(id: string): Promise<void>;
+};
+
 
 // ─────────────────────── Lots and suppliers (v0.3) ───────────────────────
 
@@ -785,6 +991,9 @@ export type DataLayer = {
   suppliers: SuppliersRepo;
   materialLots: MaterialLotsRepo;
   batchTrace: BatchTraceRepo;
+  investigations: InvestigationsRepo;
+  investigationPhotos: InvestigationPhotosRepo;
+  correctiveExperiments: CorrectiveExperimentsRepo;
   drafts: DraftsRepo;
   meta: MetaRepo;
   example: ExampleRepo;

@@ -17,12 +17,15 @@ import type {
   BackupCounts,
   BurnPhotoBackup,
   BurnSession,
+  CorrectiveExperiment,
   CurePlan,
   BackupData,
   BackupEnvelope,
   DataStoreName,
   Formula,
   FormulaVersion,
+  Investigation,
+  InvestigationPhotoBackup,
   Material,
   MaterialLot,
   Measurement,
@@ -89,7 +92,10 @@ export const MAX_BACKUP_BYTES = 256 * 1024 * 1024;
  *                must be of the entry's version). BurnMatrix (format 4): a
  *                burn session's batch, or a photo's session. v0.3 (format
  *                5): a lot's material, a lot's supplier when set, or a
- *                batch's linked lot.
+ *                batch's linked lot. v0.3 CandleFix (format 6): an
+ *                investigation's batch, an investigation photo's
+ *                investigation, or an experiment's investigation, follow-up
+ *                batch or listed burn test.
  *                The check does not know the restore mode yet, so it counts
  *                device records as parents (what "Add to what's here" keeps).
  *                Whether the chosen mode really keeps every parent, and the
@@ -125,6 +131,12 @@ export type CheckFailure =
       materialLots: number;
       /** v0.3 (format 5): batches with a lot link whose lot is missing. */
       batchLots: number;
+      /** v0.3 CandleFix (format 6): investigations whose batch is missing. */
+      investigations: number;
+      /** v0.3 CandleFix (format 6): investigation photos whose investigation is missing. */
+      investigationPhotos: number;
+      /** v0.3 CandleFix (format 6): experiments whose investigation, follow-up batch or a listed burn test is missing. */
+      correctiveExperiments: number;
     };
 
 export type CheckResult =
@@ -145,6 +157,8 @@ export type DeviceIds = {
   supplierIds: ReadonlySet<string>;
   /** v0.3: for batches that link a lot. */
   lotIds: ReadonlySet<string>;
+  /** v0.3 CandleFix: for photos and experiments that name an investigation. */
+  investigationIds: ReadonlySet<string>;
 };
 
 /**
@@ -155,7 +169,7 @@ export type DeviceIds = {
  * Format 1 (v0.1, no batches), format 2 (BatchTrace, no cure plans or
  * production entries), format 3 (CurePilot, no burn sessions or photos) and
  * format 4 (BurnMatrix, no suppliers or lots; its batches have no `lots`)
- * are migrated in memory: the file is checked against its
+ * and format 5 (v0.3 lots, no CandleFix stores) are migrated in memory: the file is checked against its
  * own format's shape, its checksum is verified over the data section exactly
  * as written, and only then are the stores it lacks added as empty arrays
  * with a count of 0. The returned envelope keeps the file's
@@ -200,8 +214,9 @@ export type Renumbering = {
  *     may change (DATA-22), so restoring the same file again after a
  *     renumbering still finds every version identical (DATA-19). Clarified in
  *     wave 6.
- *   - burnPhotos (BurnMatrix): identical when canonicalJson is equal
- *     without `dataBase64`; `sha256` stands for the bytes.
+ *   - burnPhotos (BurnMatrix) and investigationPhotos (CandleFix): identical
+ *     when canonicalJson is equal without `dataBase64`; `sha256` stands for
+ *     the bytes.
  *   - formulas: compared on name, notes and archivedAt only.
  *     `latestVersionNumber`, `createdAt` and `updatedAt` are bookkeeping and do
  *     not make a conflict.
@@ -290,6 +305,14 @@ export type RestorePlan = {
  *   lot-missing               a batch's linked lot
  *   component-missing         a batch lot link names a component its version lacks
  *   lot-of-other-material     a batch's linked lot is not of its component's material (LT-5)
+ * v0.3 CandleFix:
+ *   investigation-missing     an investigation photo's or experiment's investigation
+ *   hypothesis-missing        an experiment's hypothesis is not in its investigation
+ *   follow-up-missing         an experiment's follow-up batch
+ *   follow-up-is-original     an experiment's follow-up batch is its investigation's own batch
+ *   listed-session-missing    a burn test an experiment lists
+ *   session-of-other-batch    a burn test an experiment lists is of another batch than its follow-up
+ * (An investigation's own batch reports "batch-missing".)
  */
 export type IntegrityReason =
   | "formula-missing"
@@ -302,7 +325,13 @@ export type IntegrityReason =
   | "supplier-missing"
   | "lot-missing"
   | "component-missing"
-  | "lot-of-other-material";
+  | "lot-of-other-material"
+  | "investigation-missing"
+  | "hypothesis-missing"
+  | "follow-up-missing"
+  | "follow-up-is-original"
+  | "listed-session-missing"
+  | "session-of-other-batch";
 
 export type IntegrityProblem = {
   /** The store of the record whose link is broken. */
@@ -327,6 +356,10 @@ export type DeviceData = {
   burnPhotos: BurnPhotoBackup[];
   suppliers: Supplier[];
   materialLots: MaterialLot[];
+  investigations: Investigation[];
+  /** Photos in their backup form (base64). */
+  investigationPhotos: InvestigationPhotoBackup[];
+  correctiveExperiments: CorrectiveExperiment[];
 };
 
 export type PlanRestore = (

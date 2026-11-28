@@ -116,6 +116,17 @@ Branch `fix/v0.3-restore-integrity`, from `feat/v0.3-lots` (`35712da`); its PR m
 
 Models: lead (Opus) reproduced the bug as a failing test, designed and wrote the fix, the screen change and the wording, and ran the final checks; a Sonnet subagent wrote the regression matrix (`tests/unit/backup/integrity-matrix*.test.ts`).
 
+## v0.3 — CandleFix (2026-11-28)
+
+Branch `feat/v0.3-candlefix`, from `fix/v0.3-restore-integrity` (`db1730d`); its PR merges into that branch so the restore fix stays its own reviewable commit. Design and plan: `docs/v0.3-candlefix.md` (also in the vault as `Projects/apps/candle/Sessions/2026-11-28 - v0.3 CandleFix - Implementation Plan.md`). Results, the commit SHA and the migration, backup and photo evidence are in the vault handoff `Projects/apps/candle/Sessions/2026-11-28 - v0.3 CandleFix - Development Handoff.md`.
+
+- **New:** investigations of a batch (observed issues from a fixed list, notes, up to 12 photos), built-in things to check (prompts, not a diagnosis; ticks keep the label they were ticked with), maker-written hypotheses with neutral statuses kept apart from observations, corrective experiments (a hypothesis → a follow-up batch and its burn tests), a before-and-after view and a timeline, and an all-investigations list reached from Batches.
+- **Data:** schema 6 (IndexedDB 60) adds `investigations`, `investigationPhotos`, `correctiveExperiments`. Backup format 6 adds them; formats 1 to 5 are read. `integrity.ts` gains the new required links (see ARCHITECTURE "v0.3 CandleFix decisions").
+- **Delete rules:** batch delete refused while it has an investigation or is a follow-up batch; burn test delete refused while an experiment lists it; hypothesis removal refused while an experiment follows it; investigation delete removes its photos and experiments after a counted confirmation.
+- **Upgrade chain:** `tests/upgrade-chain/run-candlefix.sh` serves the restore-fix build and this build in one Chromium profile (phases `v03fix`, `candlefix`) and restores the format 5 and format 6 files into fresh profiles (`restore05fix`, `restore06`).
+
+Models: lead (Opus) wrote the design, types, schemas, repositories, delete guards, backup and integrity changes and their tests, and ran the final checks; Sonnet subagents wrote the pure logic (`src/lib/candlefix`), updated the existing tests for format 6, built the two halves of the UI, and wrote the end-to-end tests.
+
 ## Wave 3 handover
 
 Superseded. The wave 3 chat resumed and finished: all five tasks are reviewed and committed (see the log). The scratch file `tests/unit/_tmp/cross.test.ts` mentioned in the earlier snapshot was the orchestrator's own cross-check and has been deleted.

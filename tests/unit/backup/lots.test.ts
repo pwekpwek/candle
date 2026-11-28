@@ -79,6 +79,18 @@ async function rebuild(env: BackupEnvelope): Promise<string> {
   return JSON.stringify(env);
 }
 
+/** The same data as a v0.3 lots (format 5) file would hold it: no investigations, investigation photos or corrective experiments. */
+function asFormat5(env: BackupEnvelope): BackupEnvelope {
+  const copy = structuredClone(env);
+  copy.formatVersion = 5;
+  copy.schemaVersion = 5;
+  const loose = copy.data as unknown as Record<string, unknown>;
+  delete loose.investigations;
+  delete loose.investigationPhotos;
+  delete loose.correctiveExperiments;
+  return copy;
+}
+
 /** The same data as a v0.2 BurnMatrix (format 4) file would hold it: no suppliers, lots or batch lot links. */
 function asFormat4(env: BackupEnvelope): BackupEnvelope {
   const copy = structuredClone(env);
@@ -88,6 +100,9 @@ function asFormat4(env: BackupEnvelope): BackupEnvelope {
   const loose = copy.data as unknown as Record<string, unknown>;
   delete loose.suppliers;
   delete loose.materialLots;
+  delete loose.investigations;
+  delete loose.investigationPhotos;
+  delete loose.correctiveExperiments;
   copy.data.batches = env.data.batches.map((batch) => {
     const plain = { ...batch };
     delete plain.lots;
@@ -96,12 +111,12 @@ function asFormat4(env: BackupEnvelope): BackupEnvelope {
   return copy;
 }
 
-describe("backup format 5 export", () => {
-  it("exports suppliers, lots and batch lot links with format 5, schema 5, app 0.3.0 and a checksum over all eleven stores", async () => {
+describe("backup format 6 export (lots since format 5)", () => {
+  it("exports suppliers, lots and batch lot links with format 6, schema 6, app 0.3.0 and a checksum over all fourteen stores", async () => {
     const src = await sourceWithLots();
     const exported = await exportBackup(src.device.db, { now: () => NOW });
     const env = exported.envelope;
-    expect(env).toMatchObject({ formatVersion: 5, schemaVersion: 5, appVersion: "0.3.0" });
+    expect(env).toMatchObject({ formatVersion: 6, schemaVersion: 6, appVersion: "0.3.0" });
     expect(BackupEnvelopeSchema.safeParse(env).success).toBe(true);
     expect(Object.keys(env.data)).toEqual([
       "materials",
@@ -115,6 +130,9 @@ describe("backup format 5 export", () => {
       "burnPhotos",
       "suppliers",
       "materialLots",
+      "investigations",
+      "investigationPhotos",
+      "correctiveExperiments",
     ]);
     expect(env.counts).toMatchObject({ suppliers: 2, materialLots: 3, batches: 2 });
     expect(env.data.suppliers.map((s) => s.id)).toEqual([src.s1.id, src.s2.id].sort());
@@ -254,14 +272,17 @@ describe("format 5 checks", () => {
     }
   });
 
-  it("refuses a format 5 file without suppliers as damaged, and a format 6 file as newer", async () => {
+  it("refuses a format 5 file without suppliers as damaged, reads a format 5 file, and refuses a format 7 file as newer", async () => {
     const src = await sourceWithLots();
     const env = (await exportBackup(src.device.db, { now: () => NOW })).envelope;
-    const without = structuredClone(env);
+    const without = asFormat5(env);
     delete (without.data as unknown as Record<string, unknown>).suppliers;
     expect(await failureOf(await rebuild(without), blankDevice(src.device.lib))).toMatchObject({ code: "invalid" });
+    const format5 = await check(await rebuild(asFormat5(env)), blankDevice(src.device.lib));
+    expect(format5.ok).toBe(true);
+    if (format5.ok) expect(format5.envelope.formatVersion).toBe(5);
     const newer = structuredClone(env);
-    newer.formatVersion = 6;
+    newer.formatVersion = 7;
     expect(await failureOf(await rebuild(newer), blankDevice(src.device.lib))).toEqual({ code: "newer" });
   });
 });

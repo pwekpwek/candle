@@ -8,6 +8,7 @@ import type {
   DataStoreName,
   Formula,
   FormulaVersion,
+  InvestigationPhotoBackup,
 } from "@/lib/types";
 import { canonicalJson } from "./canonical";
 import { restoreProblems } from "./integrity";
@@ -29,6 +30,9 @@ function zeroCounts(): BackupCounts {
     burnPhotos: 0,
     suppliers: 0,
     materialLots: 0,
+    investigations: 0,
+    investigationPhotos: 0,
+    correctiveExperiments: 0,
   };
 }
 
@@ -45,6 +49,9 @@ function emptyTally(): Record<DataStoreName, StoreTally> {
     burnPhotos: { new: 0, identical: 0, conflict: 0 },
     suppliers: { new: 0, identical: 0, conflict: 0 },
     materialLots: { new: 0, identical: 0, conflict: 0 },
+    investigations: { new: 0, identical: 0, conflict: 0 },
+    investigationPhotos: { new: 0, identical: 0, conflict: 0 },
+    correctiveExperiments: { new: 0, identical: 0, conflict: 0 },
   };
 }
 
@@ -70,8 +77,8 @@ function sameByCanonical<T>(a: T, b: T): boolean {
   return canonicalJson(a) === canonicalJson(b);
 }
 
-/** BurnMatrix: photos compare without their bytes; `sha256` stands for them (verified on check). */
-function samePhoto(a: BurnPhotoBackup, b: BurnPhotoBackup): boolean {
+/** BurnMatrix (and CandleFix): photos compare without their bytes; `sha256` stands for them (verified on check). */
+function samePhoto(a: BurnPhotoBackup | InvestigationPhotoBackup, b: BurnPhotoBackup | InvestigationPhotoBackup): boolean {
   return canonicalJson(photoIdentity(a)) === canonicalJson(photoIdentity(b));
 }
 
@@ -103,6 +110,9 @@ function countsOf(data: BackupData): BackupCounts {
     burnPhotos: data.burnPhotos.length,
     suppliers: data.suppliers.length,
     materialLots: data.materialLots.length,
+    investigations: data.investigations.length,
+    investigationPhotos: data.investigationPhotos.length,
+    correctiveExperiments: data.correctiveExperiments.length,
   };
 }
 
@@ -136,6 +146,9 @@ function tallyAgainst(envelopeData: BackupData, device: DeviceData): Record<Data
     burnPhotos: samePhoto as (a: never, b: never) => boolean,
     suppliers: sameByCanonical,
     materialLots: sameByCanonical,
+    investigations: sameByCanonical,
+    investigationPhotos: samePhoto as (a: never, b: never) => boolean,
+    correctiveExperiments: sameByCanonical,
   };
   for (const store of DATA_STORES) {
     const deviceMap = byId(device[store] as { id: string }[]);
@@ -173,6 +186,9 @@ function planReplace(
       burnPhotos: [...data.burnPhotos],
       suppliers: [...data.suppliers],
       materialLots: [...data.materialLots],
+      investigations: [...data.investigations],
+      investigationPhotos: [...data.investigationPhotos],
+      correctiveExperiments: [...data.correctiveExperiments],
     },
     clear: true,
     added: { ...fileCounts },
@@ -247,6 +263,9 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
     burnPhotos: [],
     suppliers: [],
     materialLots: [],
+    investigations: [],
+    investigationPhotos: [],
+    correctiveExperiments: [],
   };
 
   // Materials, measurements and batches: new, identical or conflict.
@@ -292,6 +311,9 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
   //
   // v0.3: suppliers and lots are editable records, compared whole. A batch's
   // lot links are part of the batch, so they take part in its comparison.
+  //
+  // v0.3 CandleFix: investigations (with their checks and hypotheses) and
+  // corrective experiments are compared whole; their photos without bytes.
   const editableStores = [
     "batches",
     "curePlans",
@@ -300,12 +322,15 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
     "burnPhotos",
     "suppliers",
     "materialLots",
+    "investigations",
+    "investigationPhotos",
+    "correctiveExperiments",
   ] as const;
   for (const store of editableStores) {
     const deviceMap = byId<{ id: string }>(device[store]);
     const incoming: { id: string }[] = data[store];
     const out: { id: string }[] = puts[store];
-    const same = (store === "burnPhotos" ? samePhoto : sameByCanonical) as (
+    const same = (store === "burnPhotos" || store === "investigationPhotos" ? samePhoto : sameByCanonical) as (
       a: { id: string },
       b: { id: string },
     ) => boolean;
@@ -448,6 +473,9 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
     burnPhotos: device.burnPhotos.length + added.burnPhotos,
     suppliers: device.suppliers.length + added.suppliers,
     materialLots: device.materialLots.length + added.materialLots,
+    investigations: device.investigations.length + added.investigations,
+    investigationPhotos: device.investigationPhotos.length + added.investigationPhotos,
+    correctiveExperiments: device.correctiveExperiments.length + added.correctiveExperiments,
   };
   const present = new Set([
     ...device.materials.map((material) => material.id),

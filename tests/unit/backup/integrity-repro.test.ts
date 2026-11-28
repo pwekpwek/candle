@@ -50,7 +50,14 @@ describe("restore integrity: Codex reproduction (batch, format 5, Replace)", () 
 
     // 2. A checksum-valid format 5 file that keeps the batch but drops formulas, versions and measurements.
     const edited = JSON.parse(safetyBackup.json) as BackupEnvelope;
-    expect(edited.formatVersion).toBe(5);
+    expect(edited.formatVersion).toBe(6);
+    // Downgrade to a real format 5 file: no CandleFix stores.
+    edited.formatVersion = 5;
+    edited.schemaVersion = 5;
+    const loose = edited.data as unknown as Record<string, unknown>;
+    delete loose.investigations;
+    delete loose.investigationPhotos;
+    delete loose.correctiveExperiments;
     edited.data.formulas = [];
     edited.data.formulaVersions = [];
     edited.data.measurements = [];

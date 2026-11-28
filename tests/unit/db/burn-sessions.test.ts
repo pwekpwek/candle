@@ -336,7 +336,7 @@ describe("BurnMatrix: deletes", () => {
   it("deleting a batch is refused while it has burn sessions, and allowed after they are deleted", async () => {
     const { layer, db, batch } = await withBatch();
     const { session } = await layer.burnSessions.create({ sessionId: id(), batchId: batch.id, ...input() });
-    expect(await layer.batches.deletionImpact(batch.id)).toEqual({ milestones: 4, productionPlans: 0, burnSessions: 1 });
+    expect(await layer.batches.deletionImpact(batch.id)).toEqual({ milestones: 4, productionPlans: 0, burnSessions: 1, investigations: 0, followUpExperiments: 0 });
     const before = await counterOf(layer);
     expect(await code(layer.batches.delete(batch.id))).toBe("in-use");
     expect(await db.batches.get(batch.id)).toBeDefined();
@@ -356,7 +356,7 @@ describe("BurnMatrix: deletes", () => {
       await layer.burnPhotos.add({ photoId: id(), sessionId: session.id, bytes: jpeg, width: 10, height: 10 });
     }
     await layer.burnPhotos.add({ photoId: id(), sessionId: keep.id, bytes: jpeg, width: 10, height: 10 });
-    expect(await layer.burnSessions.deletionImpact(session.id)).toEqual({ photos: 2 });
+    expect(await layer.burnSessions.deletionImpact(session.id)).toEqual({ photos: 2, experiments: 0 });
     expect((await layer.burnSessions.listByBatch(batch.id)).find((i) => i.session.id === session.id)!.photoCount).toBe(2);
     const before = await counterOf(layer);
     await layer.burnSessions.delete(session.id);

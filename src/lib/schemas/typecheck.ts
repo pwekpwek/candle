@@ -10,11 +10,17 @@ import type {
   BackupEnvelope,
   Batch,
   BatchLot,
+  ChecklistTick,
   Component,
+  CorrectiveExperiment,
   CureMilestone,
   CurePlan,
   Formula,
   FormulaVersion,
+  Hypothesis,
+  Investigation,
+  InvestigationPhoto,
+  InvestigationPhotoBackup,
   Material,
   MaterialLot,
   MaterialSnapshot,
@@ -26,6 +32,14 @@ import type {
   VersionTargets,
 } from "@/lib/types";
 import type { BatchSchema } from "./batch";
+import type {
+  ChecklistTickSchema,
+  CorrectiveExperimentSchema,
+  HypothesisSchema,
+  InvestigationPhotoBackupSchema,
+  InvestigationPhotoSchema,
+  InvestigationSchema,
+} from "./candlefix";
 import type { BackupCountsSchema, BackupDataSchema, BackupEnvelopeSchema } from "./backup";
 import type { FormulaSchema } from "./formula";
 import type { MaterialSchema, MaterialSnapshotSchema } from "./material";
@@ -78,6 +92,18 @@ export type TypeChecks = [
   Assert<SameKeys<Out<typeof MaterialLotSchema>, MaterialLot>>,
   Assert<Same<Out<typeof BatchLotSchema>, BatchLot>>,
   Assert<SameKeys<Out<typeof BatchLotSchema>, BatchLot>>,
+  Assert<Same<Out<typeof ChecklistTickSchema>, ChecklistTick>>,
+  Assert<SameKeys<Out<typeof ChecklistTickSchema>, ChecklistTick>>,
+  Assert<Same<Out<typeof HypothesisSchema>, Hypothesis>>,
+  Assert<SameKeys<Out<typeof HypothesisSchema>, Hypothesis>>,
+  Assert<Same<Out<typeof InvestigationSchema>, Investigation>>,
+  Assert<SameKeys<Out<typeof InvestigationSchema>, Investigation>>,
+  Assert<Same<Out<typeof InvestigationPhotoSchema>, InvestigationPhoto>>,
+  Assert<SameKeys<Out<typeof InvestigationPhotoSchema>, InvestigationPhoto>>,
+  Assert<Same<Out<typeof InvestigationPhotoBackupSchema>, InvestigationPhotoBackup>>,
+  Assert<SameKeys<Out<typeof InvestigationPhotoBackupSchema>, InvestigationPhotoBackup>>,
+  Assert<Same<Out<typeof CorrectiveExperimentSchema>, CorrectiveExperiment>>,
+  Assert<SameKeys<Out<typeof CorrectiveExperimentSchema>, CorrectiveExperiment>>,
   Assert<Same<Out<typeof BackupCountsSchema>, BackupCounts>>,
   Assert<Same<Out<typeof BackupDataSchema>, BackupData>>,
   Assert<SameKeys<Out<typeof BackupDataSchema>, BackupData>>,

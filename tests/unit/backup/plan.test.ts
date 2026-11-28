@@ -14,8 +14,8 @@ const clone = <T>(value: T): T => structuredClone(value);
 // good.json is format 1; restore migrates it to the current shape first.
 const envelope = (): BackupEnvelope => {
   const env = clone(GOOD);
-  env.data = { ...env.data, batches: [], curePlans: [], productionPlans: [], burnSessions: [], burnPhotos: [], suppliers: [], materialLots: [] };
-  env.counts = { ...env.counts, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 };
+  env.data = { ...env.data, batches: [], curePlans: [], productionPlans: [], burnSessions: [], burnPhotos: [], suppliers: [], materialLots: [], investigations: [], investigationPhotos: [], correctiveExperiments: [] };
+  env.counts = { ...env.counts, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 };
   return env;
 };
 const deviceFrom = (env: BackupEnvelope): DeviceData => clone(env.data);
@@ -26,7 +26,8 @@ const emptyDevice = (): DeviceData => ({
   measurements: [],
   batches: [],
   curePlans: [],
-  productionPlans: [], burnSessions: [], burnPhotos: [], suppliers: [], materialLots: []
+  productionPlans: [], burnSessions: [], burnPhotos: [], suppliers: [], materialLots: [],
+  investigations: [], investigationPhotos: [], correctiveExperiments: [],
 });
 
 function plan(
@@ -46,8 +47,8 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
-const ZERO = { materials: 0, formulas: 0, formulaVersions: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 };
-const FILE_COUNTS = { materials: 7, formulas: 2, formulaVersions: 3, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 };
+const ZERO = { materials: 0, formulas: 0, formulaVersions: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 };
+const FILE_COUNTS = { materials: 7, formulas: 2, formulaVersions: 3, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 };
 
 describe("merge: new and identical", () => {
   it("adds everything to an empty device", () => {
@@ -91,7 +92,7 @@ describe("merge: new and identical", () => {
 });
 
 function ZERO_PUTS() {
-  return { materials: [], formulas: [], formulaVersions: [], measurements: [], batches: [], curePlans: [], productionPlans: [], burnSessions: [], burnPhotos: [], suppliers: [], materialLots: [] };
+  return { materials: [], formulas: [], formulaVersions: [], measurements: [], batches: [], curePlans: [], productionPlans: [], burnSessions: [], burnPhotos: [], suppliers: [], materialLots: [], investigations: [], investigationPhotos: [], correctiveExperiments: [] };
 }
 
 describe("merge: conflicts", () => {
@@ -264,7 +265,7 @@ describe("merge: renumbering (DATA-22)", () => {
     expect(second.kept).toEqual(ZERO);
     expect(second.added).toEqual(ZERO);
     expect(second.renumbered).toEqual([]);
-    expect(second.puts).toEqual({ materials: [], formulas: [], formulaVersions: [], measurements: [], batches: [], curePlans: [], productionPlans: [], burnSessions: [], burnPhotos: [], suppliers: [], materialLots: [] });
+    expect(second.puts).toEqual({ materials: [], formulas: [], formulaVersions: [], measurements: [], batches: [], curePlans: [], productionPlans: [], burnSessions: [], burnPhotos: [], suppliers: [], materialLots: [], investigations: [], investigationPhotos: [], correctiveExperiments: [] });
   });
 
   it("a version that differs only in its number is identical, not a conflict", () => {
@@ -377,14 +378,14 @@ describe("merge: renumbering (DATA-22)", () => {
     const deviceOnlyV1 = { ...versionLike(v1, "99999999-0000-4000-8000-0000000000a1", 1, T(0), null), formulaId: deviceOnly.id };
     const device: DeviceData = { ...emptyDevice(), formulas: [deviceOnly], formulaVersions: [deviceOnlyV1] };
     const incoming = { ...versionLike(v1, "99999999-0000-4000-8000-0000000000a2", 2, T(1), deviceOnlyV1.id), formulaId: deviceOnly.id };
-    env.data = { materials: [], formulas: [], formulaVersions: [incoming], measurements: [], batches: [], curePlans: [], productionPlans: [], burnSessions: [], burnPhotos: [], suppliers: [], materialLots: [] };
-    env.counts = { materials: 0, formulas: 0, formulaVersions: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 };
+    env.data = { materials: [], formulas: [], formulaVersions: [incoming], measurements: [], batches: [], curePlans: [], productionPlans: [], burnSessions: [], burnPhotos: [], suppliers: [], materialLots: [], investigations: [], investigationPhotos: [], correctiveExperiments: [] };
+    env.counts = { materials: 0, formulas: 0, formulaVersions: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 };
     const p = plan(env, device);
     expect(p.puts.formulaVersions).toEqual([incoming]);
     expect(p.added.formulaVersions).toBe(1);
     expect(p.puts.formulas).toEqual([{ ...deviceOnly, latestVersionNumber: 2 }]);
     expect(p.added.formulas).toBe(0);
-    expect(p.expectedCounts).toEqual({ materials: 0, formulas: 1, formulaVersions: 2, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 });
+    expect(p.expectedCounts).toEqual({ materials: 0, formulas: 1, formulaVersions: 2, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 });
   });
 });
 

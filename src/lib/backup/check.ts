@@ -4,9 +4,12 @@ import {
   BatchSchemaV2,
   BurnPhotoBackupSchema,
   BurnSessionSchema,
+  CorrectiveExperimentSchema,
   CurePlanSchema,
   FormulaSchema,
   FormulaVersionSchema,
+  InvestigationPhotoBackupSchema,
+  InvestigationSchema,
   MaterialLotSchema,
   MaterialSchema,
   MeasurementSchema,
@@ -15,7 +18,13 @@ import {
   TimestampSchema,
 } from "@/lib/schemas";
 import { BACKUP_FORMAT, BACKUP_FORMAT_VERSION, DATA_STORES } from "@/lib/types";
-import type { BackupData, BackupEnvelope, BurnPhotoBackup, DataStoreName } from "@/lib/types";
+import type {
+  BackupData,
+  BackupEnvelope,
+  BurnPhotoBackup,
+  DataStoreName,
+  InvestigationPhotoBackup,
+} from "@/lib/types";
 import { canonicalJson, sha256Hex } from "./canonical";
 import { MAX_BACKUP_BYTES } from "./contract";
 import type { CheckBackupText, CheckFailure, CheckResult } from "./contract";
@@ -102,11 +111,31 @@ const EnvelopeShapeV4Schema = z.strictObject({
   data: z.strictObject(V4_DATA),
 });
 
+const V5_COUNTS = { ...V4_COUNTS, suppliers: z.int().min(0), materialLots: z.int().min(0) };
+const V5_DATA = { ...V4_DATA, suppliers: z.array(z.unknown()), materialLots: z.array(z.unknown()) };
+
 /** Format 5 (v0.3): adds `suppliers` and `materialLots`; batches may carry `lots`. */
 const EnvelopeShapeV5Schema = z.strictObject({
   ...ENVELOPE_FIELDS,
-  counts: z.strictObject({ ...V4_COUNTS, suppliers: z.int().min(0), materialLots: z.int().min(0) }),
-  data: z.strictObject({ ...V4_DATA, suppliers: z.array(z.unknown()), materialLots: z.array(z.unknown()) }),
+  counts: z.strictObject(V5_COUNTS),
+  data: z.strictObject(V5_DATA),
+});
+
+/** Format 6 (v0.3 CandleFix): adds `investigations`, `investigationPhotos` and `correctiveExperiments`. */
+const EnvelopeShapeV6Schema = z.strictObject({
+  ...ENVELOPE_FIELDS,
+  counts: z.strictObject({
+    ...V5_COUNTS,
+    investigations: z.int().min(0),
+    investigationPhotos: z.int().min(0),
+    correctiveExperiments: z.int().min(0),
+  }),
+  data: z.strictObject({
+    ...V5_DATA,
+    investigations: z.array(z.unknown()),
+    investigationPhotos: z.array(z.unknown()),
+    correctiveExperiments: z.array(z.unknown()),
+  }),
 });
 
 /** The envelope shape of each format this app reads. */
@@ -116,6 +145,7 @@ const SHAPE_FOR_FORMAT = {
   3: EnvelopeShapeV3Schema,
   4: EnvelopeShapeV4Schema,
   5: EnvelopeShapeV5Schema,
+  6: EnvelopeShapeV6Schema,
 } as const;
 
 /** The stores each format holds. */
@@ -134,7 +164,20 @@ const STORES_IN_FORMAT: Record<number, readonly DataStoreName[]> = {
     "burnSessions",
     "burnPhotos",
   ],
-  5: DATA_STORES,
+  5: [
+    "materials",
+    "formulas",
+    "formulaVersions",
+    "measurements",
+    "batches",
+    "curePlans",
+    "productionPlans",
+    "burnSessions",
+    "burnPhotos",
+    "suppliers",
+    "materialLots",
+  ],
+  6: DATA_STORES,
 };
 
 /** The record schema of a store in a given format: batches before format 5 have no `lots`. */
@@ -155,6 +198,9 @@ const RECORD_SCHEMAS = {
   burnPhotos: BurnPhotoBackupSchema,
   suppliers: SupplierSchema,
   materialLots: MaterialLotSchema,
+  investigations: InvestigationSchema,
+  investigationPhotos: InvestigationPhotoBackupSchema,
+  correctiveExperiments: CorrectiveExperimentSchema,
 } as const;
 
 const RECORD_NOUNS: Record<DataStoreName, string> = {
@@ -169,6 +215,9 @@ const RECORD_NOUNS: Record<DataStoreName, string> = {
   burnPhotos: "photo",
   suppliers: "supplier",
   materialLots: "lot",
+  investigations: "investigation",
+  investigationPhotos: "investigation photo",
+  correctiveExperiments: "corrective experiment",
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -273,6 +322,9 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
     burnPhotos: [],
     suppliers: [],
     materialLots: [],
+    investigations: [],
+    investigationPhotos: [],
+    correctiveExperiments: [],
   };
   for (const store of stores) {
     const records: unknown = shape.success
@@ -296,6 +348,14 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
     else note(labelFor(RECORD_NOUNS.burnPhotos, photo, index), problem);
   }
   valid.burnPhotos = soundPhotos;
+  // CandleFix: investigation photos are checked the same way.
+  const soundInvestigationPhotos: unknown[] = [];
+  for (const [index, photo] of (valid.investigationPhotos as InvestigationPhotoBackup[]).entries()) {
+    const problem = await checkPhotoData(photo);
+    if (problem === null) soundInvestigationPhotos.push(photo);
+    else note(labelFor(RECORD_NOUNS.investigationPhotos, photo, index), problem);
+  }
+  valid.investigationPhotos = soundInvestigationPhotos;
   if (!shape.success || count > 0) {
     return fail({ code: "invalid", count, firstLabel, firstProblem });
   }
@@ -320,6 +380,9 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
       burnPhotos: fileCounts.burnPhotos ?? 0,
       suppliers: fileCounts.suppliers ?? 0,
       materialLots: fileCounts.materialLots ?? 0,
+      investigations: fileCounts.investigations ?? 0,
+      investigationPhotos: fileCounts.investigationPhotos ?? 0,
+      correctiveExperiments: fileCounts.correctiveExperiments ?? 0,
     },
     checksum: shape.data.checksum as BackupEnvelope["checksum"],
     data: valid as unknown as BackupData,
@@ -399,7 +462,29 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
   const batchLots = envelope.data.batches.filter((batch) =>
     (batch.lots ?? []).some((link) => !fileLotIds.has(link.lotId) && !device.lotIds.has(link.lotId)),
   ).length;
+  // v0.3 CandleFix (format 6). Existence only here; ownership (hypothesis of
+  // the investigation, burn test of the follow-up batch) is judged by the
+  // plan's integrity check, which knows the mode.
+  const fileBatchIds = new Set(envelope.data.batches.map((batch) => batch.id));
+  const fileInvestigationIds = new Set(envelope.data.investigations.map((investigation) => investigation.id));
+  const investigationKnown = (id: string) => fileInvestigationIds.has(id) || device.investigationIds.has(id);
+  const sessionKnown = (id: string) => fileSessionIds.has(id) || device.burnSessionIds.has(id);
+  const investigations = envelope.data.investigations.filter(
+    (investigation) => !fileBatchIds.has(investigation.batchId) && !device.batchIds.has(investigation.batchId),
+  ).length;
+  const investigationPhotos = envelope.data.investigationPhotos.filter(
+    (photo) => !investigationKnown(photo.investigationId),
+  ).length;
+  const correctiveExperiments = envelope.data.correctiveExperiments.filter(
+    (experiment) =>
+      !investigationKnown(experiment.investigationId) ||
+      !batchKnown(experiment.followUpBatchId) ||
+      experiment.burnSessionIds.some((id) => !sessionKnown(id)),
+  ).length;
   if (
+    investigations > 0 ||
+    investigationPhotos > 0 ||
+    correctiveExperiments > 0 ||
     versions > 0 ||
     measurements > 0 ||
     batches > 0 ||
@@ -421,6 +506,9 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
       burnPhotos,
       materialLots,
       batchLots,
+      investigations,
+      investigationPhotos,
+      correctiveExperiments,
     });
   }
 

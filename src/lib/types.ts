@@ -397,10 +397,134 @@ export type BurnPhotoBackup = BurnPhotoFields & {
   dataBase64: string;
 };
 
+// ───────────────────────────── v0.3 CandleFix ─────────────────────────────
+// Design: docs/v0.3-candlefix.md. Observations, things to check and the
+// maker's hypotheses; the app never names a cause, a fix or a verdict.
+
+/** The issues a maker can record, in display and storage order. "other" carries its own text. */
+export const FIX_ISSUES = [
+  "frosting",
+  "tunneling",
+  "sinkhole",
+  "soot",
+  "weakColdThrow",
+  "weakHotThrow",
+  "wetSpots",
+  "cracking",
+  "mushrooming",
+  "other",
+] as const;
+export type FixIssue = (typeof FIX_ISSUES)[number];
+
+/**
+ * A hypothesis's status, set by the maker. Neutral words only: the app never
+ * says a hypothesis is confirmed or proven.
+ *   open        not tested yet
+ *   testing     a follow-up is under way
+ *   fits        the follow-up observations fit it
+ *   doesNotFit  the follow-up observations don't fit it
+ *   setAside    the maker set it aside
+ */
+export const HYPOTHESIS_STATUSES = ["open", "testing", "fits", "doesNotFit", "setAside"] as const;
+export type HypothesisStatus = (typeof HYPOTHESIS_STATUSES)[number];
+
+/**
+ * One "thing to check" the maker ticked or noted. `itemId` names a built-in
+ * item (`<issue>.<slug>`, see `@/lib/candlefix`); `label` is that item's text
+ * when it was first saved, so a later rewording never changes what was ticked.
+ */
+export type ChecklistTick = {
+  itemId: string;
+  /** The issue whose list the item came from. */
+  issue: FixIssue;
+  /** Snapshot of the item's text, 1–MAX_CHECK_LABEL_LENGTH characters. */
+  label: string;
+  checked: boolean;
+  /** Up to MAX_CHECK_NOTE_LENGTH characters after trimming. */
+  note?: string;
+};
+
+/** A maker-written hypothesis, kept apart from observations. Embedded in its investigation. */
+export type Hypothesis = {
+  /** UUID, stable inside its investigation; experiments point at it. */
+  id: string;
+  /** The maker's own words, 1–MAX_HYPOTHESIS_TEXT_LENGTH characters after trimming. */
+  text: string;
+  status: HypothesisStatus;
+  notes?: string;
+  createdAt: string;
+  /** Moves only when the text, status or notes change. */
+  updatedAt: string;
+};
+
+/**
+ * Store `investigations` (v0.3 CandleFix). A defect the maker observed on one
+ * batch. `batchId` is fixed at creation, so the exact formula version is the
+ * batch's own immutable version.
+ */
+export type Investigation = {
+  id: string;
+  batchId: string;
+  /** Date observed (YYYY-MM-DD), local calendar. Never before the batch's production date. */
+  observedOn: string;
+  /** 1–MAX_INVESTIGATION_TITLE_LENGTH characters. Optional. */
+  title?: string;
+  /** 1–10 issues, unique, in FIX_ISSUES order. */
+  issues: FixIssue[];
+  /** The "Other" issue's text: present exactly when `issues` holds "other". */
+  otherIssue?: string;
+  /** Observation notes. */
+  notes?: string;
+  /** Up to MAX_CHECKS ticks, unique `itemId`. */
+  checks: ChecklistTick[];
+  /** Up to MAX_HYPOTHESES, unique ids, in the maker's order. */
+  hypotheses: Hypothesis[];
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Photo fields shared by every stored photo kind and their backup forms, without the owner. */
+type PhotoFieldsBase = Omit<BurnPhotoFields, "sessionId">;
+
+/** Store `investigationPhotos` (v0.3 CandleFix). Same rules as burn photos; write-once. */
+export type InvestigationPhoto = PhotoFieldsBase & {
+  investigationId: string;
+  bytes: Uint8Array;
+};
+
+/** An investigation photo as a backup file holds it (base64 bytes). */
+export type InvestigationPhotoBackup = PhotoFieldsBase & {
+  investigationId: string;
+  dataBase64: string;
+};
+
+/**
+ * Store `correctiveExperiments` (v0.3 CandleFix). A hypothesis followed by a
+ * follow-up batch and, optionally, that batch's burn tests. The investigation,
+ * hypothesis and follow-up batch are fixed at creation.
+ */
+export type CorrectiveExperiment = {
+  id: string;
+  investigationId: string;
+  /** A hypothesis of that investigation. */
+  hypothesisId: string;
+  /** Any batch except the investigation's own; usually from a new version. */
+  followUpBatchId: string;
+  /** 0–MAX_EXPERIMENT_SESSIONS burn tests of the follow-up batch, unique. */
+  burnSessionIds: string[];
+  /** What the maker changed, in their words. */
+  change?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 /**
  * The exported stores, in dependency order. `batches` was added in v0.2
  * (format 2); `curePlans` and `productionPlans` in v0.2 CurePilot (format 3);
- * `burnSessions` and `burnPhotos` in v0.2 BurnMatrix (format 4).
+ * `burnSessions` and `burnPhotos` in v0.2 BurnMatrix (format 4); suppliers and
+ * lots in v0.3 (format 5); the CandleFix stores in v0.3 CandleFix (format 6).
  */
 export const DATA_STORES = [
   "materials",
@@ -414,6 +538,9 @@ export const DATA_STORES = [
   "burnPhotos",
   "suppliers",
   "materialLots",
+  "investigations",
+  "investigationPhotos",
+  "correctiveExperiments",
 ] as const;
 export type DataStoreName = (typeof DATA_STORES)[number];
 
@@ -431,24 +558,31 @@ export type BackupData = {
   /** v0.3 (format 5). */
   suppliers: Supplier[];
   materialLots: MaterialLot[];
+  /** v0.3 CandleFix (format 6). */
+  investigations: Investigation[];
+  /** Photos in their backup form (base64 bytes). */
+  investigationPhotos: InvestigationPhotoBackup[];
+  correctiveExperiments: CorrectiveExperiment[];
 };
 
 export type BackupCounts = Record<DataStoreName, number>;
 
 export const BACKUP_FORMAT = "candlelab-backup" as const;
 /**
- * 5 since v0.3 (adds `suppliers`, `materialLots`, and lot links on batches);
- * 4 (BurnMatrix) added `burnSessions` and `burnPhotos`; 3 added `curePlans`
- * and `productionPlans`; 2 added `batches`. Format 1 to 4 files are migrated
- * on restore.
+ * 6 since v0.3 CandleFix (adds `investigations`, `investigationPhotos` and
+ * `correctiveExperiments`); 5 (v0.3 lots) added `suppliers`, `materialLots`
+ * and lot links on batches; 4 (BurnMatrix) added `burnSessions` and
+ * `burnPhotos`; 3 added `curePlans` and `productionPlans`; 2 added `batches`.
+ * Format 1 to 5 files are migrated on restore.
  */
-export const BACKUP_FORMAT_VERSION = 5 as const;
+export const BACKUP_FORMAT_VERSION = 6 as const;
 /**
- * IndexedDB schema. 5 since v0.3 (suppliers and lots); 4 (BurnMatrix) added
- * burn sessions and photos; 3 (CurePilot) added cure plans and production
- * entries; 2 added the `batches` store.
+ * IndexedDB schema. 6 since v0.3 CandleFix (investigations, their photos and
+ * corrective experiments); 5 (v0.3) added suppliers and lots; 4 (BurnMatrix)
+ * added burn sessions and photos; 3 (CurePilot) added cure plans and
+ * production entries; 2 added the `batches` store.
  */
-export const SCHEMA_VERSION = 5 as const;
+export const SCHEMA_VERSION = 6 as const;
 export const CALC_VERSION = 1 as const;
 export const APP_VERSION = "0.3.0" as const;
 /** v0.3: longest supplier name after trimming. */
@@ -491,6 +625,30 @@ export const MAX_SESSION_PHOTOS = 12 as const;
 export const MAX_PHOTO_DIMENSION = 1600 as const;
 /** BurnMatrix: largest stored photo, in bytes (1 MiB). */
 export const MAX_PHOTO_BYTES = 1_048_576 as const;
+/** CandleFix: longest investigation title after trimming. */
+export const MAX_INVESTIGATION_TITLE_LENGTH = 60 as const;
+/** CandleFix: longest "Other" issue text after trimming. */
+export const MAX_OTHER_ISSUE_LENGTH = 80 as const;
+/** CandleFix: longest observation notes, hypothesis notes or experiment notes after trimming. */
+export const MAX_FIX_TEXT_LENGTH = 2000 as const;
+/** CandleFix: most ticked or noted things to check in one investigation. */
+export const MAX_CHECKS = 200 as const;
+/** CandleFix: longest check item id. */
+export const MAX_CHECK_ID_LENGTH = 80 as const;
+/** CandleFix: longest check item text snapshot. */
+export const MAX_CHECK_LABEL_LENGTH = 200 as const;
+/** CandleFix: longest note on one thing to check. */
+export const MAX_CHECK_NOTE_LENGTH = 500 as const;
+/** CandleFix: most hypotheses in one investigation. */
+export const MAX_HYPOTHESES = 20 as const;
+/** CandleFix: longest hypothesis text after trimming. */
+export const MAX_HYPOTHESIS_TEXT_LENGTH = 500 as const;
+/** CandleFix: longest "what changed" text of an experiment after trimming. */
+export const MAX_EXPERIMENT_CHANGE_LENGTH = 500 as const;
+/** CandleFix: most burn tests one experiment lists. */
+export const MAX_EXPERIMENT_SESSIONS = 8 as const;
+/** CandleFix: most photos in one investigation (same as a burn session). */
+export const MAX_INVESTIGATION_PHOTOS = 12 as const;
 export const DB_NAME = "candlelab" as const;
 
 /** The backup file (docs/specs/4 Data Model.md, "Backup file"). */

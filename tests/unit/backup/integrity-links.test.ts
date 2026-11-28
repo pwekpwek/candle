@@ -228,7 +228,7 @@ describe("success leaves every link readable (format 5, rich device)", () => {
   });
 });
 
-describe("formats 1 to 5 still read and restore", () => {
+describe("formats 1 to 6 still read and restore", () => {
   const FIXTURES = join(process.cwd(), "tests", "fixtures", "backups");
 
   /** The same data as a v0.2 BurnMatrix (format 4) file: no suppliers, lots or batch lot links. */
@@ -240,11 +240,26 @@ describe("formats 1 to 5 still read and restore", () => {
     const loose = copy.data as unknown as Record<string, unknown>;
     delete loose.suppliers;
     delete loose.materialLots;
+    delete loose.investigations;
+    delete loose.investigationPhotos;
+    delete loose.correctiveExperiments;
     copy.data.batches = env.data.batches.map((batch) => {
       const plain = { ...batch };
       delete plain.lots;
       return plain;
     });
+    return copy;
+  }
+
+  /** The same data as a v0.3 lots (format 5) file: no investigations, investigation photos or corrective experiments. */
+  function asFormat5(env: BackupEnvelope): BackupEnvelope {
+    const copy = structuredClone(env);
+    copy.formatVersion = 5;
+    copy.schemaVersion = 5;
+    const loose = copy.data as unknown as Record<string, unknown>;
+    delete loose.investigations;
+    delete loose.investigationPhotos;
+    delete loose.correctiveExperiments;
     return copy;
   }
 
@@ -280,6 +295,11 @@ describe("formats 1 to 5 still read and restore", () => {
 
   it("a format 5 export restores with Replace and with Merge", async () => {
     const r = await buildRich();
-    await restoresBoth(await rebuild(await exportOf(r)), 5);
+    await restoresBoth(await rebuild(asFormat5(await exportOf(r))), 5);
+  });
+
+  it("a format 6 export restores with Replace and with Merge", async () => {
+    const r = await buildRich();
+    await restoresBoth(await rebuild(await exportOf(r)), 6);
   });
 });

@@ -36,6 +36,7 @@ import {
   waitForHeading,
 } from "../e2e/helpers-schedule";
 import { addPhotos, createSession } from "../e2e/helpers-burn";
+import { addInvestigationPhotos, createExperiment, recordInvestigation, reviseAndMakeBatch } from "../e2e/helpers-candlefix";
 import {
   batchRows,
   createLot,
@@ -62,10 +63,13 @@ const DATA_STORES = [
   "burnPhotos",
   "suppliers",
   "materialLots",
+  "investigations",
+  "investigationPhotos",
+  "correctiveExperiments",
 ] as const;
 
-/** IndexedDB version of the final build the restore phases run on (v0.3: schema 5). */
-const FINAL_IDB_VERSION = 50;
+/** IndexedDB version of the final build the restore phases run on (v0.3 CandleFix: schema 6). */
+const FINAL_IDB_VERSION = 60;
 
 type Dump = { version: number; stores: Record<string, unknown[]> };
 
@@ -101,7 +105,7 @@ async function dump(page: Page): Promise<Dump> {
     db.close();
     const hex = (buf: ArrayBuffer) =>
       Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
-    for (const photo of (stores.burnPhotos ?? []) as Record<string, unknown>[]) {
+    for (const photo of [...(stores.burnPhotos ?? []), ...(stores.investigationPhotos ?? [])] as Record<string, unknown>[]) {
       const bytes = photo.bytes as Uint8Array;
       photo.bytes = {
         length: bytes.length,
@@ -460,6 +464,114 @@ test("lots: v0.3 build keeps the v0.2 profile and records suppliers, lots and lo
   });
 });
 
+/**
+ * v0.3 CandleFix (`run-candlefix.sh`), phase 1 on the restore-fix build
+ * (db1730d, schema 5) in a fresh profile: a batch with a lot, a cure plan and
+ * a burn test with a photo, made with the screens; a format 5 backup.
+ */
+test("v03fix: restore-fix build makes a batch with a lot, a cure plan and a burn test with a photo", async () => {
+  test.skip(PHASE !== "v03fix");
+  await withProfile(PROFILE, async (page) => {
+    await buildWE5(page);
+    const start = await dump(page);
+    const v1 = idOf<{ id: string; number: number }>(start.stores.formulaVersions, (v) => v.number === 1);
+    await createSupplier(page, "Example Wax Co");
+    await createLot(page, { material: WE5.wax, supplier: "Example Wax Co", code: "LOT-FIX-001" });
+    await page.goto(`/batches/new?version=${v1}`);
+    await waitForHeading(page, "Create batch");
+    await productionDate(page).fill(isoOffset(-10));
+    await batchLabel(page).fill("FIX-01");
+    await submitCreate(page);
+    await waitForHeading(page, "FIX-01");
+    const batchId = idOf<{ id: string; label?: string }>((await dump(page)).stores.batches, (b) => b.label === "FIX-01");
+    await openBatch(page, batchId, "FIX-01");
+    await setBatchLot(page, WE5.wax, "LOT-FIX-001");
+    await saveBatchChanges(page);
+    await addCurePlan(page, batchId, { cure: "14", rows: [{ kind: "burnTest", label: "First burn", offset: "3" }] });
+    await createSession(page, batchId, {
+      date: isoOffset(-2),
+      label: "Fix burn",
+      planned: "First burn",
+      candles: [
+        { label: "A", wickText: "Generated wick 1", burns: [{ minutes: "240", before: "250.00", after: "238.50", soot: "None seen" }] },
+      ],
+      conclusion: "Maker's own words.",
+    });
+    await addPhotos(page, 1);
+    const end = await dump(page);
+    expect(end.version).toBe(50);
+    expect(end.stores.batches).toHaveLength(1);
+    expect((end.stores.batches[0] as { lots?: unknown[] }).lots).toHaveLength(1);
+    expect(end.stores.curePlans).toHaveLength(1);
+    expect(end.stores.burnSessions).toHaveLength(1);
+    expect(end.stores.burnPhotos).toHaveLength(1);
+    expect(end.stores.investigations, "schema 5 has no CandleFix stores").toBeUndefined();
+    save("dump-v03fix-end.json", end);
+    const { backup } = await exportTo(page, "v03fix-backup.json");
+    expect(backup.formatVersion).toBe(5);
+    console.log("v03fix end", JSON.stringify(counts(end)));
+  });
+});
+
+/**
+ * v0.3 CandleFix (`run-candlefix.sh`), phase 2 on this build, same profile as
+ * `v03fix`: the schema 6 upgrade keeps every schema 5 record (photo bytes by
+ * SHA-256), then an investigation with two generated photos and a corrective
+ * experiment on a follow-up batch are recorded with the screens, and a format 6
+ * backup is exported for `restore06`.
+ */
+test("candlefix: CandleFix build keeps the schema 5 profile and records an investigation, photos and an experiment", async () => {
+  test.skip(PHASE !== "candlefix");
+  await withProfile(PROFILE, async (page) => {
+    await openApp(page);
+    const open = await dump(page);
+    save("dump-candlefix-open.json", open);
+    const log: string[] = [];
+    expectPreserved(load("dump-v03fix-end.json"), open, 60, log);
+    console.log("candlefix upgrade:\n  " + log.join("\n  "));
+
+    const batch = (open.stores.batches as { id: string; label?: string; formulaId: string }[]).find((b) => b.label === "FIX-01");
+    expect(batch, "the FIX-01 batch").toBeDefined();
+    const investigationId = await recordInvestigation(page, batch!.id, {
+      date: isoOffset(-1),
+      title: "Upgrade check",
+      issues: ["tunneling", "other"],
+      other: "Generated test issue",
+      notes: "Made-up observation for the upgrade check.",
+      checks: [{ itemId: "tunneling.first-burn-length", note: "Generated note" }],
+      hypotheses: [{ text: "Generated hypothesis one" }, { text: "Generated hypothesis two", status: "Being tested" }],
+    });
+    await addInvestigationPhotos(page, 2);
+    const followId = await reviseAndMakeBatch(page, `/formulas/${batch!.formulaId}`, 2, { label: "FIX-02", daysAgo: 1 });
+    await createSession(page, followId, {
+      date: isoOffset(0),
+      label: "Follow-up burn",
+      candles: [{ label: "B", wickText: "Generated wick 2", burns: [{ minutes: "180", before: "250.00", after: "240.00" }] }],
+    });
+    await createExperiment(page, investigationId, { hypothesis: 1, batchTitle: "FIX-02", burnTests: ["Follow-up burn"], change: "Generated change" });
+    await page.goto(`/investigations/${investigationId}/compare`);
+    await waitForHeading(page, "Before and after");
+
+    const end = await dump(page);
+    expect(end.stores.investigations).toHaveLength(1);
+    expect(end.stores.investigationPhotos).toHaveLength(2);
+    expect(end.stores.correctiveExperiments).toHaveLength(1);
+    // Everything the schema 5 build made is untouched by the CandleFix work.
+    for (const store of ["curePlans", "burnPhotos", "suppliers", "materialLots"]) {
+      expect(end.stores[store], store).toEqual(open.stores[store]);
+    }
+    expect(end.stores.batches.find((b) => (b as { id: string }).id === batch!.id)).toEqual(
+      open.stores.batches.find((b) => (b as { id: string }).id === batch!.id),
+    );
+    save("dump-candlefix-end.json", end);
+    const { backup } = await exportTo(page, "candlefix-backup.json");
+    expect(backup.formatVersion).toBe(6);
+    expect(backup.schemaVersion).toBe(6);
+    expect(backup.counts).toMatchObject({ investigations: 1, investigationPhotos: 2, correctiveExperiments: 1, batches: 2 });
+    console.log("candlefix end", JSON.stringify(counts(end)));
+  });
+});
+
 for (const [phase, file, expected] of [
   ["restore01", "v01-backup.json", { materials: 4, formulas: 1, formulaVersions: 2, measurements: 1 }],
   [
@@ -484,6 +596,18 @@ for (const [phase, file, expected] of [
     "lots-backup.json",
     { batches: 2, curePlans: 1, burnSessions: 1, burnPhotos: 1, suppliers: 1, materialLots: 1 },
   ],
+  // v0.3 CandleFix: the format 5 file the restore-fix build made in `v03fix`.
+  [
+    "restore05fix",
+    "v03fix-backup.json",
+    { batches: 1, curePlans: 1, burnSessions: 1, burnPhotos: 1, suppliers: 1, materialLots: 1, investigations: 0 },
+  ],
+  // v0.3 CandleFix: the format 6 file this build made in `candlefix`, with investigation photos.
+  [
+    "restore06",
+    "candlefix-backup.json",
+    { batches: 2, burnSessions: 2, burnPhotos: 1, investigations: 1, investigationPhotos: 2, correctiveExperiments: 1 },
+  ],
 ] as const) {
   test(`${phase}: the final build restores ${file} into a fresh profile`, async () => {
     test.skip(PHASE !== phase);
@@ -504,6 +628,21 @@ for (const [phase, file, expected] of [
         const ids = (after.stores[store] as { id: string }[]).map((r) => r.id).sort();
         expect(ids, `${store} ids`).toEqual(rows.map((r) => r.id).sort());
       }
+      if ((source.data.investigationPhotos ?? []).length > 0) {
+        const fileShas = (source.data.investigationPhotos as unknown as { sha256: string }[]).map((p) => p.sha256).sort();
+        const deviceShas = (after.stores.investigationPhotos as { bytes: { sha256: string } }[])
+          .map((p) => p.bytes.sha256)
+          .sort();
+        expect(deviceShas, "investigation photo bytes match their SHA-256").toEqual(fileShas);
+        // Every CandleFix record is on the device exactly as written.
+        for (const store of ["investigations", "correctiveExperiments"]) {
+          expect(after.stores[store], store).toEqual(source.data[store]);
+        }
+        const investigation = after.stores.investigations[0] as { id: string };
+        await page.goto(`/investigations/${investigation.id}/compare`);
+        await waitForHeading(page, "Before and after");
+        await expect(page.getByTestId("before-after-column")).toHaveCount(2, { timeout: SLOW });
+      }
       if ((source.data.burnPhotos ?? []).length > 0) {
         const fileShas = (source.data.burnPhotos as unknown as { sha256: string }[]).map((p) => p.sha256).sort();
         const deviceShas = (after.stores.burnPhotos as { bytes: { sha256: string } }[])
@@ -511,7 +650,7 @@ for (const [phase, file, expected] of [
           .sort();
         expect(deviceShas, "photo bytes match their SHA-256").toEqual(fileShas);
       }
-      if (phase === "restore05") {
+      if (phase === "restore05" || phase === "restore05fix") {
         // Every lot link in the file is on the device as written.
         const fileBatches = source.data.batches as unknown as { id: string; lots?: unknown[] }[];
         const deviceBatches = after.stores.batches as { id: string; lots?: unknown[] }[];

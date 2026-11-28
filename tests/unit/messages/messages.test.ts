@@ -343,7 +343,7 @@ describe("restore check-failure messages (Data Model step 1)", () => {
     [{ code: "checksum" }, "This backup is damaged or was edited."],
     [{ code: "duplicates" }, "This backup is damaged: duplicate records."],
     [
-      { code: "orphans", versions: 2, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, materialLots: 0, batchLots: 0 },
+      { code: "orphans", versions: 2, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, materialLots: 0, batchLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 },
       "This backup is incomplete: 2 versions refer to a missing formula.",
     ],
   ];
@@ -367,7 +367,7 @@ describe("restore check-failure messages (Data Model step 1)", () => {
 
   it("orphans with one version and one measurement", () => {
     expect(
-      messageForCheckFailure({ code: "orphans", versions: 1, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, materialLots: 0, batchLots: 0 }),
+      messageForCheckFailure({ code: "orphans", versions: 1, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, materialLots: 0, batchLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 }),
     ).toBe(
       "This backup is incomplete: 1 version refers to a missing formula and 1 measurement refers to a missing version.",
     );
@@ -381,7 +381,7 @@ describe("restore result summary (Data Model step 5)", () => {
       formulaVersions: number,
       materials: number,
       measurements: number,
-    ): BackupCounts => ({ formulas, formulaVersions, materials, measurements, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 });
+    ): BackupCounts => ({ formulas, formulaVersions, materials, measurements, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 });
     expect(
       restoreSummary({
         fileName: "candlelab-backup-20261114-140512.json",
@@ -405,16 +405,19 @@ describe("restore result summary (Data Model step 5)", () => {
       productionPlans: 1, burnSessions: 1, burnPhotos: 1,
       suppliers: 1,
       materialLots: 1,
+      investigations: 1,
+      investigationPhotos: 1,
+      correctiveExperiments: 1,
     };
     expect(
       restoreSummary({
         fileName: "b.json",
         added: one,
         skippedIdentical: 1,
-        kept: { formulas: 1, formulaVersions: 0, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 },
+        kept: { formulas: 1, formulaVersions: 0, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 },
       }),
     ).toBe(
-      "Restored from b.json: added 1 formula, 1 version, 1 material, 1 measurement, 1 batch, 1 cure plan, 1 planned production entry, 1 burn test, 1 photo, 1 supplier, 1 lot. Skipped 1 identical item. Kept this device's copy of 1 formula.",
+      "Restored from b.json: added 1 formula, 1 version, 1 material, 1 measurement, 1 batch, 1 cure plan, 1 planned production entry, 1 burn test, 1 photo, 1 supplier, 1 lot, 1 investigation, 1 investigation photo, 1 corrective experiment. Skipped 1 identical item. Kept this device's copy of 1 formula.",
     );
   });
 
@@ -422,9 +425,9 @@ describe("restore result summary (Data Model step 5)", () => {
     expect(
       restoreSummary({
         fileName: "b.json",
-        added: { formulas: 0, formulaVersions: 2, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 },
+        added: { formulas: 0, formulaVersions: 2, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 },
         skippedIdentical: 0,
-        kept: { formulas: 0, formulaVersions: 2, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 },
+        kept: { formulas: 0, formulaVersions: 2, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 },
       }),
     ).toBe(
       "Restored from b.json: added 2 versions. Kept this device's copy of 2 versions.",
@@ -529,7 +532,7 @@ const SAMPLE_CHECKS: CheckFailure[] = [
   { code: "incomplete" },
   { code: "checksum" },
   { code: "duplicates" },
-  { code: "orphans", versions: 1, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, materialLots: 0, batchLots: 0 },
+  { code: "orphans", versions: 1, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, materialLots: 0, batchLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 },
 ];
 
 /** Exported helpers that take arguments: name → sampler. */
@@ -561,9 +564,9 @@ const HELPER_SAMPLES: Record<string, () => string> = {
   restoreSummary: () =>
     restoreSummary({
       fileName: "a.json",
-      added: { formulas: 1, formulaVersions: 2, materials: 3, measurements: 4, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 },
+      added: { formulas: 1, formulaVersions: 2, materials: 3, measurements: 4, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 },
       skippedIdentical: 5,
-      kept: { formulas: 0, formulaVersions: 1, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 },
+      kept: { formulas: 0, formulaVersions: 1, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 },
     }),
   basisWords: () => basisWords("wax") + basisWords("total"),
   basisExplanation: () => basisExplanation(800, "wax") + basisExplanation(800, "total"),
@@ -751,10 +754,10 @@ const MESSAGE_SAMPLES: Record<string, unknown[]> = {
   "scale.newWax": ["1000.0 g"],
   "backup.lastBackup": ["3 days ago", 4],
   "backup.exportedLine": ["Nov 14, 14:05", 12, 31],
-  "backup.previewAdd": [{ formulas: 9, formulaVersions: 22, materials: 14, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 }],
-  "backup.previewAlreadyHere": [{ formulas: 3, formulaVersions: 9, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 }],
-  "backup.previewConflicts": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 }],
-  "backup.previewReplace": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 }],
+  "backup.previewAdd": [{ formulas: 9, formulaVersions: 22, materials: 14, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 }],
+  "backup.previewAlreadyHere": [{ formulas: 3, formulaVersions: 9, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 }],
+  "backup.previewConflicts": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 }],
+  "backup.previewReplace": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 }],
   "backup.previewVersionConflicts": [2],
   "backup.previewRenumbered": [1],
   "backup.previewMissingMaterials": [3],
@@ -762,14 +765,74 @@ const MESSAGE_SAMPLES: Record<string, unknown[]> = {
   "backup.previewSharedPlannedTests": [1],
   "backup.integrityPreview": ["replace", SAMPLE_INTEGRITY],
   "backup.failIntegrity": [SAMPLE_INTEGRITY.slice(0, 1)],
-  "backup.replaceAffects": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 }],
-  "backup.replacedSentence": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 }],
+  "backup.replaceAffects": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 }],
+  "backup.replacedSentence": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 }],
   "backup.renumberedSentence": ["Lavender Vanilla", 3, 4],
   "backup.renumberedMany": [5],
   "backup.replaceSummary": [
     "candlelab-backup-20261114-140512.json",
-    { formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 },
+    { formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 },
   ],
+  // ── v0.3 CandleFix (4a): investigation section, editor, page and photos. Add samples below this line. ──
+  "batches.investigationsDeleteBlocked": [2],
+  "batches.followUpDeleteBlocked": [2],
+  "burn.deleteBlockedByExperiments": [2],
+  "candleFix.rowObserved": ["Nov 18, 2026"],
+  "candleFix.rowPhotos": [3],
+  "candleFix.rowExperiments": [2],
+  "candleFix.followUpLink": ["Frosting", "Batch 3F2A91C0"],
+  "candleFix.newDescription": ["Batch 3F2A91C0", "Nov 18, 2026"],
+  "candleFix.editDescription": ["Batch 3F2A91C0"],
+  "candleFix.errDateBeforeProduced": ["Nov 12, 2026"],
+  "candleFix.errTitleTooLong": [60],
+  "candleFix.errOtherTooLong": [80],
+  "candleFix.errNotesTooLong": [2000],
+  "candleFix.checkGroup": ["Frosting"],
+  "candleFix.checkNoteLabel": ["Pour temperature as recorded on the batch"],
+  "candleFix.errCheckNoteTooLong": [500],
+  "candleFix.hypothesisLimit": [20],
+  "candleFix.hypothesisHeading": [2],
+  "candleFix.removeHypothesisFor": [2],
+  "candleFix.errHypothesisTooLong": [500],
+  "candleFix.errHypothesisNotesTooLong": [2000],
+  "candleFix.errHypothesisInUse": [2, "The container was cold"],
+  "candleFix.versionText": [2],
+  "candleFix.observedOther": ["Pitting"],
+  "candleFix.hypothesisFollowUpFor": [2],
+  "candleFix.deleteBody": ["Frosting"],
+  "candleFix.deleteImpact": [3, 1],
+  "candleFixPhotos.count": [3, 12],
+  "candleFixPhotos.limitReached": [12],
+  "candleFixPhotos.limitStopped": [1, 12],
+  "candleFixPhotos.progress": [2, 3],
+  "candleFixPhotos.addedSummary": [2],
+  "candleFixPhotos.photoAlt": [2, 5],
+  "candleFixPhotos.openPhoto": [2, 5],
+  "candleFixPhotos.viewTitle": [2, 5],
+  "candleFixPhotos.storageUsage": ["5.0 MB", "100.0 MB"],
+  "candleFixPhotos.errorNotImage": ["IMG_0001.jpg"],
+  "candleFixPhotos.errorTooLarge": ["IMG_0001.jpg"],
+  "candleFixPhotos.errorTooBig": ["IMG_0001.jpg"],
+  "candleFixPhotos.errorLimit": [12],
+  // ── v0.3 CandleFix (4b): experiments, before-and-after and the investigations list. Add samples below this line. ──
+  "candleFixExperiments.editLabel": ["Batch 3F2A91C0"],
+  "candleFixExperiments.cardLabel": ["Batch 3F2A91C0"],
+  "candleFixExperiments.versionText": [2],
+  "candleFixExperiments.newDescription": ["Rough top"],
+  "candleFixExperiments.editDescription": ["Rough top"],
+  "candleFixExperiments.batchOption": ["Batch 3F2A91C0", "Lavender", 2, "Nov 18, 2026"],
+  "candleFixExperiments.burnTestsHint": [8],
+  "candleFixExperiments.burnTestsLimit": [8],
+  "candleFixExperiments.errChangeLong": [500],
+  "candleFixExperiments.errNotesLong": [2000],
+  "candleFixCompare.description": ["Rough top", "Batch 3F2A91C0"],
+  "candleFixCompare.versionText": [2],
+  "candleFixCompare.issueLine": ["Frosting, Tunneling", "Nov 18, 2026"],
+  "candleFixCompare.hypothesisLine": ["Fragrance load was high", "Not tested yet"],
+  "candleFixCompare.columnLabel": [2, 3],
+  "candleFixCompare.observedOn": ["Nov 18, 2026"],
+  "candleFixCompare.photoCount": [3],
+  "candleFixCompare.experimentCount": [1],
 };
 
 /**
@@ -902,5 +965,31 @@ describe("wording scan: v0.2 batches, schedule and backup sections make no judge
     for (const allowed of Object.keys(OPERATION_ALLOWLIST)) {
       expect(hits.map((h) => h.path), `stale allowlist entry ${allowed}`).toContain(allowed);
     }
+  });
+});
+
+// ─────────── v0.3 CandleFix: observations and hypotheses, never verdicts ───────────
+
+/**
+ * CandleFix records what the maker saw, things to check and the maker's own
+ * hypotheses. Nothing may name a cause, a fix, a verdict or a proof
+ * (docs/v0.3-candlefix.md, "Wording rules"). Scans every CandleFix section
+ * with the broad judgement list plus diagnosis words.
+ */
+const CANDLEFIX_WORDS =
+  /\b(confirmed|confirms|confirm|proven|proves|prove|proof|diagnos\w*|root cause|cause of|caused by|solved|solves|solve|solution|fixed|fixes|resolved)\b/i;
+
+describe("wording scan: CandleFix sections make no judgement and name no cause", () => {
+  it("every CandleFix section exists and no string contains a judgement or diagnosis word", () => {
+    const sections = ["candleFix", "candleFixPhotos", "candleFixExperiments", "candleFixCompare", "candleFixChecks"] as const;
+    const strings: { path: string; text: string }[] = [];
+    for (const section of sections) {
+      const value = (MESSAGES as Record<string, unknown>)[section];
+      expect(value, `MESSAGES.${section}`).toBeDefined();
+      collectStrings(value, section, strings);
+    }
+    expect(strings.length).toBeGreaterThan(80);
+    const hits = strings.filter((s) => JUDGEMENT.test(s.text) || CANDLEFIX_WORDS.test(s.text));
+    expect(hits.map((s) => `${s.path}: ${s.text}`)).toEqual([]);
   });
 });

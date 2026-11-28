@@ -495,8 +495,8 @@ test("backup round trip (format 4 since BurnMatrix) keeps cure plans and the ent
   await waitForHeading(page, "Run 2");
 
   const { file, backup } = await exportBackup(page, testInfo);
-  expect(backup.formatVersion).toBe(5);
-  expect(backup.schemaVersion).toBe(5);
+  expect(backup.formatVersion).toBe(6);
+  expect(backup.schemaVersion).toBe(6);
   expect(backup.counts).toMatchObject({ batches: 2, curePlans: 1, productionPlans: 1 });
   expect(backup.data.curePlans).toHaveLength(1);
   expect(backup.data.curePlans[0].id).toBe(idA);
