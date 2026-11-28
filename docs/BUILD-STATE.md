@@ -104,6 +104,18 @@ Branch `feat/v0.3-lots`, from `feat/v0.2-integration` (`c922234`); its PR merges
 
 Models: lead (Opus) wrote the design note, types, schemas, schema 5, the repositories, backup format 5, the batchtrace contract and their unit tests, reviewed every diff and ran the checks. Sonnet wrote the search, filter and CSV logic, the format 5 updates to older tests, the library and batch screens with their tests, and the browser tests.
 
+## v0.3 — Restore integrity fix (2026-11-28)
+
+Branch `fix/v0.3-restore-integrity`, from `feat/v0.3-lots` (`35712da`); its PR merges into that branch. Fixes the High finding Codex confirmed on `35712da`: a checksum-valid but incomplete file whose parents were only on the device passed the check, "Replace everything" cleared those parents, and the restore reported success with unreadable records. Results, the commit SHA and the before/after reproduction are in the vault handoff `Projects/apps/candle/Sessions/2026-11-28 - v0.3 Restore Integrity Fix - Development Handoff.md`.
+
+- **New:** `src/lib/backup/integrity.ts` (pure): `findBrokenLinks`, `restoreProblems`. `RestorePlan.problems` lists the required links a plan would break, judged on the data after the chosen mode. `applyRestore` recomputes them from the device it reads inside its transaction, before clearing or writing, and refuses with `RestoreResult` reason `"integrity"` (with `problems`). Nothing changes on refusal, meta included.
+- **Required links:** version→formula; measurement, batch and planned entry→version of the same formula; batch→linked lots, each of a component the version has and of that component's material (LT-5); cure plan, burn test→batch; planned entry→batch of the same version; photo→burn test; lot→material and supplier. **Soft, not checked:** a version's parent version and input materials, a burn test's planned-test link and wick material, batch lot snapshots.
+- **Unchanged:** `checkBackupText` (it still counts device ids, since it does not know the mode), backup formats 1 to 5, the stale check.
+- **Screen:** the restore preview shows "This file can't be restored this way." with the first record and reason, and the Restore button is off, until the maker picks a mode that works or another file. New wording in `src/lib/messages.ts`, marked `WRITTEN HERE (restore integrity)`.
+- Resolves LT-5 and the first two L-1 items; the v0.2 decision "the orphan check counts device ids on Replace everything" is superseded.
+
+Models: lead (Opus) reproduced the bug as a failing test, designed and wrote the fix, the screen change and the wording, and ran the final checks; a Sonnet subagent wrote the regression matrix (`tests/unit/backup/integrity-matrix*.test.ts`).
+
 ## Wave 3 handover
 
 Superseded. The wave 3 chat resumed and finished: all five tasks are reviewed and committed (see the log). The scratch file `tests/unit/_tmp/cross.test.ts` mentioned in the earlier snapshot was the orchestrator's own cross-check and has been deleted.

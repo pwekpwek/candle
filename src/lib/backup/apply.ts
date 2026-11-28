@@ -8,9 +8,11 @@ import type {
   ApplyRestore,
   DeviceData,
   DeviceIds,
+  IntegrityProblem,
   ReadDeviceData,
   RestorePlan,
 } from "./contract";
+import { restoreProblems } from "./integrity";
 import { photoFromBackup, photoToBackup } from "./photos";
 import { planRestore } from "./plan";
 
@@ -98,6 +100,34 @@ function findStale(error: unknown): StaleRestore | undefined {
   return inner instanceof StaleRestore ? inner : undefined;
 }
 
+/** Thrown inside the transaction to abort it when the restore would break required links. */
+class BrokenLinksRestore extends Error {
+  constructor(readonly problems: IntegrityProblem[]) {
+    const first = problems[0]!;
+    super(
+      `The restore would leave ${problems.length} broken link(s); first: ${first.store} ${first.id} (${first.reason} ${first.missingId}).`,
+    );
+    this.name = "BrokenLinksRestore";
+  }
+}
+
+function findBrokenLinksError(error: unknown): BrokenLinksRestore | undefined {
+  if (error instanceof BrokenLinksRestore) return error;
+  const inner = (error as { inner?: unknown } | null)?.inner;
+  return inner instanceof BrokenLinksRestore ? inner : undefined;
+}
+
+/**
+ * Restore integrity (v0.3 fix), synchronous and inside the transaction: judged
+ * on the device as read there and on what the plan will clear and write, not
+ * on the plan's own `problems`, so a stale device or a plan applied without
+ * its preview cannot commit broken links.
+ */
+function integrityCheck(plan: RestorePlan, fresh: DeviceData): void {
+  const problems = restoreProblems(fresh, plan.puts, plan.clear);
+  if (problems.length > 0) throw new BrokenLinksRestore(problems);
+}
+
 /** Names the first thing that differs, as plain text for logs. Synchronous. */
 function staleCheck(plan: RestorePlan, fresh: DeviceData, safetyData: DeviceData | undefined): void {
   if (plan.mode === "replace") {
@@ -148,6 +178,7 @@ export const applyRestore: ApplyRestore = async (db, plan, options = {}) => {
         async () => {
           const fresh = await readStores(db);
           staleCheck(plan, fresh, options.safetyBackup?.envelope.data);
+          integrityCheck(plan, fresh);
 
           if (plan.clear) {
             await db.materials.clear();
@@ -176,6 +207,8 @@ export const applyRestore: ApplyRestore = async (db, plan, options = {}) => {
     } catch (error) {
       const stale = findStale(error);
       if (stale) return { ok: false, reason: "stale", detail: stale.message };
+      const broken = findBrokenLinksError(error);
+      if (broken) return { ok: false, reason: "integrity", detail: broken.message, problems: broken.problems };
       return { ok: false, reason: "storage", detail: toDataError(error).message };
     }
 

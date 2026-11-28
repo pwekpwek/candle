@@ -90,6 +90,12 @@ export const MAX_BACKUP_BYTES = 256 * 1024 * 1024;
  *                burn session's batch, or a photo's session. v0.3 (format
  *                5): a lot's material, a lot's supplier when set, or a
  *                batch's linked lot.
+ *                The check does not know the restore mode yet, so it counts
+ *                device records as parents (what "Add to what's here" keeps).
+ *                Whether the chosen mode really keeps every parent, and the
+ *                ownership rules, are judged by the plan
+ *                (`RestorePlan.problems`) and again by `applyRestore`
+ *                (v0.3 restore integrity).
  */
 export type CheckFailure =
   | { code: "not-backup" }
@@ -258,6 +264,53 @@ export type RestorePlan = {
    * data taken when the plan was made. Added in wave 7.
    */
   basis: { envelope: BackupEnvelope; device: DeviceData };
+  /**
+   * Restore integrity (v0.3 fix): required links this plan would break once
+   * applied, judged on the data that will exist after the chosen mode
+   * (`integrity.ts`). Replace keeps only the file, so every parent must be in
+   * it; Merge keeps the device, so device parents count, and only links the
+   * restore itself breaks are listed. Empty when the plan is safe to apply.
+   * A plan with problems must not be applied; `applyRestore` checks again and
+   * refuses it with "integrity".
+   */
+  problems: IntegrityProblem[];
+};
+
+/**
+ * Why a required link is broken (v0.3 restore integrity). `missingId` is the
+ * id the record points at (for "component-missing", the component's slot key).
+ *   formula-missing           a version's formula
+ *   version-missing           a measurement's, batch's or planned entry's version
+ *   version-of-other-formula  that version belongs to another formula
+ *   batch-missing             a cure plan's, planned entry's or burn test's batch
+ *   batch-of-other-version    a planned entry's batch was made from another version
+ *   session-missing           a photo's burn test
+ *   material-missing          a lot's material
+ *   supplier-missing          a lot's supplier (when set)
+ *   lot-missing               a batch's linked lot
+ *   component-missing         a batch lot link names a component its version lacks
+ *   lot-of-other-material     a batch's linked lot is not of its component's material (LT-5)
+ */
+export type IntegrityReason =
+  | "formula-missing"
+  | "version-missing"
+  | "version-of-other-formula"
+  | "batch-missing"
+  | "batch-of-other-version"
+  | "session-missing"
+  | "material-missing"
+  | "supplier-missing"
+  | "lot-missing"
+  | "component-missing"
+  | "lot-of-other-material";
+
+export type IntegrityProblem = {
+  /** The store of the record whose link is broken. */
+  store: DataStoreName;
+  /** That record's id. */
+  id: string;
+  reason: IntegrityReason;
+  missingId: string;
 };
 
 /** Everything in the data stores (DATA_STORES), read in one transaction. */
@@ -304,6 +357,18 @@ export type RestoreResult =
        */
       reason: "busy" | "stale" | "storage" | "mismatch" | "no-safety";
       detail: string;
+    }
+  | {
+      ok: false;
+      /**
+       * integrity  (v0.3 fix) the restore would break required links, judged
+       *            inside the transaction on the device as it is then, before
+       *            anything is cleared or written. Nothing changed, meta
+       *            included. Plan again, or use another file or mode.
+       */
+      reason: "integrity";
+      detail: string;
+      problems: IntegrityProblem[];
     };
 
 export type ApplyRestoreOptions = {
@@ -339,7 +404,11 @@ export type ApplyRestoreOptions = {
  *   1. Refuse if another restore is running, or replace mode lacks a safety backup.
  *   2. Inside the transaction, re-read the device and check it still matches
  *      what the plan was built against (same ids and content for every record
- *      the plan touches or skips); if not, abort with "stale".
+ *      the plan touches or skips); if not, abort with "stale". Then (v0.3
+ *      restore integrity) work out the data the restore would leave from that
+ *      fresh read and `plan.clear`/`plan.puts`, and abort with "integrity" if
+ *      it would break a required link. Both happen before anything is
+ *      cleared or written, so a refusal leaves records and meta untouched.
  *   3. If plan.clear, clear the data stores. Write plan.puts.
  *   4. Set meta lastRestoreAt and add 1 to changesSinceBackup.
  *   5. After commit, re-read the counts and compare with

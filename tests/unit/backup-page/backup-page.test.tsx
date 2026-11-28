@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { BackupView, formatExportedAt } from "@/components/backup";
 import { formatFileSize } from "@/components/backup/format";
-import { MAX_BACKUP_BYTES, checkBackupText, exportBackup, deviceIdsOf, readDeviceData } from "@/lib/backup";
+import { MAX_BACKUP_BYTES, canonicalJson, checkBackupText, exportBackup, deviceIdsOf, readDeviceData, sha256Hex } from "@/lib/backup";
 import { getDataLayer, openDatabase } from "@/lib/db";
 import type { DataLayer } from "@/lib/db";
 import { MESSAGES, messageForCheckFailure, restoreSummary } from "@/lib/messages";
@@ -625,6 +625,55 @@ describe("restore, replace everything (DATA-23, FLOW-09)", () => {
     expect(await screen.findByText(B.safetyExportFailed)).toBeTruthy();
     expect(calls.order).not.toContain("apply");
     expect(await deviceData()).toEqual(before);
+  });
+});
+
+describe("restore integrity: a mode that would break links (v0.3 fix)", () => {
+  it("names the first broken link and turns Restore off for Replace, and allows Add to what's here", async () => {
+    const lib = await makeLibrary(layer());
+    const saved = await layer().versions.save(newFormulaRequest(we5Input(lib)));
+    const batchId = crypto.randomUUID();
+    await layer().batches.create({ batchId, versionId: saved.version.id, producedOn: "2026-11-20", entries: [] });
+
+    // A checksum-valid file that keeps the batch but leaves out its formula, version and measurements.
+    const db = openDatabase();
+    const exported = await exportBackup(db);
+    db.close();
+    const env = JSON.parse(exported.json) as {
+      counts: Record<string, number>;
+      checksum: { algorithm: string; value: string };
+      data: Record<string, unknown[]>;
+    };
+    env.data.formulas = [];
+    env.data.formulaVersions = [];
+    env.data.measurements = [];
+    for (const [store, rows] of Object.entries(env.data)) env.counts[store] = rows.length;
+    env.checksum = { algorithm: "SHA-256", value: await sha256Hex(canonicalJson(env.data)) };
+    const text = JSON.stringify(env);
+    const before = await deviceData();
+
+    const { container } = renderPage();
+    await screen.findByText(/^Last backup|No backup yet/);
+    choose(container, text, "edited.json");
+    await screen.findByText("edited.json");
+    // Add to what's here keeps the device's version: no notice, Restore on.
+    expect(screen.queryByText(B.integrityTitle)).toBeNull();
+    expect((restoreButton() as HTMLButtonElement).disabled).toBe(false);
+
+    fireEvent.click(screen.getByLabelText(B.replaceEverything));
+    expect(await screen.findByText(B.integrityTitle)).toBeTruthy();
+    expect(
+      screen.getByText(new RegExp(`first: batch ${batchId.slice(0, 8)}…: its formula version is missing`)),
+    ).toBeTruthy();
+    await waitFor(() => expect((restoreButton() as HTMLButtonElement).disabled).toBe(true));
+    fireEvent.click(restoreButton());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(calls.order).toEqual([]);
+    expect(await deviceData()).toEqual(before);
+
+    fireEvent.click(screen.getByLabelText(B.addToWhatsHere));
+    await waitFor(() => expect(screen.queryByText(B.integrityTitle)).toBeNull());
+    await waitFor(() => expect((restoreButton() as HTMLButtonElement).disabled).toBe(false));
   });
 });
 

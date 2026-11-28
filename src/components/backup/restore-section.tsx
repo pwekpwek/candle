@@ -18,6 +18,7 @@ import type {
   ConflictPolicy,
   DeviceData,
   ExportedBackup,
+  IntegrityProblem,
   RestoreMode,
   RestorePlan,
 } from "@/lib/backup";
@@ -35,13 +36,20 @@ const S = MESSAGES.storage;
 type Loaded = { envelope: BackupEnvelope; fileName: string };
 
 /** The reasons `applyRestore` gives, plus "safety" for a failed first download. */
-type FailReason = "busy" | "stale" | "storage" | "mismatch" | "no-safety" | "safety";
+type FailReason = "busy" | "stale" | "storage" | "mismatch" | "no-safety" | "integrity" | "safety";
 
 type Outcome =
   | { kind: "check"; failure: CheckFailure; key: number }
   | { kind: "storage"; key: number }
   | { kind: "done"; plan: RestorePlan; key: number }
-  | { kind: "fail"; reason: FailReason; mode: RestoreMode; key: number };
+  | {
+      kind: "fail";
+      reason: FailReason;
+      mode: RestoreMode;
+      /** Restore integrity: the broken links `applyRestore` found, for "integrity". */
+      problems?: IntegrityProblem[];
+      key: number;
+    };
 
 const OPTION_ROW =
   "flex min-h-9 cursor-pointer items-center gap-2 text-sm text-foreground pointer-coarse:min-h-11 has-disabled:cursor-not-allowed has-disabled:opacity-50";
@@ -134,8 +142,10 @@ function resultLines(plan: RestorePlan): string[] {
   return lines;
 }
 
-function failText(reason: FailReason, mode: RestoreMode): string {
+function failText(reason: FailReason, mode: RestoreMode, problems: readonly IntegrityProblem[] = []): string {
   switch (reason) {
+    case "integrity":
+      return B.failIntegrity(problems);
     case "busy":
       return B.failBusy;
     case "stale":
@@ -313,7 +323,13 @@ export function RestoreSection({
         await onRestored().catch(() => {});
       } else {
         console.error(`Restore refused (${result.reason}): ${result.detail}`);
-        setOutcome({ kind: "fail", reason: result.reason, mode: usePlan.mode, key: nextKey() });
+        setOutcome({
+          kind: "fail",
+          reason: result.reason,
+          mode: usePlan.mode,
+          ...(result.reason === "integrity" ? { problems: result.problems } : {}),
+          key: nextKey(),
+        });
         // After a mismatch the device changed, so the old plan no longer fits.
         if (result.reason === "mismatch") await replan(loaded, mode, policy);
       }
@@ -326,6 +342,8 @@ export function RestoreSection({
 
   function pressRestore() {
     if (!plan || applyingRef.current) return;
+    // Restore integrity: a plan that would break links is never applied (the button is off too).
+    if (plan.problems.length > 0) return;
     if (plan.mode === "replace") setConfirmOpen(true);
     else void execute();
   }
@@ -395,7 +413,7 @@ export function RestoreSection({
             variant={o.reason === "mismatch" ? "error" : "warning"}
             title={o.reason === "safety" ? undefined : B.failTitle}
             action={
-              o.reason === "stale" && loaded ? (
+              (o.reason === "stale" || o.reason === "integrity") && loaded ? (
                 <Button
                   type="button"
                   variant="secondary"
@@ -410,7 +428,7 @@ export function RestoreSection({
               ) : undefined
             }
           >
-            {failText(o.reason, o.mode)}
+            {failText(o.reason, o.mode, o.problems)}
           </Notice>
         );
     }
@@ -538,11 +556,17 @@ export function RestoreSection({
             />
           ) : null}
 
+          {plan.problems.length > 0 ? (
+            <Notice variant="error" title={B.integrityTitle}>
+              {B.integrityPreview(plan.mode, plan.problems)}
+            </Notice>
+          ) : null}
+
           <div className="flex flex-wrap items-center gap-3">
             <Button
               type="button"
               busy={applying}
-              disabled={planning || checking}
+              disabled={planning || checking || plan.problems.length > 0}
               onClick={pressRestore}
             >
               {B.restore}

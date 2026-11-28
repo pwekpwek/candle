@@ -10,6 +10,7 @@ import type {
   FormulaVersion,
 } from "@/lib/types";
 import { canonicalJson } from "./canonical";
+import { restoreProblems } from "./integrity";
 import { photoIdentity } from "./photos";
 import type { DeviceData, PlanRestore, Renumbering, RestorePlan, StoreTally } from "./contract";
 
@@ -187,6 +188,8 @@ function planReplace(
     expectedCounts: { ...fileCounts },
     burnChecks: burnChecksAfter(data.batches, data.burnSessions),
     basis: { envelope, device: structuredClone(device) },
+    // Restore integrity: nothing on the device stays, so every parent must be in the file.
+    problems: restoreProblems(device, data, true),
   };
 }
 
@@ -474,5 +477,7 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
     ),
     // The stale check in applyRestore re-plans against this (contract).
     basis: { envelope, device: structuredClone(device) },
+    // Restore integrity: device parents stay, so they count; only new breaks are listed.
+    problems: restoreProblems(device, puts, false),
   };
 };
