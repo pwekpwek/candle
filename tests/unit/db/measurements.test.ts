@@ -165,6 +165,7 @@ describe("TEST-18 permanent delete after real data", () => {
       measurements: 1,
       batches: 0,
       productionPlans: 0,
+      costSheets: 0,
     });
     await layer.formulas.deletePermanently(formula.id);
 

@@ -16,7 +16,7 @@ import type { MaterialLotListItem } from "@/lib/db";
 import { MESSAGES } from "@/lib/messages";
 import { cn } from "@/lib/utils";
 import type { Material, Supplier } from "@/lib/types";
-import { materialFromParam } from "./form-model";
+import { lotPriceText, materialFromParam } from "./form-model";
 import { LotForm, type LotOutcome } from "./lot-form";
 import {
   ArchivedTag,
@@ -296,6 +296,11 @@ function LotRow({
         <p className="text-sm text-text-secondary">
           {lot.receivedOn ? L.received(formatProducedOn(lot.receivedOn)) : L.receivedUnknown}
         </p>
+        {lotPriceText(lot.purchase, material?.type) ? (
+          <p data-testid="lot-price" className="text-sm text-text-secondary">
+            {L.priceLine(lotPriceText(lot.purchase, material?.type) ?? "")}
+          </p>
+        ) : null}
         <p className="text-sm text-text-secondary">{L.usedIn(batchCount)}</p>
         {lot.notes ? (
           <p className="mt-1 text-sm break-words whitespace-pre-wrap text-text-secondary">{lot.notes}</p>

@@ -18,6 +18,8 @@ import type {
   BurnPhotoBackup,
   BurnSession,
   CorrectiveExperiment,
+  CostItem,
+  CostSheet,
   CurePlan,
   BackupData,
   BackupEnvelope,
@@ -137,6 +139,8 @@ export type CheckFailure =
       investigationPhotos: number;
       /** v0.3 CandleFix (format 6): experiments whose investigation, follow-up batch or a listed burn test is missing. */
       correctiveExperiments: number;
+      /** v0.3 TrueCandle Cost (format 7): cost sheets whose version, or batch when set, is missing. */
+      costSheets: number;
     };
 
 export type CheckResult =
@@ -331,7 +335,9 @@ export type IntegrityReason =
   | "follow-up-missing"
   | "follow-up-is-original"
   | "listed-session-missing"
-  | "session-of-other-batch";
+  | "session-of-other-batch"
+  /** v0.3 TrueCandle Cost: a cost sheet's material line names a material other than its component's. */
+  | "line-of-other-material";
 
 export type IntegrityProblem = {
   /** The store of the record whose link is broken. */
@@ -360,6 +366,8 @@ export type DeviceData = {
   /** Photos in their backup form (base64). */
   investigationPhotos: InvestigationPhotoBackup[];
   correctiveExperiments: CorrectiveExperiment[];
+  costItems: CostItem[];
+  costSheets: CostSheet[];
 };
 
 export type PlanRestore = (

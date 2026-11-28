@@ -24,6 +24,7 @@ import { formatAbsoluteDate } from "@/lib/time";
 import type { Formula, FormulaVersion, LinkedMaterial, MeasurementEntry } from "@/lib/types";
 import { DeleteFormulaDialog, EditDetailsDialog } from "./detail-dialogs";
 import { MeasuredSection } from "./measured-weights";
+import { FormulaCostSection } from "@/components/cost";
 import { originHeader, sizingText } from "./text";
 import { VersionHistory } from "./version-history";
 
@@ -192,7 +193,7 @@ function FormulaBody({
   });
   const hasSavedParam = searchParams.get("saved") !== null;
   useEffect(() => {
-    if (hasSavedParam) router.replace(here);
+    if (hasSavedParam) router.replace(here, { scroll: false });
   }, [hasSavedParam, router, here]);
 
   const [measurement, setMeasurement] = useState<
@@ -377,6 +378,8 @@ function FormulaBody({
       <FormulaPlans formulaId={formula.id} versions={versions} className="mt-8" />
 
       <FormulaBatches formulaId={formula.id} versions={versions} className="mt-8" />
+
+      <FormulaCostSection formulaId={formula.id} versionId={version.id} className="mt-8" />
 
       <DetailsSection
         formula={formula}

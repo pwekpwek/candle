@@ -25,12 +25,18 @@ import type { IntegrityProblem, IntegrityReason } from "./contract";
  *     experiment      its follow-up batch, which is not the investigation's
  *                     own batch; each listed burn test, which is a burn test
  *                     of the follow-up batch
+ *   cost sheet        its version, which belongs to the sheet's formula; for
+ *                     a batch sheet, its batch, made from that version; each
+ *                     material line names a component of that version and
+ *                     that component's material (v0.3 TrueCandle Cost)
  *
  * Soft links are not checked, as documented: a version's parent version and
  * the materials its inputs name (the preview's missing-material line), a burn
  * test's planned-test milestone and wick material, and a batch lot snapshot's
  * supplier id, code and name (docs/v0.2-burnmatrix.md, docs/v0.3-lots.md), and
- * a checked item's id against the current built-in lists (docs/v0.3-candlefix.md).
+ * a checked item's id against the current built-in lists (docs/v0.3-candlefix.md),
+ * and a cost sheet's lot ids, item ids and `copiedFromId` (snapshots,
+ * docs/v0.3-cost.md).
  *
  * The app's own writes keep every one of these links, so a full export always
  * passes. Only a file that leaves out parents (or was hand-edited) fails.
@@ -143,6 +149,25 @@ export function findBrokenLinks(data: BackupData): IntegrityProblem[] {
       }
     }
   }
+  // v0.3 TrueCandle Cost.
+  for (const sheet of data.costSheets) {
+    const link = versionLink(sheet.versionId, sheet.formulaId);
+    if (link !== "ok") add("costSheets", sheet.id, link, sheet.versionId);
+    if (sheet.batchId !== null) {
+      const batch = batches.get(sheet.batchId);
+      if (!batch) add("costSheets", sheet.id, "batch-missing", sheet.batchId);
+      else if (batch.versionId !== sheet.versionId) add("costSheets", sheet.id, "batch-of-other-version", sheet.batchId);
+    }
+    const version = versions.get(sheet.versionId);
+    // Without its version the components cannot be known; that is reported above.
+    if (!version) continue;
+    const slots = slotMaterials(version);
+    for (const line of sheet.materials) {
+      const material = slots.get(line.key);
+      if (material === undefined) add("costSheets", sheet.id, "component-missing", line.key);
+      else if (material !== line.materialId) add("costSheets", sheet.id, "line-of-other-material", line.materialId);
+    }
+  }
   return problems;
 }
 
@@ -182,6 +207,8 @@ export function overlay(device: BackupData, puts: BackupData): BackupData {
     investigations: lay(device.investigations, puts.investigations),
     investigationPhotos: lay(device.investigationPhotos, puts.investigationPhotos),
     correctiveExperiments: lay(device.correctiveExperiments, puts.correctiveExperiments),
+    costItems: lay(device.costItems, puts.costItems),
+    costSheets: lay(device.costSheets, puts.costSheets),
   };
 }
 

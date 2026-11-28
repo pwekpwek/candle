@@ -1,4 +1,4 @@
-# CandleLab Studio — Architecture and File Ownership (v0.1 to v0.3 CandleFix)
+# CandleLab Studio — Architecture and File Ownership (v0.1 to v0.3 TrueCandle Cost)
 
 Read this before any task. The specs are in `docs/specs/`. The task list is `docs/specs/6 Implementation Plan.md`. Progress is in `docs/BUILD-STATE.md`.
 
@@ -71,6 +71,10 @@ Read this before any task. The specs are in `docs/specs/`. The task list is `doc
 | `src/lib/candlefix/{checklists,comparison,timeline,index}.ts`, `MESSAGES.candleFixChecks` | v0.3 CandleFix | Built-in things to check, before-and-after model, timeline |
 | `src/components/candlefix/{investigation/**,batch-section.tsx,index.ts}`, `src/app/investigations/new/**`, `src/app/investigations/[investigationId]/page.tsx`, `…/edit/**`, generalised `src/components/burn/photos/**` | v0.3 CandleFix | Investigations section on the batch page, investigation editor and page, photos |
 | `src/components/candlefix/{experiments,compare,list}/**`, `src/app/investigations/page.tsx`, `…/experiments/**`, `…/compare/**` | v0.3 CandleFix | Corrective experiments, before-and-after view, all-investigations list |
+| `src/lib/db/{cost-items,cost-sheets}.ts`, prices and candle counts in `src/lib/db/{materials,material-lots,batches}.ts`, `src/lib/schemas/cost.ts`, TrueCandle Cost parts of `src/lib/{types.ts,db,backup,schemas}`, `src/lib/cost/contract.ts` | v0.3 TrueCandle Cost (lead) | Packaging items, cost sheets, schema 7, backup format 7, integrity links, calculator contract |
+| `src/lib/cost/{rational,calc,format,parse,index}.ts`, `tests/fixtures/cost-worked-batch.ts` | v0.3 TrueCandle Cost | Exact-fraction calculator, PHP formatting, money parsing, worked batch WB-1 |
+| `src/components/{materials,lots,batches}/**` (price and count fields), `src/components/cost-items/**`, `src/app/materials/items/**` | v0.3 TrueCandle Cost | Material and lot prices, packaging and items list, candle counts on the batch form and page |
+| `src/components/cost/**`, `src/app/costs/**` | v0.3 TrueCandle Cost | Cost sheets: new, sheet page, editor with live results, copy and update, list, sections on the formula and batch pages |
 
 ## Routes
 
@@ -107,6 +111,11 @@ Read this before any task. The specs are in `docs/specs/`. The task list is `doc
 | `/investigations/[investigationId]/experiments/new?hypothesis=[hypothesisId]` | New corrective experiment (v0.3 CandleFix) |
 | `/investigations/[investigationId]/experiments/[experimentId]` | Edit or delete a corrective experiment (v0.3 CandleFix) |
 | `/investigations/[investigationId]/compare` | Before-and-after view (v0.3 CandleFix) |
+| `/materials/items` | Packaging and other items, reached from the material library (v0.3 TrueCandle Cost) |
+| `/costs` | All cost sheets, `?formula=` or `?batch=` filters; reached from the Cost sheets section of the formula page and the Costs section of the batch page (v0.3 TrueCandle Cost) |
+| `/costs/new?version=[versionId]` / `?batch=[batchId]` | Start a cost sheet (v0.3 TrueCandle Cost) |
+| `/costs/[sheetId]` | Cost sheet: lines with price sources, totals, cost per sellable candle, scenarios; Copy and update, Delete (v0.3 TrueCandle Cost) |
+| `/costs/[sheetId]/edit` | Cost sheet editor with live results (v0.3 TrueCandle Cost) |
 
 ## Decisions made during the build
 
@@ -203,3 +212,17 @@ Full design and compatibility notes: `docs/v0.3-candlefix.md`.
 - **Delete rules:** a batch with an investigation, or that is a follow-up batch, cannot be deleted (`in-use`); a burn test an experiment lists cannot be deleted; a hypothesis an experiment follows cannot be removed. Deleting an investigation deletes its photos and experiments after a confirmation that counts them. Investigations can be archived.
 - **Schema 6** adds `investigations`, `investigationPhotos`, `correctiveExperiments` (experiments index `*burnSessionIds`). **Backup format 6** adds the three stores; formats 1 to 5 are read. Restore integrity adds: investigation→batch, photo→investigation, experiment→investigation, →a hypothesis of it, →follow-up batch (not the original), →each listed burn test of the follow-up batch.
 - **Wording:** the CandleFix sections are scanned for judgement and diagnosis words (`tests/unit/messages/messages.test.ts`).
+
+## v0.3 TrueCandle Cost decisions (2026-11-29)
+
+Full design, the worked batch and compatibility notes: `docs/v0.3-cost.md`.
+
+- **Money is integer centavos, PHP only.** `@/lib/cost` keeps every computed amount as an exact fraction (bigint) and rounds half up (half away from zero for negatives) to the centavo only when formatting. A total is the exact sum rounded once, so shown lines can differ from a shown total by a centavo; the sheet says so. No screen does its own money maths.
+- **Prices:** a material's default price is per kg (wax, fragrance oil) or each (wick, vessel), the unit following its type (`priceUnitOf`). A lot's purchase is the amount paid for the quantity received (mg or pieces). A cost line uses the batch's priced lot, else the material's price, else a price typed on the sheet, else "No price" (counts as zero and marks the sheet incomplete).
+- **Cost sheets are snapshots** of quantities and unit prices. Later edits to materials, lots, items or the batch never change a saved sheet; **Copy and update** writes a new sheet from current data (typed prices kept) with `copiedFromId` as a soft link.
+- **Basis:** a version sheet costs the version's planned weights for a maker-entered candle count; a batch sheet costs measured weights (planned where not measured, labelled), the batch's lots and its candle counts. Wick and vessel are pieces per candle made (default 1).
+- **Spreading:** materials, per-batch items, labour and overhead form `production`, divided by **sellable** candles, so failed candles are paid for by the sellable ones. Packaging per sellable candle is never charged for a failed candle. The testing allowance is per batch.
+- **Scenarios:** wholesale and retail, each by price or by target gross margin (below 100%). "Prices include 12% VAT" (off by default: the maker is assumed not VAT-registered) makes margin use the ex-VAT price.
+- **Candle counts on batches** are optional (`candlesMade` 1 to 100,000, `sellable` 0 to made); on update absent keeps, null clears.
+- **Delete rules:** batch and formula delete refused (`in-use`) while a cost sheet is based on them. Lots, materials and packaging items never block (sheets hold copies); deleting a packaging item is allowed after a confirmation that counts the sheets keeping their copy.
+- **Schema 7** adds `costItems` and `costSheets` (index `batchId`, null for version sheets). **Backup format 7** adds both; formats 1 to 6 are read with their own record shapes (`MaterialSchemaV1`, `MaterialLotSchemaV5`, `BatchSchemaV5`). Restore integrity adds: cost sheet to version (of its formula), batch sheet to batch (made from that version), each material line to a component of the version with that component's material (`line-of-other-material`). Lot ids, item ids and `copiedFromId` on a sheet are soft.

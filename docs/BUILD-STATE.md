@@ -127,6 +127,18 @@ Branch `feat/v0.3-candlefix`, from `fix/v0.3-restore-integrity` (`db1730d`); its
 
 Models: lead (Opus) wrote the design, types, schemas, repositories, delete guards, backup and integrity changes and their tests, and ran the final checks; Sonnet subagents wrote the pure logic (`src/lib/candlefix`), updated the existing tests for format 6, built the two halves of the UI, and wrote the end-to-end tests.
 
+## v0.3 — TrueCandle Cost (2026-11-29)
+
+Branch `feat/v0.3-cost`, from `feat/v0.3-candlefix` (`ac75476`); its PR merges into that branch. Design and plan: `docs/v0.3-cost.md` (also in the vault as `Projects/apps/candle/Sessions/2026-11-29 - v0.3 TrueCandle Cost - Implementation Plan.md`). Results, the commit SHA, the worked-batch reconciliation and the migration and backup evidence are in the vault handoff `Projects/apps/candle/Sessions/2026-11-29 - v0.3 TrueCandle Cost - Development Handoff.md`.
+
+- **New:** a default price on materials (per kg for wax and oils, each for wicks and vessels), a purchase on lots (amount paid for the quantity received), optional "Candles made" and "Sellable" on batches, a packaging and items list (`/materials/items`), and **cost sheets** (`/costs`) from a version (planned weights) or a batch (measured weights and its lots): materials, items per sellable candle or per batch, labour, overhead (fixed or a percentage of materials and labour), a testing allowance, failed candles spread over sellable ones, cost per sellable candle, and wholesale and retail scenarios by price or target margin, with a "Prices include 12% VAT" switch (off by default).
+- **Money:** integer centavos, exact fractions in `@/lib/cost`, rounded half up only when shown. Worked batch WB-1 (`tests/fixtures/cost-worked-batch.ts`) is the test vector for the calculator, the data layer and e2e.
+- **Data:** schema 7 (IndexedDB 70) adds `costItems` and `costSheets`; materials, lots and batches gain optional fields (no index, no record moves). Backup format 7 adds both stores; formats 1 to 6 are read, each with its own record shapes, so an older file carrying a price, purchase or candle count is refused as damaged. `integrity.ts` gains the cost sheet links (see ARCHITECTURE "v0.3 TrueCandle Cost decisions").
+- **Delete rules:** batch delete and formula delete refused while a cost sheet is based on them. Lots, materials and packaging items never block: sheets hold snapshots.
+- **Upgrade chain:** the schema 6 to 7 real-profile check reuses the `tests/upgrade-chain/` pattern (see the handoff for the run and its evidence).
+
+Models: lead (Opus) wrote the design, types, schemas, repositories, delete guards, backup and integrity changes and their tests, the calculator contract, and ran the final checks; Sonnet subagents wrote the calculator (`src/lib/cost`), updated the existing tests for format 7, built the two halves of the UI, and wrote the end-to-end tests.
+
 ## Wave 3 handover
 
 Superseded. The wave 3 chat resumed and finished: all five tasks are reviewed and committed (see the log). The scratch file `tests/unit/_tmp/cross.test.ts` mentioned in the earlier snapshot was the orchestrator's own cross-check and has been deleted.

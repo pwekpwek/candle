@@ -113,6 +113,9 @@ export function CompareView({ investigationId }: { investigationId: string }) {
         <div className="sm:hidden">
           <Cards columns={model.columns} rows={rows} />
         </div>
+        <p data-testid="melt-pool-note" className="mt-3 text-sm text-text-secondary">
+          {M.meltPoolNote}
+        </p>
       </div>
     </>
   );

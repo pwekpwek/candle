@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { BurnTestsSection } from "@/components/burn/session";
 import { InvestigationsSection } from "@/components/candlefix";
+import { BatchCostSection } from "@/components/cost";
 import { CuringSection } from "@/components/schedule/curing-section";
 import { DataError, getDataLayer } from "@/lib/db";
 import type { BatchInput, BatchListItem } from "@/lib/db";
@@ -140,7 +141,7 @@ function DetailBody({
   const [cureSavedNotice] = useState(() => searchParams.get("cureSaved") === "1");
   const hasParam = searchParams.get("created") !== null || searchParams.get("cureSaved") !== null;
   useEffect(() => {
-    if (hasParam) router.replace(here);
+    if (hasParam) router.replace(here, { scroll: false });
   }, [hasParam, router, here]);
 
   async function save(input: BatchInput) {
@@ -196,6 +197,12 @@ function DetailBody({
         ) : null}
       </div>
 
+      {batch.candlesMade !== undefined ? (
+        <p data-testid="batch-counts" className="mb-6 text-sm text-text-secondary">
+          {B.countsLine(batch.candlesMade, batch.sellable ?? null)}
+        </p>
+      ) : null}
+
       <BatchForm
         key={batch.id}
         version={version}
@@ -205,6 +212,8 @@ function DetailBody({
           notes: batch.notes,
           entries: batch.entries,
           lots: batch.lots,
+          candlesMade: batch.candlesMade,
+          sellable: batch.sellable,
         }}
         submitLabel={B.saveChanges}
         busyLabel={B.savingChanges}
@@ -223,6 +232,8 @@ function DetailBody({
       <BurnTestsSection batchId={batch.id} className="mt-8" />
 
       <InvestigationsSection batchId={batch.id} className="mt-8" />
+
+      <BatchCostSection batchId={batch.id} className="mt-8" />
 
       <DeleteBatchDialog
         title={batchTitle(batch)}
@@ -280,6 +291,7 @@ type Impact =
       burnSessions: number;
       investigations: number;
       followUpExperiments: number;
+      costSheets: number;
     };
 
 function DeleteBody({
@@ -340,11 +352,12 @@ function DeleteBody({
     }
   }
 
-  // Burn tests, investigations and follow-up experiments keep the batch: it cannot be deleted until they are gone.
+  // Burn tests, investigations, follow-up experiments and cost sheets keep the batch: it cannot be deleted until they are gone.
   const burnCount = impact.state === "ready" ? impact.burnSessions : 0;
   const investigationCount = impact.state === "ready" ? impact.investigations : 0;
   const followUpCount = impact.state === "ready" ? impact.followUpExperiments : 0;
-  const explained = burnCount > 0 || investigationCount > 0 || followUpCount > 0;
+  const costSheetCount = impact.state === "ready" ? impact.costSheets : 0;
+  const explained = burnCount > 0 || investigationCount > 0 || followUpCount > 0 || costSheetCount > 0;
   const blocked = explained || refused;
 
   return (
@@ -366,6 +379,11 @@ function DeleteBody({
       {followUpCount > 0 ? (
         <p data-testid="delete-blocked-follow-up" className="text-sm text-foreground">
           {B.followUpDeleteBlocked(followUpCount)}
+        </p>
+      ) : null}
+      {costSheetCount > 0 ? (
+        <p data-testid="delete-blocked-cost-sheets" className="text-sm text-foreground">
+          {B.costSheetsDeleteBlocked(costSheetCount)}
         </p>
       ) : null}
       {!blocked && impact.state === "ready" && impact.milestones > 0 ? (

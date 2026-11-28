@@ -26,9 +26,11 @@ function compact<T extends object>(entries: T): T | undefined {
  * details, an oil carries none).
  */
 function editableFields(input: MaterialInput) {
-  const fields: Pick<Material, "name" | "supplier" | "notes" | "wax" | "wick" | "vessel"> = {
+  const fields: Pick<Material, "name" | "supplier" | "notes" | "wax" | "wick" | "vessel" | "defaultPriceCentavos"> = {
     name: typeof input.name === "string" ? input.name.trim() : input.name,
   };
+  // v0.3 TrueCandle Cost: per kg or per piece by type; absent means no price.
+  if (input.defaultPriceCentavos !== undefined) fields.defaultPriceCentavos = input.defaultPriceCentavos;
   const supplier = cleanOptional(input.supplier);
   const notes = cleanOptional(input.notes);
   if (supplier !== undefined) fields.supplier = supplier;

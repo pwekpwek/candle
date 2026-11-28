@@ -223,8 +223,25 @@ export async function expectNoSideScroll(page: Page, where: string) {
  * sits above every fixed bar at the bottom of the screen.
  */
 export async function expectClearOfFixedBars(page: Page, where: string) {
-  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-  const r = await page.evaluate(() => {
+  // Scroll to the bottom and measure in the same call, once the page has stayed
+  // at the bottom for a few frames. Measuring in a second call raced with the
+  // app: pages that tidy a "?saved=1"-style parameter on arrival used to scroll
+  // back to the top in between (2026-11-29 investigation; the app now passes
+  // `scroll: false`). The visibility requirement itself is unchanged.
+  const r = await page.evaluate(async () => {
+    const doc = document.documentElement;
+    const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    let steady = 0;
+    let lastHeight = -1;
+    const deadline = performance.now() + 5000;
+    while (steady < 3 && performance.now() < deadline) {
+      window.scrollTo(0, doc.scrollHeight);
+      await nextFrame();
+      const atBottom = window.scrollY + doc.clientHeight >= doc.scrollHeight - 1;
+      steady = atBottom && doc.scrollHeight === lastHeight ? steady + 1 : 0;
+      lastHeight = doc.scrollHeight;
+    }
+    const settled = steady >= 3;
     const visible = (el: Element) => {
       const b = el.getBoundingClientRect();
       const s = getComputedStyle(el);
@@ -251,8 +268,9 @@ export async function expectClearOfFixedBars(page: Page, where: string) {
         (el as HTMLInputElement).type !== "radio",
     );
     const lastBottom = Math.max(0, ...items.map((el) => el.getBoundingClientRect().bottom));
-    return { barTop, lastBottom, bars: bars.length, items: items.length };
+    return { barTop, lastBottom, bars: bars.length, items: items.length, settled };
   });
+  expect(r.settled, `${where}: the page stays scrolled to the bottom`).toBe(true);
   expect(r.bars, `${where}: a fixed bottom bar exists`).toBeGreaterThan(0);
   expect(r.items, `${where}: main has interactive elements`).toBeGreaterThan(0);
   expect(r.lastBottom, `${where}: last control above the fixed bars`).toBeLessThanOrEqual(

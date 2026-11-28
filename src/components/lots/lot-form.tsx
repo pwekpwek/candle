@@ -16,6 +16,7 @@ import {
   lotValuesFrom,
   toLotInput,
   validateLot,
+  quantityKindOf,
   validateLotField,
   type LotContext,
   type LotErrors,
@@ -61,7 +62,9 @@ export function LotForm({
   onCancel,
 }: LotFormProps) {
   const [values, setValues] = useState<LotValues>(() =>
-    editing ? lotValuesFrom(editing) : emptyLotValues(defaultMaterialId),
+    editing
+      ? lotValuesFrom(editing, materials.find((m) => m.id === editing.materialId)?.type)
+      : emptyLotValues(defaultMaterialId),
   );
   const [errors, setErrors] = useState<LotErrors>({});
   const [failure, setFailure] = useState<string | null>(null);
@@ -71,14 +74,16 @@ export function LotForm({
   const refs = useRef<Partial<Record<LotFieldKey, HTMLElement | null>>>({});
   // Read once per form, so a form left open past midnight still checks against the day it opened.
   const [today] = useState(() => todayLocal());
-  const ctx: LotContext = { lots, editingId: editing?.id ?? null, today };
+  const materialTypes = Object.fromEntries(materials.map((m) => [m.id, m.type]));
+  const ctx: LotContext = { lots, editingId: editing?.id ?? null, today, materialTypes };
+  const pieces = quantityKindOf(values.materialId, ctx) === "piece";
 
   const pickable = materials.filter((m) => m.archivedAt === null);
   const fixedMaterial = editing ? materials.find((m) => m.id === editing.materialId) : undefined;
   const supplierOptions = supplierChoices(suppliers, editing?.supplierId ?? null);
 
   function set(key: keyof LotValues, value: string) {
-    const next = { ...values, [key]: value };
+    const next = { ...values, [key]: value } as LotValues;
     setValues(next);
     // An error clears on the next valid keystroke. A material or supplier change also re-checks the code.
     setErrors((current) => {
@@ -119,7 +124,7 @@ export function LotForm({
     setFailure(null);
     try {
       const repo = getDataLayer().materialLots;
-      const input = toLotInput(values);
+      const input = toLotInput(values, ctx);
       if (editing) onDone({ kind: "edited", lot: await repo.update(editing.id, input) });
       else onDone({ kind: "added", lot: await repo.create(input) });
     } catch (error) {
@@ -243,6 +248,62 @@ export function LotForm({
           />
         )}
       </Field>
+
+      <Field label={L.amountPaidLabel} error={errors.paid}>
+        {(c) => (
+          <Input
+            {...c}
+            ref={(el) => {
+              refs.current.paid = el;
+            }}
+            inputMode="decimal"
+            autoComplete="off"
+            value={values.paid}
+            onChange={(e) => set("paid", e.target.value)}
+            onBlur={() => blur("paid")}
+            className="text-right tabular-nums"
+          />
+        )}
+      </Field>
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <Field
+          label={pieces ? L.quantityPiecesLabel : L.quantityReceivedLabel}
+          hint={L.purchaseHint}
+          error={errors.quantity}
+          className="sm:flex-1"
+        >
+          {(c) => (
+            <Input
+              {...c}
+              ref={(el) => {
+                refs.current.quantity = el;
+              }}
+              inputMode={pieces ? "numeric" : "decimal"}
+              autoComplete="off"
+              value={values.quantity}
+              onChange={(e) => set("quantity", e.target.value)}
+              onBlur={() => blur("quantity")}
+              className="text-right tabular-nums"
+            />
+          )}
+        </Field>
+        {pieces ? null : (
+          <Field label={L.quantityUnitLabel} className="sm:w-28">
+            {(c) => (
+              <select
+                {...c}
+                className={SELECT_CLASS}
+                value={values.unit}
+                onChange={(e) => set("unit", e.target.value === "g" ? "g" : "kg")}
+              >
+                <option value="kg">{L.unitKg}</option>
+                <option value="g">{L.unitG}</option>
+              </select>
+            )}
+          </Field>
+        )}
+      </div>
 
       <Field label={L.notesLabel} error={errors.notes}>
         {(c) => (

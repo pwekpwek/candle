@@ -177,7 +177,7 @@ describe("planned production: entry page", () => {
     nav.search = "created=1";
     render(<PlanView planId={s.plan.id} />);
     expect(await screen.findByText(S.planSavedNotice)).toBeInTheDocument();
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(`/schedule/plan/${s.plan.id}`));
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(`/schedule/plan/${s.plan.id}`, { scroll: false }));
   });
 
   it("deletes after a confirmation, and keeping it deletes nothing", async () => {

@@ -88,6 +88,8 @@ function asFormat5(env: BackupEnvelope): BackupEnvelope {
   delete loose.investigations;
   delete loose.investigationPhotos;
   delete loose.correctiveExperiments;
+  delete loose.costItems;
+  delete loose.costSheets;
   return copy;
 }
 
@@ -103,6 +105,8 @@ function asFormat4(env: BackupEnvelope): BackupEnvelope {
   delete loose.investigations;
   delete loose.investigationPhotos;
   delete loose.correctiveExperiments;
+  delete loose.costItems;
+  delete loose.costSheets;
   copy.data.batches = env.data.batches.map((batch) => {
     const plain = { ...batch };
     delete plain.lots;
@@ -112,11 +116,11 @@ function asFormat4(env: BackupEnvelope): BackupEnvelope {
 }
 
 describe("backup format 6 export (lots since format 5)", () => {
-  it("exports suppliers, lots and batch lot links with format 6, schema 6, app 0.3.0 and a checksum over all fourteen stores", async () => {
+  it("exports suppliers, lots and batch lot links with format 7, schema 7, app 0.3.0 and a checksum over all sixteen stores", async () => {
     const src = await sourceWithLots();
     const exported = await exportBackup(src.device.db, { now: () => NOW });
     const env = exported.envelope;
-    expect(env).toMatchObject({ formatVersion: 6, schemaVersion: 6, appVersion: "0.3.0" });
+    expect(env).toMatchObject({ formatVersion: 7, schemaVersion: 7, appVersion: "0.3.0" });
     expect(BackupEnvelopeSchema.safeParse(env).success).toBe(true);
     expect(Object.keys(env.data)).toEqual([
       "materials",
@@ -133,6 +137,8 @@ describe("backup format 6 export (lots since format 5)", () => {
       "investigations",
       "investigationPhotos",
       "correctiveExperiments",
+      "costItems",
+      "costSheets",
     ]);
     expect(env.counts).toMatchObject({ suppliers: 2, materialLots: 3, batches: 2 });
     expect(env.data.suppliers.map((s) => s.id)).toEqual([src.s1.id, src.s2.id].sort());
@@ -272,7 +278,7 @@ describe("format 5 checks", () => {
     }
   });
 
-  it("refuses a format 5 file without suppliers as damaged, reads a format 5 file, and refuses a format 7 file as newer", async () => {
+  it("refuses a format 5 file without suppliers as damaged, reads a format 5 file, and refuses a format 8 file as newer", async () => {
     const src = await sourceWithLots();
     const env = (await exportBackup(src.device.db, { now: () => NOW })).envelope;
     const without = asFormat5(env);
@@ -282,7 +288,7 @@ describe("format 5 checks", () => {
     expect(format5.ok).toBe(true);
     if (format5.ok) expect(format5.envelope.formatVersion).toBe(5);
     const newer = structuredClone(env);
-    newer.formatVersion = 7;
+    newer.formatVersion = 8;
     expect(await failureOf(await rebuild(newer), blankDevice(src.device.lib))).toEqual({ code: "newer" });
   });
 });

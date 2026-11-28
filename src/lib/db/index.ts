@@ -19,8 +19,10 @@ import { createMaterialsRepo } from "./materials";
 import { createMeasurementsRepo } from "./measurements";
 import { createMetaRepo } from "./meta";
 import { createVersionsRepo } from "./versions";
+import { createCostItemsRepo } from "./cost-items";
+import { createCostSheetsRepo } from "./cost-sheets";
 
-export { openDatabase, SCHEMA_V1, SCHEMA_V2_ADDED, SCHEMA_V3_ADDED, SCHEMA_V4_ADDED, SCHEMA_V5_ADDED, SCHEMA_V6_ADDED } from "./db";
+export { openDatabase, SCHEMA_V1, SCHEMA_V2_ADDED, SCHEMA_V3_ADDED, SCHEMA_V4_ADDED, SCHEMA_V5_ADDED, SCHEMA_V6_ADDED, SCHEMA_V7_ADDED } from "./db";
 export { sha256OfBytes } from "./burn-photos";
 export { DataError } from "./errors";
 export { bumpChangeCounter } from "./meta";
@@ -48,6 +50,8 @@ export function createDataLayer(db: CandleDatabase, options: DataLayerOptions = 
     investigations: createInvestigationsRepo(db, now, newId),
     investigationPhotos: createInvestigationPhotosRepo(db, now),
     correctiveExperiments: createCorrectiveExperimentsRepo(db, now),
+    costItems: createCostItemsRepo(db, now, newId),
+    costSheets: createCostSheetsRepo(db, now, newId),
     drafts: createDraftsRepo(db, now),
     meta,
     example: createExampleRepo(db, now, newId),

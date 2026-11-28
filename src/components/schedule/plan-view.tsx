@@ -98,7 +98,7 @@ function PlanBody({ item, onDeleted }: { item: ProductionPlanListItem; onDeleted
   const [createdNotice] = useState(() => searchParams.get("created") === "1");
   const hasCreatedParam = searchParams.get("created") !== null;
   useEffect(() => {
-    if (hasCreatedParam) router.replace(here);
+    if (hasCreatedParam) router.replace(here, { scroll: false });
   }, [hasCreatedParam, router, here]);
 
   async function save(input: ProductionPlanInput) {

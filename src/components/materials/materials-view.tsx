@@ -10,9 +10,10 @@ import { PageHeader } from "@/components/common/page-header";
 import { SegmentedControl } from "@/components/common/segmented-control";
 import { Button } from "@/components/ui/button";
 import { getDataLayer } from "@/lib/db";
+import { fraction, formatUnitPrice } from "@/lib/cost";
 import { MESSAGES } from "@/lib/messages";
 import { cn } from "@/lib/utils";
-import type { Material, MaterialType } from "@/lib/types";
+import { priceUnitOf, type Material, type MaterialType } from "@/lib/types";
 import { MaterialEditor } from "./material-editor";
 import type { FormOutcome, FormTarget } from "./material-form";
 
@@ -178,6 +179,9 @@ export function MaterialsView() {
             <Button asChild variant="outline">
               <Link href="/materials/suppliers">{MESSAGES.suppliers.title}</Link>
             </Button>
+            <Button asChild variant="outline">
+              <Link href="/materials/items">{MESSAGES.costItems.title}</Link>
+            </Button>
             <Button onClick={openAdd}>
               <PlusIcon aria-hidden="true" strokeWidth={1.75} />
               {M.addMaterial}
@@ -226,6 +230,7 @@ function MaterialTable({ materials, counts, lotCounts, onOpen }: MaterialTablePr
             <span role="columnheader" className={head}>{M.columnName}</span>
             <span role="columnheader" className={head}>{M.columnType}</span>
             <span role="columnheader" className={head}>{M.columnSupplier}</span>
+            <span role="columnheader" className={head}>{M.columnPrice}</span>
             <span role="columnheader" className={cn(head, "sm:text-right")}>{M.columnUsedIn}</span>
           </div>
         </div>
@@ -278,6 +283,21 @@ function MaterialTable({ materials, counts, lotCounts, onOpen }: MaterialTablePr
                   )}
                 >
                   {material.supplier ?? M.noSupplier}
+                </span>
+                <span
+                  role="cell"
+                  data-testid="material-price"
+                  className={cn(
+                    "col-span-2 text-sm text-text-secondary tabular-nums sm:table-cell sm:px-3 sm:py-3",
+                    material.defaultPriceCentavos === undefined && "max-sm:hidden",
+                  )}
+                >
+                  {material.defaultPriceCentavos === undefined
+                    ? M.priceNone
+                    : formatUnitPrice(
+                        fraction(material.defaultPriceCentavos),
+                        priceUnitOf(material.type),
+                      )}
                 </span>
                 <span
                   role="cell"

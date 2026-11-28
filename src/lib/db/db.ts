@@ -46,14 +46,25 @@ export const SCHEMA_V6_ADDED = {
 } as const;
 
 /**
- * Builds the Dexie instance (schema version 6). Dexie opens lazily on the
+ * Stores added by schema version 7 (v0.3 TrueCandle Cost). Materials, lots and
+ * batches gain optional price and candle-count fields, which need no index.
+ * Version sheets have batchId null and are left out of that index.
+ */
+export const SCHEMA_V7_ADDED = {
+  costItems: "id, name",
+  costSheets: "id, formulaId, versionId, batchId",
+} as const;
+
+/**
+ * Builds the Dexie instance (schema version 7). Dexie opens lazily on the
  * first query, so calling this never touches IndexedDB by itself.
  *
  * Version 2 (BatchTrace) added `batches`; version 3 (CurePilot) adds
  * `curePlans` and `productionPlans`; version 4 (BurnMatrix) adds
  * `burnSessions` and `burnPhotos`; version 5 (v0.3) adds `suppliers` and
  * `materialLots`; version 6 (v0.3 CandleFix) adds `investigations`,
- * `investigationPhotos` and `correctiveExperiments`. Each version only adds stores. Every
+ * `investigationPhotos` and `correctiveExperiments`; version 7 (v0.3 TrueCandle
+ * Cost) adds `costItems` and `costSheets`. Each version only adds stores. Every
  * earlier store keeps its key and indexes, so an upgrade moves no records
  * (DATA-29): an older database opens with all its data and empty new stores.
  */
@@ -65,5 +76,6 @@ export function openDatabase(name: string = DB_NAME): CandleDatabase {
   db.version(4).stores(SCHEMA_V4_ADDED);
   db.version(5).stores(SCHEMA_V5_ADDED);
   db.version(6).stores(SCHEMA_V6_ADDED);
+  db.version(7).stores(SCHEMA_V7_ADDED);
   return db;
 }

@@ -228,7 +228,7 @@ describe("success leaves every link readable (format 5, rich device)", () => {
   });
 });
 
-describe("formats 1 to 6 still read and restore", () => {
+describe("formats 1 to 7 still read and restore", () => {
   const FIXTURES = join(process.cwd(), "tests", "fixtures", "backups");
 
   /** The same data as a v0.2 BurnMatrix (format 4) file: no suppliers, lots or batch lot links. */
@@ -243,11 +243,24 @@ describe("formats 1 to 6 still read and restore", () => {
     delete loose.investigations;
     delete loose.investigationPhotos;
     delete loose.correctiveExperiments;
+    delete loose.costItems;
+    delete loose.costSheets;
     copy.data.batches = env.data.batches.map((batch) => {
       const plain = { ...batch };
       delete plain.lots;
       return plain;
     });
+    return copy;
+  }
+
+  /** The same data as a v0.3 CandleFix (format 6) file: no cost items or cost sheets. */
+  function asFormat6(env: BackupEnvelope): BackupEnvelope {
+    const copy = structuredClone(env);
+    copy.formatVersion = 6;
+    copy.schemaVersion = 6;
+    const loose = copy.data as unknown as Record<string, unknown>;
+    delete loose.costItems;
+    delete loose.costSheets;
     return copy;
   }
 
@@ -260,6 +273,8 @@ describe("formats 1 to 6 still read and restore", () => {
     delete loose.investigations;
     delete loose.investigationPhotos;
     delete loose.correctiveExperiments;
+    delete loose.costItems;
+    delete loose.costSheets;
     return copy;
   }
 
@@ -298,8 +313,13 @@ describe("formats 1 to 6 still read and restore", () => {
     await restoresBoth(await rebuild(asFormat5(await exportOf(r))), 5);
   });
 
-  it("a format 6 export restores with Replace and with Merge", async () => {
+  it("a format 6 file (no cost stores) restores with Replace and with Merge", async () => {
     const r = await buildRich();
-    await restoresBoth(await rebuild(await exportOf(r)), 6);
+    await restoresBoth(await rebuild(asFormat6(await exportOf(r))), 6);
+  });
+
+  it("a format 7 export restores with Replace and with Merge", async () => {
+    const r = await buildRich();
+    await restoresBoth(await rebuild(await exportOf(r)), 7);
   });
 });

@@ -101,7 +101,7 @@ function ViewBody({ detail, onDeleted }: { detail: BurnSessionDetail; onDeleted:
   const [savedNotice] = useState(() => searchParams.get("saved") === "1");
   const hasParam = searchParams.get("saved") !== null;
   useEffect(() => {
-    if (hasParam) router.replace(here);
+    if (hasParam) router.replace(here, { scroll: false });
   }, [hasParam, router, here]);
 
   function download() {

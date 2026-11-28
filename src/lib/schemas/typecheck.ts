@@ -13,6 +13,10 @@ import type {
   ChecklistTick,
   Component,
   CorrectiveExperiment,
+  CostItem,
+  CostItemLine,
+  CostMaterialLine,
+  CostSheet,
   CureMilestone,
   CurePlan,
   Formula,
@@ -40,6 +44,7 @@ import type {
   InvestigationPhotoSchema,
   InvestigationSchema,
 } from "./candlefix";
+import type { CostItemLineSchema, CostItemSchema, CostMaterialLineSchema, CostSheetSchema } from "./cost";
 import type { BackupCountsSchema, BackupDataSchema, BackupEnvelopeSchema } from "./backup";
 import type { FormulaSchema } from "./formula";
 import type { MaterialSchema, MaterialSnapshotSchema } from "./material";
@@ -104,6 +109,14 @@ export type TypeChecks = [
   Assert<SameKeys<Out<typeof InvestigationPhotoBackupSchema>, InvestigationPhotoBackup>>,
   Assert<Same<Out<typeof CorrectiveExperimentSchema>, CorrectiveExperiment>>,
   Assert<SameKeys<Out<typeof CorrectiveExperimentSchema>, CorrectiveExperiment>>,
+  Assert<Same<Out<typeof CostItemSchema>, CostItem>>,
+  Assert<SameKeys<Out<typeof CostItemSchema>, CostItem>>,
+  Assert<Same<Out<typeof CostMaterialLineSchema>, CostMaterialLine>>,
+  Assert<SameKeys<Out<typeof CostMaterialLineSchema>, CostMaterialLine>>,
+  Assert<Same<Out<typeof CostItemLineSchema>, CostItemLine>>,
+  Assert<SameKeys<Out<typeof CostItemLineSchema>, CostItemLine>>,
+  Assert<Same<Out<typeof CostSheetSchema>, CostSheet>>,
+  Assert<SameKeys<Out<typeof CostSheetSchema>, CostSheet>>,
   Assert<Same<Out<typeof BackupCountsSchema>, BackupCounts>>,
   Assert<Same<Out<typeof BackupDataSchema>, BackupData>>,
   Assert<SameKeys<Out<typeof BackupDataSchema>, BackupData>>,

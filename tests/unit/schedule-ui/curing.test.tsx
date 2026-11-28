@@ -193,7 +193,7 @@ describe("Curing section", () => {
     nav.search = "cureSaved=1";
     render(<BatchDetail batchId={s.batch.id} />);
     expect(await screen.findByText(S.cureSavedNotice)).toBeInTheDocument();
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(`/batches/${s.batch.id}`));
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(`/batches/${s.batch.id}`, { scroll: false }));
   });
 });
 

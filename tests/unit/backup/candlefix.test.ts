@@ -83,8 +83,8 @@ describe("backup format 6 export and round trip", () => {
     const f = await buildFix();
     const exported = await exportBackup(f.device.db, { now: () => NOW });
     const env = exported.envelope;
-    expect(env.formatVersion).toBe(6);
-    expect(env.schemaVersion).toBe(6);
+    expect(env.formatVersion).toBe(7);
+    expect(env.schemaVersion).toBe(7);
     expect(env.counts).toMatchObject({ investigations: 1, investigationPhotos: 2, correctiveExperiments: 1 });
     const photo = env.data.investigationPhotos.find((p) => p.id === f.IP1.id)!;
     expect(photo.sha256).toBe(f.IP1.sha256);
@@ -120,7 +120,7 @@ describe("backup format 6 export and round trip", () => {
     const v5 = structuredClone(env);
     v5.formatVersion = 5;
     v5.schemaVersion = 5;
-    for (const store of ["investigations", "investigationPhotos", "correctiveExperiments"] as const) {
+    for (const store of ["investigations", "investigationPhotos", "correctiveExperiments", "costItems", "costSheets"] as const) {
       delete (v5.data as unknown as Record<string, unknown>)[store];
     }
     const text = await rebuild(v5);

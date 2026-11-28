@@ -122,7 +122,7 @@ describe("session page", () => {
     nav.search = "saved=1";
     render(<SessionView sessionId={session.id} />);
     expect(await screen.findByText(M.savedNotice)).toBeInTheDocument();
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(`/burn-tests/${session.id}`));
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(`/burn-tests/${session.id}`, { scroll: false }));
   });
 
   it("shows the planned test and whether it is marked done", async () => {

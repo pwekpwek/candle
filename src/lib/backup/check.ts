@@ -2,6 +2,9 @@ import { z } from "zod";
 import {
   BatchSchema,
   BatchSchemaV2,
+  BatchSchemaV5,
+  CostItemSchema,
+  CostSheetSchema,
   BurnPhotoBackupSchema,
   BurnSessionSchema,
   CorrectiveExperimentSchema,
@@ -11,7 +14,9 @@ import {
   InvestigationPhotoBackupSchema,
   InvestigationSchema,
   MaterialLotSchema,
+  MaterialLotSchemaV5,
   MaterialSchema,
+  MaterialSchemaV1,
   MeasurementSchema,
   ProductionPlanSchema,
   SupplierSchema,
@@ -121,21 +126,34 @@ const EnvelopeShapeV5Schema = z.strictObject({
   data: z.strictObject(V5_DATA),
 });
 
+const V6_COUNTS = {
+  ...V5_COUNTS,
+  investigations: z.int().min(0),
+  investigationPhotos: z.int().min(0),
+  correctiveExperiments: z.int().min(0),
+};
+const V6_DATA = {
+  ...V5_DATA,
+  investigations: z.array(z.unknown()),
+  investigationPhotos: z.array(z.unknown()),
+  correctiveExperiments: z.array(z.unknown()),
+};
+
 /** Format 6 (v0.3 CandleFix): adds `investigations`, `investigationPhotos` and `correctiveExperiments`. */
 const EnvelopeShapeV6Schema = z.strictObject({
   ...ENVELOPE_FIELDS,
-  counts: z.strictObject({
-    ...V5_COUNTS,
-    investigations: z.int().min(0),
-    investigationPhotos: z.int().min(0),
-    correctiveExperiments: z.int().min(0),
-  }),
-  data: z.strictObject({
-    ...V5_DATA,
-    investigations: z.array(z.unknown()),
-    investigationPhotos: z.array(z.unknown()),
-    correctiveExperiments: z.array(z.unknown()),
-  }),
+  counts: z.strictObject(V6_COUNTS),
+  data: z.strictObject(V6_DATA),
+});
+
+/**
+ * Format 7 (v0.3 TrueCandle Cost): adds `costItems` and `costSheets`; materials
+ * may carry a price, lots a purchase, batches candle counts.
+ */
+const EnvelopeShapeV7Schema = z.strictObject({
+  ...ENVELOPE_FIELDS,
+  counts: z.strictObject({ ...V6_COUNTS, costItems: z.int().min(0), costSheets: z.int().min(0) }),
+  data: z.strictObject({ ...V6_DATA, costItems: z.array(z.unknown()), costSheets: z.array(z.unknown()) }),
 });
 
 /** The envelope shape of each format this app reads. */
@@ -146,6 +164,7 @@ const SHAPE_FOR_FORMAT = {
   4: EnvelopeShapeV4Schema,
   5: EnvelopeShapeV5Schema,
   6: EnvelopeShapeV6Schema,
+  7: EnvelopeShapeV7Schema,
 } as const;
 
 /** The stores each format holds. */
@@ -177,12 +196,35 @@ const STORES_IN_FORMAT: Record<number, readonly DataStoreName[]> = {
     "suppliers",
     "materialLots",
   ],
-  6: DATA_STORES,
+  6: [
+    "materials",
+    "formulas",
+    "formulaVersions",
+    "measurements",
+    "batches",
+    "curePlans",
+    "productionPlans",
+    "burnSessions",
+    "burnPhotos",
+    "suppliers",
+    "materialLots",
+    "investigations",
+    "investigationPhotos",
+    "correctiveExperiments",
+  ],
+  7: DATA_STORES,
 };
 
-/** The record schema of a store in a given format: batches before format 5 have no `lots`. */
+/**
+ * The record schema of a store in a given format: batches before format 5 have
+ * no `lots`; before format 7, no candle counts, no material prices and no lot
+ * purchases (docs/v0.3-cost.md).
+ */
 function recordSchemaFor(store: DataStoreName, formatVersion: number): z.ZodType {
   if (store === "batches" && formatVersion < 5) return BatchSchemaV2;
+  if (store === "batches" && formatVersion < 7) return BatchSchemaV5;
+  if (store === "materials" && formatVersion < 7) return MaterialSchemaV1;
+  if (store === "materialLots" && formatVersion < 7) return MaterialLotSchemaV5;
   return RECORD_SCHEMAS[store];
 }
 
@@ -201,6 +243,8 @@ const RECORD_SCHEMAS = {
   investigations: InvestigationSchema,
   investigationPhotos: InvestigationPhotoBackupSchema,
   correctiveExperiments: CorrectiveExperimentSchema,
+  costItems: CostItemSchema,
+  costSheets: CostSheetSchema,
 } as const;
 
 const RECORD_NOUNS: Record<DataStoreName, string> = {
@@ -218,6 +262,8 @@ const RECORD_NOUNS: Record<DataStoreName, string> = {
   investigations: "investigation",
   investigationPhotos: "investigation photo",
   correctiveExperiments: "corrective experiment",
+  costItems: "packaging item",
+  costSheets: "cost sheet",
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -325,6 +371,8 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
     investigations: [],
     investigationPhotos: [],
     correctiveExperiments: [],
+    costItems: [],
+    costSheets: [],
   };
   for (const store of stores) {
     const records: unknown = shape.success
@@ -383,6 +431,8 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
       investigations: fileCounts.investigations ?? 0,
       investigationPhotos: fileCounts.investigationPhotos ?? 0,
       correctiveExperiments: fileCounts.correctiveExperiments ?? 0,
+      costItems: fileCounts.costItems ?? 0,
+      costSheets: fileCounts.costSheets ?? 0,
     },
     checksum: shape.data.checksum as BackupEnvelope["checksum"],
     data: valid as unknown as BackupData,
@@ -481,7 +531,14 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
       !batchKnown(experiment.followUpBatchId) ||
       experiment.burnSessionIds.some((id) => !sessionKnown(id)),
   ).length;
+  // v0.3 TrueCandle Cost (format 7). Existence only here; ownership (the
+  // batch's version, the lines' components) is judged by the integrity check.
+  const versionKnown = (id: string) => versionIds.has(id) || device.versionIds.has(id);
+  const costSheets = envelope.data.costSheets.filter(
+    (sheet) => !versionKnown(sheet.versionId) || (sheet.batchId !== null && !batchKnown(sheet.batchId)),
+  ).length;
   if (
+    costSheets > 0 ||
     investigations > 0 ||
     investigationPhotos > 0 ||
     correctiveExperiments > 0 ||
@@ -509,6 +566,7 @@ export const checkBackupText: CheckBackupText = async (text, sizeBytes, device) 
       investigations,
       investigationPhotos,
       correctiveExperiments,
+      costSheets,
     });
   }
 

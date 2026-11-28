@@ -286,8 +286,9 @@ test("a hypothesis to a follow-up batch: experiment, timeline and before-and-aft
   await expect(cells("Total weight loss").nth(0)).toContainText("Not recorded");
   await expect(cells("Total weight loss").nth(1)).not.toContainText("Not recorded");
   await expect(cells("Total weight loss").nth(1)).toContainText("11.5");
-  await expect(cells("Largest melt pool diameter").nth(0)).toContainText("Not recorded");
-  await expect(cells("Largest melt pool diameter").nth(1)).toContainText("50");
+  await expect(cells("Last melt pool diameter (largest candle)").nth(0)).toContainText("Not recorded");
+  await expect(cells("Last melt pool diameter (largest candle)").nth(1)).toContainText("50");
+  await expect(page.getByTestId("melt-pool-note")).toContainText("last diameter recorded for each candle");
   await expect(cells("Largest flame height").nth(1)).toContainText("40");
   await expectNoVerdicts(page, "compare page");
 
