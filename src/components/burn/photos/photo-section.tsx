@@ -12,15 +12,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Notice } from "@/components/common/notice";
-import { getDataLayer } from "@/lib/db";
-import { MESSAGES } from "@/lib/messages";
 import { preparePhoto } from "@/lib/photos";
-import { MAX_SESSION_PHOTOS } from "@/lib/types";
-import type { BurnPhoto } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { burnPhotoAdapter } from "./adapters";
+import type { PhotoAdapter, PhotoLike } from "./adapters";
 import { photoAlt } from "./photo-grid";
 import { usePhotoUrls } from "./use-photo-urls";
-
-const M = MESSAGES.burnPhotos;
 
 function formatBytes(n: number): string {
   if (n >= 1024 * 1024 * 1024) return `${(n / 1024 / 1024 / 1024).toFixed(1)} GB`;
@@ -35,8 +32,27 @@ function errorCode(error: unknown): string | undefined {
 
 type AddOutcome = { error?: string; stop?: boolean };
 
+/** The burn test gallery (behaviour and text unchanged): `GallerySection` with the burn adapter. */
 export function PhotoSection({ sessionId }: { sessionId: string }) {
-  const [photos, setPhotos] = useState<BurnPhoto[]>([]);
+  return <GallerySection ownerId={sessionId} adapter={burnPhotoAdapter} />;
+}
+
+/**
+ * The photo gallery for any owner (burn test, investigation). The adapter says
+ * where photos are listed, added and deleted, how many fit and what to say.
+ */
+export function GallerySection({
+  ownerId,
+  adapter,
+  className,
+}: {
+  ownerId: string;
+  adapter: PhotoAdapter;
+  className?: string;
+}) {
+  const M = adapter.texts;
+  const max = adapter.max;
+  const [photos, setPhotos] = useState<PhotoLike[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -49,14 +65,14 @@ export function PhotoSection({ sessionId }: { sessionId: string }) {
 
   const reload = useCallback(async () => {
     try {
-      setPhotos(await getDataLayer().burnPhotos.listBySession(sessionId));
+      setPhotos(await adapter.list(ownerId));
       setLoadError(false);
     } catch {
       setLoadError(true);
     } finally {
       setLoaded(true);
     }
-  }, [sessionId]);
+  }, [adapter, ownerId]);
 
   const readUsage = useCallback(async () => {
     try {
@@ -67,7 +83,7 @@ export function PhotoSection({ sessionId }: { sessionId: string }) {
     } catch {
       setUsage(null);
     }
-  }, []);
+  }, [M]);
 
   useEffect(() => {
     // Initial load from the device; state is set after the awaits.
@@ -76,7 +92,7 @@ export function PhotoSection({ sessionId }: { sessionId: string }) {
     void readUsage();
   }, [reload, readUsage]);
 
-  const full = photos.length >= MAX_SESSION_PHOTOS;
+  const full = photos.length >= max;
 
   async function addOne(file: File): Promise<AddOutcome> {
     const prepared = await preparePhoto(file);
@@ -93,9 +109,8 @@ export function PhotoSection({ sessionId }: { sessionId: string }) {
       }
     }
     try {
-      await getDataLayer().burnPhotos.add({
-        photoId: crypto.randomUUID(),
-        sessionId,
+      await adapter.add({
+        ownerId,
         bytes: prepared.photo.bytes,
         width: prepared.photo.width,
         height: prepared.photo.height,
@@ -106,7 +121,7 @@ export function PhotoSection({ sessionId }: { sessionId: string }) {
         case "storage-full":
           return { error: M.errorStorageFull, stop: true };
         case "invalid":
-          return { error: M.errorLimit(MAX_SESSION_PHOTOS), stop: true };
+          return { error: M.errorLimit(max), stop: true };
         case "not-found":
           return { error: M.errorNotFound, stop: true };
         default:
@@ -123,7 +138,7 @@ export function PhotoSection({ sessionId }: { sessionId: string }) {
     setBusy(true);
     setErrors([]);
     setStatus(null);
-    const room = MAX_SESSION_PHOTOS - photos.length;
+    const room = max - photos.length;
     const queue = files.slice(0, Math.max(0, room));
     const skipped = files.length - queue.length;
     const found: string[] = [];
@@ -136,7 +151,7 @@ export function PhotoSection({ sessionId }: { sessionId: string }) {
       if (outcome.stop) break;
     }
     setBusy(false);
-    if (skipped > 0) setStatus(M.limitStopped(added, MAX_SESSION_PHOTOS));
+    if (skipped > 0) setStatus(M.limitStopped(added, max));
     else setStatus(added > 0 ? M.addedSummary(added) : null);
     setErrors(found);
     await reload();
@@ -146,13 +161,16 @@ export function PhotoSection({ sessionId }: { sessionId: string }) {
   const openIndex = photos.findIndex((p) => p.id === openId);
 
   return (
-    <section aria-labelledby="burn-photos-heading" className="flex min-w-0 flex-col gap-3">
+    <section
+      aria-labelledby={adapter.headingId}
+      className={cn("flex min-w-0 flex-col gap-3", className)}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="burn-photos-heading" className="text-lg font-semibold">
+        <h2 id={adapter.headingId} className="text-lg font-semibold">
           {M.heading}
         </h2>
         <span className="text-sm text-text-secondary">
-          {M.count(photos.length, MAX_SESSION_PHOTOS)}
+          {M.count(photos.length, max)}
         </span>
       </div>
 
@@ -176,7 +194,7 @@ export function PhotoSection({ sessionId }: { sessionId: string }) {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={urls[photo.id]}
-                    alt={photoAlt(photo, i, photos.length)}
+                    alt={photoAlt(photo, i, photos.length, M)}
                     loading="lazy"
                     className="aspect-square w-full object-cover"
                   />
@@ -193,7 +211,7 @@ export function PhotoSection({ sessionId }: { sessionId: string }) {
       ) : null}
 
       {full ? (
-        <Notice variant="info">{M.limitReached(MAX_SESSION_PHOTOS)}</Notice>
+        <Notice variant="info">{M.limitReached(max)}</Notice>
       ) : (
         <div>
           <input
@@ -231,6 +249,7 @@ export function PhotoSection({ sessionId }: { sessionId: string }) {
       {usage ? <p className="text-sm text-text-secondary">{usage}</p> : null}
 
       <PhotoViewer
+        adapter={adapter}
         photo={openIndex >= 0 ? photos[openIndex] : null}
         index={openIndex}
         total={photos.length}
@@ -249,6 +268,7 @@ export function PhotoSection({ sessionId }: { sessionId: string }) {
 }
 
 function PhotoViewer({
+  adapter,
   photo,
   index,
   total,
@@ -256,13 +276,15 @@ function PhotoViewer({
   onClose,
   onDeleted,
 }: {
-  photo: BurnPhoto | null;
+  adapter: PhotoAdapter;
+  photo: PhotoLike | null;
   index: number;
   total: number;
   url: string | undefined;
   onClose: () => void;
   onDeleted: () => Promise<void>;
 }) {
+  const M = adapter.texts;
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -278,7 +300,7 @@ function PhotoViewer({
     setDeleting(true);
     setError(null);
     try {
-      await getDataLayer().burnPhotos.delete(photo.id);
+      await adapter.remove(photo.id);
     } catch (e) {
       if (errorCode(e) !== "not-found") {
         setError(M.deleteError);
@@ -332,14 +354,14 @@ function PhotoViewer({
               <DialogHeader>
                 <DialogTitle>{M.viewTitle(index + 1, total)}</DialogTitle>
                 <DialogDescription className="sr-only">
-                  {photoAlt(photo, index, total)}
+                  {photoAlt(photo, index, total, M)}
                 </DialogDescription>
               </DialogHeader>
               {url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={url}
-                  alt={photoAlt(photo, index, total)}
+                  alt={photoAlt(photo, index, total, M)}
                   width={photo.width}
                   height={photo.height}
                   className="mx-auto h-auto max-h-[65dvh] w-auto max-w-full rounded-md object-contain"

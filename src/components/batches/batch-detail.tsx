@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { BurnTestsSection } from "@/components/burn/session";
+import { InvestigationsSection } from "@/components/candlefix";
 import { CuringSection } from "@/components/schedule/curing-section";
 import { DataError, getDataLayer } from "@/lib/db";
 import type { BatchInput, BatchListItem } from "@/lib/db";
@@ -221,6 +222,8 @@ function DetailBody({
 
       <BurnTestsSection batchId={batch.id} className="mt-8" />
 
+      <InvestigationsSection batchId={batch.id} className="mt-8" />
+
       <DeleteBatchDialog
         title={batchTitle(batch)}
         batchId={batch.id}
@@ -270,7 +273,14 @@ function DeleteBatchDialog({
 type Impact =
   | { state: "loading" }
   | { state: "failed" }
-  | { state: "ready"; milestones: number; productionPlans: number; burnSessions: number };
+  | {
+      state: "ready";
+      milestones: number;
+      productionPlans: number;
+      burnSessions: number;
+      investigations: number;
+      followUpExperiments: number;
+    };
 
 function DeleteBody({
   title,
@@ -315,21 +325,32 @@ function DeleteBody({
       await getDataLayer().batches.delete(batchId);
       onDeleted();
     } catch (error) {
-      if (error instanceof DataError && error.code === "in-use") setRefused(true);
-      else setFailed(true);
+      if (error instanceof DataError && error.code === "in-use") {
+        setRefused(true);
+        // Something appeared since the dialog opened: read what keeps the batch, so the refusal can name it.
+        try {
+          const counts = await getDataLayer().batches.deletionImpact(batchId);
+          setImpact({ state: "ready", ...counts });
+        } catch {
+          // The general refusal below stands.
+        }
+      } else setFailed(true);
       submitting.current = false;
       setBusy(false);
     }
   }
 
-  // Burn tests keep the batch: it cannot be deleted until they are deleted.
+  // Burn tests, investigations and follow-up experiments keep the batch: it cannot be deleted until they are gone.
   const burnCount = impact.state === "ready" ? impact.burnSessions : 0;
-  const blocked = burnCount > 0 || refused;
+  const investigationCount = impact.state === "ready" ? impact.investigations : 0;
+  const followUpCount = impact.state === "ready" ? impact.followUpExperiments : 0;
+  const explained = burnCount > 0 || investigationCount > 0 || followUpCount > 0;
+  const blocked = explained || refused;
 
   return (
     <div className="grid gap-4">
       {failed ? <Notice variant="error">{B.deleteFailed}</Notice> : null}
-      {refused && burnCount === 0 ? <Notice variant="error">{BT.batchDeleteInUse}</Notice> : null}
+      {refused && !explained ? <Notice variant="error">{BT.batchDeleteInUse}</Notice> : null}
       {blocked ? null : <p className="text-sm text-foreground">{B.deleteBody(title)}</p>}
       {impact.state === "loading" ? (
         <p role="status" className="text-sm text-text-secondary">
@@ -337,6 +358,16 @@ function DeleteBody({
         </p>
       ) : null}
       {burnCount > 0 ? <p className="text-sm text-foreground">{BT.batchDeleteBlocked(burnCount)}</p> : null}
+      {investigationCount > 0 ? (
+        <p data-testid="delete-blocked-investigations" className="text-sm text-foreground">
+          {B.investigationsDeleteBlocked(investigationCount)}
+        </p>
+      ) : null}
+      {followUpCount > 0 ? (
+        <p data-testid="delete-blocked-follow-up" className="text-sm text-foreground">
+          {B.followUpDeleteBlocked(followUpCount)}
+        </p>
+      ) : null}
       {!blocked && impact.state === "ready" && impact.milestones > 0 ? (
         <p className="text-sm text-foreground">{B.deleteCureNote(impact.milestones)}</p>
       ) : null}

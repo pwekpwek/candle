@@ -316,6 +316,22 @@ export function messageForCheckFailure(failure: CheckFailure): string {
           `${countOf(failure.batchLots, "batch", "batches")} ${failure.batchLots === 1 ? "refers" : "refer"} to a missing lot`,
         );
       }
+      // CandleFix clauses WRITTEN HERE (v0.3 CandleFix).
+      if (failure.investigations > 0) {
+        parts.push(
+          `${countOf(failure.investigations, "investigation")} ${failure.investigations === 1 ? "refers" : "refer"} to a missing batch`,
+        );
+      }
+      if (failure.investigationPhotos > 0) {
+        parts.push(
+          `${countOf(failure.investigationPhotos, "investigation photo")} ${failure.investigationPhotos === 1 ? "refers" : "refer"} to a missing investigation`,
+        );
+      }
+      if (failure.correctiveExperiments > 0) {
+        parts.push(
+          `${countOf(failure.correctiveExperiments, "corrective experiment")} ${failure.correctiveExperiments === 1 ? "refers" : "refer"} to a missing investigation, batch or burn test`,
+        );
+      }
       return `This backup is incomplete: ${parts.join(" and ")}.`;
     }
     default:
@@ -343,6 +359,10 @@ const SUMMARY_ORDER: readonly {
   // WRITTEN HERE (v0.3 lots).
   { key: "suppliers", singular: "supplier", plural: "suppliers" },
   { key: "materialLots", singular: "lot", plural: "lots" },
+  // WRITTEN HERE (v0.3 CandleFix).
+  { key: "investigations", singular: "investigation", plural: "investigations" },
+  { key: "investigationPhotos", singular: "investigation photo", plural: "investigation photos" },
+  { key: "correctiveExperiments", singular: "corrective experiment", plural: "corrective experiments" },
 ];
 
 function countsList(counts: BackupCounts): string[] {
@@ -364,6 +384,13 @@ const INTEGRITY_REASONS: Record<IntegrityReason, string> = {
   "lot-missing": "a lot it uses is missing",
   "component-missing": "a lot it uses is recorded for a component its version doesn't have",
   "lot-of-other-material": "a lot it uses is of a different material than that component",
+  // WRITTEN HERE (v0.3 CandleFix).
+  "investigation-missing": "its investigation is missing",
+  "hypothesis-missing": "the hypothesis it follows is not in its investigation",
+  "follow-up-missing": "its follow-up batch is missing",
+  "follow-up-is-original": "its follow-up batch is the batch it investigates",
+  "listed-session-missing": "a burn test it lists is missing",
+  "session-of-other-batch": "a burn test it lists is of another batch than its follow-up batch",
 };
 
 /** WRITTEN HERE (restore integrity). e.g. "batch 3f2a9c1d…: its formula version is missing". */
@@ -757,6 +784,11 @@ export const MESSAGES = {
     deleteCureNote: (milestones: number) =>
       `Its cure plan, with ${countOf(milestones, "milestone")}, is deleted too.`,
     deletePlanNote: "The planned production entry it came from becomes open again.",
+    // WRITTEN HERE (v0.3 CandleFix): a batch kept by investigations or by being a follow-up batch.
+    investigationsDeleteBlocked: (n: number) =>
+      `This batch has ${countOf(n, "investigation")}. A batch cannot be deleted until its investigations are deleted. Open each investigation and delete it first.`,
+    followUpDeleteBlocked: (n: number) =>
+      `This batch is the follow-up batch of ${countOf(n, "corrective experiment")}. A batch cannot be deleted while an experiment names it. Open the experiment and delete it first.`,
 
     // WRITTEN HERE (v0.2 CurePilot): Create batch from a planned production entry.
     planNoticeTitle: "From planned production.",
@@ -824,6 +856,8 @@ export const MESSAGES = {
 
   // WRITTEN HERE (v0.3 lots): search, filters and export on the Batches list.
   batchTrace: {
+    // WRITTEN HERE (v0.3 CandleFix): header link to the all-investigations list.
+    investigationsLink: "Investigations",
     searchLabel: "Search batches",
     searchPlaceholder: "Batch label, formula, lot code or supplier",
     filtersToggle: (active: number) => (active > 0 ? `Filters (${active})` : "Filters"),
@@ -1333,8 +1367,9 @@ export const MESSAGES = {
     /** Replace confirmation. WRITTEN HERE, except "safety backup" (F7 step 5, DATA-23). */
     // WRITTEN HERE (v0.2 integration QA): names everything Replace removes.
     // Suppliers and lots added: WRITTEN HERE (v0.3 lots).
+    // Investigations, their photos and corrective experiments added: WRITTEN HERE (v0.3 CandleFix).
     replaceWarning:
-      "This removes every formula, version, material, measurement, batch, cure plan, planned production entry, burn test, burn test photo, supplier and lot on this device and writes the backup in their place. A safety backup of current data downloads first.",
+      "This removes every formula, version, material, measurement, batch, cure plan, planned production entry, burn test, burn test photo, supplier, lot, investigation, investigation photo and corrective experiment on this device and writes the backup in their place. A safety backup of current data downloads first.",
     typeReplace: "Type REPLACE to confirm.",
     dontCloseTab: "Don't close this tab.",
     openSaved: "Open saved formulas",
@@ -1857,6 +1892,481 @@ export const MESSAGES = {
       `This batch has ${countOf(n, "burn test")}. A batch cannot be deleted until its burn tests are deleted. Open each burn test and delete it first.`,
     batchDeleteInUse:
       "The batch was not deleted because it still has burn tests. Delete them first, then try again.",
+    // WRITTEN HERE (v0.3 CandleFix): a burn test listed by a corrective experiment.
+    deleteBlockedByExperiments: (n: number) =>
+      `This burn test is listed by ${countOf(n, "corrective experiment")}, so it cannot be deleted. Remove it from the experiment first, then delete it here.`,
+    deleteInUseExperiment:
+      "The burn test was not deleted because a corrective experiment lists it. Remove it from the experiment first, then try again.",
+  },
+
+  // WRITTEN HERE (v0.3 CandleFix): built-in things to check, for owner review.
+  // Prompts to look at or recall. They never state a cause, a fix or a verdict.
+  candleFixChecks: {
+    frosting: {
+      "pour-temperature": "Pour temperature as recorded on the batch",
+      "container-temperature": "Was the container warm or cold when poured?",
+      "room-conditions": "Room temperature and draughts while the wax set",
+      "fragrance-amount": "Fragrance amount as recorded on the batch",
+      "cooling-method": "How the candle cooled after pouring",
+      "cure-time": "Days between pouring and the first look at the surface",
+    },
+    tunneling: {
+      "first-burn-length": "Length of the first burn",
+      "wick-size": "Wick size against the container width",
+      "melt-pool-edge": "Did the melt pool reach the container wall during the burn?",
+      "burn-length-each-time": "Length of each later burn",
+      "wick-trimming": "Wick length before lighting",
+      "room-conditions": "Room temperature and draughts while burning",
+    },
+    sinkhole: {
+      "pour-temperature": "Pour temperature as recorded on the batch",
+      "pour-count": "Number of pours used for this candle",
+      "cooling-method": "How the candle cooled after pouring",
+      "container-temperature": "Was the container warm or cold when poured?",
+      "wax-amount": "Wax amount as recorded on the batch",
+      "room-conditions": "Room temperature while the wax set",
+    },
+    soot: {
+      "wick-size": "Wick size against the container width",
+      "wick-trimming": "Wick length before lighting",
+      "flame-height": "Flame height as recorded during the burn",
+      "burn-length": "Length of the burn when the soot was seen",
+      "fragrance-amount": "Fragrance amount as recorded on the batch",
+      "room-conditions": "Draughts or moving air near the flame",
+    },
+    weakColdThrow: {
+      "fragrance-amount": "Fragrance amount as recorded on the batch",
+      "fragrance-add-temperature": "Temperature when the fragrance was added",
+      "stir-time": "How long the fragrance was stirred in",
+      "cure-time": "Days between pouring and the sniff test",
+      "sniff-conditions": "Where and how the candle was smelled",
+      "lid-or-storage": "Whether the candle was covered while it rested",
+    },
+    weakHotThrow: {
+      "fragrance-amount": "Fragrance amount as recorded on the batch",
+      "fragrance-add-temperature": "Temperature when the fragrance was added",
+      "melt-pool-size": "Melt pool size during the burn",
+      "burn-length": "Length of the burn when the scent was noted",
+      "wick-size": "Wick size against the container width",
+      "room-size": "Size and airflow of the room where it burned",
+      "cure-time": "Days between pouring and the first burn",
+    },
+    wetSpots: {
+      "container-temperature": "Was the container warm or cold when poured?",
+      "container-surface": "Container material and how it was cleaned",
+      "pour-temperature": "Pour temperature as recorded on the batch",
+      "room-conditions": "Room temperature while the wax set",
+      "cooling-method": "How the candle cooled after pouring",
+    },
+    cracking: {
+      "pour-temperature": "Pour temperature as recorded on the batch",
+      "cooling-method": "How the candle cooled after pouring",
+      "room-conditions": "Room temperature while the wax set",
+      "wax-blend": "Wax types and amounts as recorded on the formula",
+      "container-temperature": "Was the container warm or cold when poured?",
+    },
+    mushrooming: {
+      "wick-size": "Wick size against the container width",
+      "wick-trimming": "Wick length before lighting",
+      "burn-length": "Length of the burn when the wick tip was seen",
+      "flame-height": "Flame height as recorded during the burn",
+      "fragrance-amount": "Fragrance amount as recorded on the batch",
+    },
+    other: {
+      "recorded-amounts": "Wax, fragrance and wick as recorded on the batch",
+      temperatures: "Temperatures written down for this batch",
+      container: "Container material, size and shape",
+      "cure-time": "Days between pouring and the day it was observed",
+      "burn-length": "Length of any burns before it was noticed",
+      "room-conditions": "Room temperature and draughts",
+    },
+  },
+
+  /**
+   * v0.3 CandleFix: investigations of a batch. WRITTEN HERE (v0.3 CandleFix),
+   * for owner review. Observations, things to check and the maker's own
+   * hypotheses only: nothing names a cause, a fix or a verdict.
+   */
+  candleFix: {
+    /** The fixed list of issues a maker can record (FIX_ISSUES). */
+    issueLabels: {
+      frosting: "Frosting",
+      tunneling: "Tunneling",
+      sinkhole: "Sinkhole",
+      soot: "Soot",
+      weakColdThrow: "Weak cold throw",
+      weakHotThrow: "Weak hot throw",
+      wetSpots: "Wet spots",
+      cracking: "Cracking",
+      mushrooming: "Mushrooming",
+      other: "Other",
+    },
+    /** A hypothesis's status, set by the maker. Neutral words only. */
+    hypothesisStatus: {
+      open: "Not tested yet",
+      testing: "Being tested",
+      fits: "Follow-up observations fit it",
+      doesNotFit: "Follow-up observations don't fit it",
+      setAside: "Set aside",
+    },
+    /** The label every hypothesis carries. */
+    hypothesisLabel: "Hypothesis",
+
+    // ── WRITTEN HERE (v0.3 CandleFix, 4a): investigation section, editor and page ──
+    // Batch page section
+    sectionHeading: "Investigations",
+    sectionLoading: "Loading investigations…",
+    sectionLoadFailed: "The investigations could not be loaded. Your data is still on this device.",
+    sectionEmpty:
+      "No investigations yet. Record an issue you saw on this batch, such as frosting or tunneling, to keep your observations, things to check and ideas in one place.",
+    tryAgain: "Try again",
+    recordButton: "Record an issue",
+    archivedBadge: "Archived",
+    rowObserved: (date: string) => `Observed ${date}`,
+    rowPhotos: (n: number) => countOf(n, "photo"),
+    rowExperiments: (n: number) => countOf(n, "corrective experiment"),
+    followUpHeading: "Follow-up batch for",
+    followUpLink: (investigation: string, batch: string) => `${investigation}, on ${batch}`,
+
+    // Editor, shared
+    newTitle: "Record an issue",
+    editTitle: "Edit investigation",
+    newDescription: (batch: string, producedOn: string) =>
+      `On ${batch}, produced ${producedOn}.`,
+    editDescription: (batch: string) => `On ${batch}.`,
+    editorLoading: "Loading…",
+    editorLoadFailed: "The investigation could not be loaded. Your data is still on this device.",
+    notFoundTitle: "Investigation not found",
+    notFoundBody:
+      "It may have been deleted, or the link may be wrong. Your batches and burn tests are not affected.",
+    batchMissingTitle: "Batch not found",
+    batchMissingBody:
+      "An investigation belongs to one batch. This batch may have been deleted, or the link may be wrong.",
+    backToBatches: "Back to batches",
+    cancel: "Cancel",
+
+    // Editor: what you saw
+    dateLabel: "Date observed",
+    errDateRequired: "Enter the date you observed it.",
+    errDateInvalid: "Enter a real date.",
+    errDateFuture: "The date observed cannot be in the future.",
+    errDateBeforeProduced: (date: string) =>
+      `The date observed cannot be before the batch was produced (${date}).`,
+    titleLabel: "Title (optional)",
+    titleHint: "Your own name for this investigation, up to 60 characters.",
+    errTitleTooLong: (max: number) => `Use at most ${max} characters.`,
+    issuesLegend: "What did you see?",
+    issuesHint: "Choose every issue you saw. At least one.",
+    errIssuesRequired: "Choose at least one issue.",
+    otherLabel: "Describe the other issue",
+    errOtherRequired: "Describe the other issue you saw.",
+    errOtherTooLong: (max: number) => `Use at most ${max} characters.`,
+    notesLabel: "Observation notes (optional)",
+    notesHint: "What you saw, in your own words.",
+    errNotesTooLong: (max: number) => `Use at most ${max} characters.`,
+
+    // Editor: things to check
+    checksHeading: "Things to check",
+    checksIntro:
+      "Questions to look at, listed for the issues you chose. Tick the ones you looked at and add a note if you like. They are prompts, not answers.",
+    checksNone: "Choose an issue above to see its things to check.",
+    checkGroup: (issue: string) => `Things to check for ${issue}`,
+    checkNoteLabel: (item: string) => `Note on: ${item}`,
+    errCheckNoteTooLong: (max: number) => `Use at most ${max} characters.`,
+    noLongerListedHeading: "From issues no longer listed",
+    noLongerListedHint:
+      "These were saved earlier and stay in the record, unchanged. Choose their issue again to edit them.",
+
+    // Editor: hypotheses
+    hypothesesHeading: "Hypotheses (your ideas to test)",
+    hypothesesHint:
+      "Your own ideas, in your own words. They are kept apart from what you observed and are not checked by the app.",
+    hypothesesNone: "No hypotheses yet.",
+    addHypothesis: "Add hypothesis",
+    hypothesisLimit: (max: number) =>
+      `This investigation has ${max} hypotheses, which is the most it can hold.`,
+    hypothesisHeading: (n: number) => `Hypothesis ${n}`,
+    hypothesisTextLabel: "Your hypothesis",
+    hypothesisTextHint: "For example: the container was cold when I poured.",
+    hypothesisStatusLabel: "Status",
+    hypothesisNotesLabel: "Notes (optional)",
+    removeHypothesis: "Remove hypothesis",
+    removeHypothesisFor: (n: number) => `Remove hypothesis ${n}`,
+    errHypothesisRequired: "Write your hypothesis, or remove it.",
+    errHypothesisTooLong: (max: number) => `Use at most ${max} characters.`,
+    errHypothesisNotesTooLong: (max: number) => `Use at most ${max} characters.`,
+    errHypothesisInUse: (n: number, text: string) =>
+      `Hypothesis ${n} (${text}) has a corrective experiment, so it cannot be removed. Delete that experiment first, or keep the hypothesis.`,
+
+    // Editor: save
+    save: "Save investigation",
+    saving: "Saving investigation",
+    saveChanges: "Save changes",
+    savingChanges: "Saving changes",
+    errCheckFields: "Some entries need attention. They are marked below.",
+    saveFailed: "The investigation was not saved. Your entries are still in the form. Try again.",
+    saveInvalid:
+      "The investigation was not saved because something in it is not accepted, for example the date. Check your entries, then save again.",
+    saveBatchGone: "The batch for this investigation could not be found, so nothing was saved.",
+    saveGone: "This investigation was deleted, so the changes were not saved.",
+    saveStorageFull:
+      "This device is out of space for this site, so the investigation was not saved. Your entries are still in the form. Deleting photos or old burn tests after making a backup frees space.",
+    photosAfterSave: "Photos can be added after you save this investigation.",
+    retry: "Try again",
+    savedNotice: "Saved",
+
+    // Investigation page
+    pageLoading: "Loading investigation…",
+    pageLoadingTitle: "Investigation",
+    onBatch: "Batch",
+    separator: " · ",
+    versionText: (n: number) => `version ${n}`,
+    edit: "Edit",
+    archive: "Archive",
+    unarchive: "Unarchive",
+    archiveFailed:
+      "The investigation could not be archived or unarchived. Nothing was changed. Try again.",
+    delete: "Delete",
+    observedHeading: "What you observed",
+    observedIssues: "Issues",
+    observedOther: (text: string) => `Other: ${text}`,
+    observedNotes: "Notes",
+    observedNoNotes: "No notes.",
+    checksViewNone: "Nothing ticked or noted yet.",
+    checkTicked: "Ticked",
+    checkNotTicked: "Not ticked",
+    checkNote: "Note",
+    hypothesesViewNone: "No hypotheses yet. Edit this investigation to add your own ideas.",
+    hypothesisFollowUp: "Follow up this hypothesis",
+    hypothesisFollowUpFor: (n: number) => `Follow up hypothesis ${n}`,
+
+    // Delete investigation
+    deleteTitle: "Delete this investigation?",
+    deleteBody: (title: string) =>
+      `${title} will be removed from this device. This cannot be undone.`,
+    deleteImpact: (photos: number, experiments: number) => {
+      const parts: string[] = [];
+      if (photos > 0) parts.push(countOf(photos, "photo"));
+      if (experiments > 0) parts.push(countOf(experiments, "corrective experiment"));
+      return `This deletes the investigation${parts.length > 0 ? `, its ${parts.join(" and ")}` : ""}. The batches and burn tests stay.`;
+    },
+    deleteChecking: "Checking what goes with it…",
+    deleteConfirm: "Delete investigation",
+    deleteKeep: "Keep investigation",
+    deleteFailed: "The investigation was not deleted. Nothing was changed. Try again.",
+  },
+
+  /**
+   * Photos on an investigation (v0.3 CandleFix). Same pipeline as burn test
+   * photos, so the keys match `burnPhotos`. WRITTEN HERE (v0.3 CandleFix, 4a).
+   */
+  candleFixPhotos: {
+    heading: "Photos",
+    count: (n: number, max: number) => `${n} of ${max}`,
+    empty: "No photos yet. Add photos of what you saw, such as the surface, the sides or the flame.",
+    addButton: "Add photos",
+    limitReached: (max: number) =>
+      `This investigation has ${max} photos, which is the most it can hold. Delete a photo to add another.`,
+    limitStopped: (added: number, max: number) =>
+      `Added ${countOf(added, "photo")}. The investigation now has ${max} photos, the most it can hold, so the rest were not added.`,
+    progress: (n: number, total: number) => `Adding photo ${n} of ${total}…`,
+    addedSummary: (n: number) => `Added ${countOf(n, "photo")}.`,
+    photoAlt: (n: number, total: number) => `Photo ${n} of ${total}`,
+    openPhoto: (n: number, total: number) => `Open photo ${n} of ${total}`,
+    loadError: "The photos could not be loaded from this device.",
+    viewTitle: (n: number, total: number) => `Photo ${n} of ${total}`,
+    close: "Close",
+    delete: "Delete photo",
+    deleteTitle: "Delete this photo?",
+    deleteBody: "The photo is removed from this device. This cannot be undone.",
+    deleteConfirm: "Delete photo",
+    deleteCancel: "Keep photo",
+    deleteError: "The photo could not be deleted. Nothing was changed. Please try again.",
+    deleteGone: "That photo was already deleted.",
+    privacyNote:
+      "Photos are shrunk to fit and saved as JPEG on this device. Location and camera details in the photo are not kept.",
+    storageUsage: (used: string, quota: string) =>
+      `This site uses ${used} of about ${quota} available on this device.`,
+    errorNotImage: (name: string) => `${name} is not an image, so it was not added.`,
+    errorTooLarge: (name: string) =>
+      `${name} is larger than 40 MB, so it was not added. Choose a smaller photo.`,
+    errorTooBig: (name: string) =>
+      `${name} is still too big after shrinking, so it was not added. Try a different photo.`,
+    errorUnsupported:
+      "This browser cannot turn photos into JPEG files, so the photo was not added. Try another browser.",
+    errorStorageFull:
+      "This device is out of space for this site, so the photo was not added. Nothing else was lost. Deleting photos after making a backup frees space.",
+    errorLimit: (max: number) =>
+      `This investigation already has ${max} photos, the most it can hold, so the photo was not added.`,
+    errorStorage:
+      "The photo could not be saved on this device, so it was not added. Nothing else was changed. Please try again.",
+    errorNotFound: "This investigation could not be found, so the photo was not added.",
+  },
+
+  /**
+   * v0.3 CandleFix: corrective experiments, the timeline and the experiment
+   * editor. WRITTEN HERE (v0.3 CandleFix), for owner review. Observations
+   * only: nothing names a cause, a fix or a verdict.
+   */
+  candleFixExperiments: {
+    heading: "Corrective experiments",
+    description:
+      "A corrective experiment links one of your hypotheses to a follow-up batch and the burn tests you ran on it.",
+    loading: "Loading corrective experiments…",
+    loadFailed: "The corrective experiments could not be loaded. Your data is still on this device.",
+    tryAgain: "Try again",
+    emptyTitle: "No corrective experiments yet",
+    emptyBody:
+      "A hypothesis can be followed by a follow-up batch, usually made from a new formula version. Make that batch first, then choose Follow up this hypothesis on the hypothesis.",
+    compareLink: "Compare before and after",
+    editLink: "Edit experiment",
+    editLabel: (batchTitle: string) => `Edit experiment with ${batchTitle}`,
+    cardLabel: (batchTitle: string) => `Corrective experiment: ${batchTitle}`,
+    hypothesisFollowed: "Hypothesis followed",
+    hypothesisGone: "No longer in this investigation",
+    followUpBatch: "Follow-up batch",
+    formulaLabel: "Formula",
+    versionText: (version: number) => `version ${version}`,
+    changeLabel: "What changed",
+    notesLabel: "Notes",
+    burnTestsLabel: "Burn tests",
+    noBurnTests: "No burn tests listed",
+    noChange: "Not written down",
+    separator: " · ",
+
+    // Timeline
+    timelineHeading: "Timeline",
+    timelineEmpty: "Nothing is dated yet.",
+    timelineLabel: "Dated events for this investigation",
+    eventBatchMade: "Batch made",
+    eventIssueObserved: "Issue observed",
+    eventHypothesisAdded: "Hypothesis added",
+    eventFollowUpMade: "Follow-up batch made",
+    eventBurnTest: "Burn test",
+
+    // Editor
+    newTitle: "New corrective experiment",
+    editTitle: "Edit corrective experiment",
+    editorLoading: "Loading…",
+    editorLoadFailed: "The experiment could not be loaded. Your data is still on this device.",
+    newDescription: (investigation: string) => `Follows a hypothesis of ${investigation}.`,
+    editDescription: (investigation: string) => `Part of ${investigation}.`,
+    investigationMissingTitle: "Investigation not found",
+    investigationMissingBody: "That investigation is no longer on this device.",
+    experimentMissingTitle: "Corrective experiment not found",
+    experimentMissingBody: "That corrective experiment is no longer on this device.",
+    noHypothesesTitle: "No hypotheses yet",
+    noHypothesesBody:
+      "Add a hypothesis on the investigation page first. A corrective experiment follows one hypothesis.",
+    backToInvestigation: "Back to the investigation",
+    backToBatches: "Go to batches",
+    hypothesisField: "Hypothesis to follow",
+    hypothesisPlaceholder: "Choose a hypothesis",
+    errHypothesis: "Choose the hypothesis this follow-up batch follows.",
+    batchField: "Follow-up batch",
+    batchPlaceholder: "Choose a batch",
+    batchHint:
+      "The batch of this investigation is not listed. Batches made from the same formula come first, so a batch from a newer version is easy to find.",
+    batchGroupSameFormula: "Same formula as this investigation",
+    batchGroupOtherFormula: "Other formulas",
+    batchOption: (batch: string, formula: string, version: number, date: string) =>
+      `${batch}, ${formula}, version ${version}, made ${date}`,
+    batchesNone: "There is no other batch to follow up with yet. Make a batch first.",
+    errBatch: "Choose the follow-up batch.",
+    fixedNote: "The hypothesis and the follow-up batch cannot be changed once the experiment is saved.",
+    burnTestsLegend: "Burn tests of the follow-up batch",
+    burnTestsChooseBatch: "Choose a follow-up batch to see its burn tests.",
+    burnTestsNone: "This batch has no burn tests yet. You can add them later.",
+    burnTestsHint: (max: number) => `Optional. Choose up to ${max}.`,
+    burnTestsLimit: (max: number) => `You can list up to ${max} burn tests.`,
+    changeField: "What changed",
+    changeHint: "For example: less fragrance oil, a different wick.",
+    notesField: "Notes",
+    errChangeLong: (max: number) => `Write ${max} characters or fewer.`,
+    errNotesLong: (max: number) => `Write ${max} characters or fewer.`,
+    errCheckFields: "Check the fields marked above.",
+    save: "Save experiment",
+    cancel: "Cancel",
+    retry: "Try again",
+    saveGone: "That batch or burn test is no longer on this device.",
+    saveInvalid: "Some of this could not be saved. Check the follow-up batch and the burn tests.",
+    saveStorageFull: "This device has no room left to save this. Free some space and try again.",
+    saveFailed: "The experiment could not be saved. Your changes are still here. Try again.",
+    deleteButton: "Delete experiment",
+    deleteTitle: "Delete this corrective experiment?",
+    deleteBody: "Deletes this corrective experiment only. The follow-up batch and its burn tests stay.",
+    deleteKeep: "Keep it",
+    deleteConfirm: "Delete experiment",
+    deleteFailed: "The experiment could not be deleted. Try again.",
+  },
+
+  /**
+   * v0.3 CandleFix: the before-and-after view and the all-investigations
+   * list. WRITTEN HERE (v0.3 CandleFix), for owner review. Columns are never
+   * ranked; "Before" and "After" only say which batch came first.
+   */
+  candleFixCompare: {
+    title: "Before and after",
+    description: (investigation: string, batch: string) => `${investigation}, recorded on ${batch}.`,
+    loading: "Loading…",
+    loadFailedTitle: "The comparison could not be loaded.",
+    loadFailed: "Your data is still on this device. Try again.",
+    tryAgain: "Try again",
+    notFoundTitle: "Investigation not found",
+    notFoundBody: "That investigation is no longer on this device.",
+    noExperimentsTitle: "No corrective experiments yet",
+    noExperimentsBody: "Add a corrective experiment to see its follow-up batch next to the original.",
+    backToInvestigation: "Back to the investigation",
+    tableCaption:
+      "Before and after, one column per batch. This table scrolls sideways when it is wider than the screen.",
+    cardsLabel: "Before and after, one card per batch",
+    rowLabel: "Row",
+    before: "Before",
+    after: "After",
+    separator: " · ",
+    versionText: (version: number) => `version ${version}`,
+    notRecorded: "Not recorded",
+    noneRecorded: "None recorded",
+    noChange: "Not written down",
+    hypothesisGone: "No longer in this investigation",
+    rowBatch: "Batch",
+    rowFormula: "Formula and version",
+    rowProducedOn: "Produced",
+    rowHypothesis: "Hypothesis followed",
+    rowChange: "What changed",
+    rowIssues: "Issues observed",
+    rowBurnTests: "Burn tests",
+    rowCandles: "Candles",
+    rowBurns: "Burns",
+    rowTotalTime: "Total burn time",
+    rowTotalLoss: "Total weight loss",
+    rowAverageRate: "Average weight loss per hour",
+    rowMeltPool: "Largest melt pool diameter",
+    rowFlame: "Largest flame height",
+    rowSoot: "Soot seen",
+    notApplicable: "Not applicable",
+    issueLine: (issues: string, date: string) => `${issues}, observed ${date}`,
+    hypothesisLine: (text: string, status: string) => `${text} (${status})`,
+    columnLabel: (position: number, total: number) => `Batch ${position} of ${total}`,
+
+    // The all-investigations list
+    listTitle: "Investigations",
+    listDescription: "Issues you recorded on batches, newest observation first.",
+    listLoading: "Loading investigations…",
+    listLoadFailedTitle: "Investigations could not be loaded.",
+    listLoadFailed: "Your data is still on this device. Try again.",
+    listEmptyTitle: "No investigations yet",
+    listEmptyBody:
+      "An investigation starts from a batch. Open a batch and choose Record an issue.",
+    listEmptyAction: "Go to batches",
+    listGroupLabel: "Investigations",
+    showArchived: "Show archived",
+    archivedBadge: "Archived",
+    listNoActive: "No investigations to show. Turn on Show archived to see archived ones.",
+    observedOn: (date: string) => `Observed ${date}`,
+    photoCount: (n: number) => countOf(n, "photo"),
+    experimentCount: (n: number) => countOf(n, "corrective experiment"),
+    untitled: "Investigation",
   },
 
   /** Storage blocked (blueprint section 5, F7 storage row). */

@@ -5,6 +5,9 @@ import { createSuppliersRepo } from "./suppliers";
 import { createBurnPhotosRepo } from "./burn-photos";
 import { createBurnSessionsRepo } from "./burn-sessions";
 import { createCurePlansRepo } from "./cure-plans";
+import { createCorrectiveExperimentsRepo } from "./corrective-experiments";
+import { createInvestigationPhotosRepo } from "./investigation-photos";
+import { createInvestigationsRepo } from "./investigations";
 import { createProductionPlansRepo } from "./production-plans";
 import { createScheduleRepo } from "./schedule";
 import { openDatabase } from "./db";
@@ -17,7 +20,7 @@ import { createMeasurementsRepo } from "./measurements";
 import { createMetaRepo } from "./meta";
 import { createVersionsRepo } from "./versions";
 
-export { openDatabase, SCHEMA_V1, SCHEMA_V2_ADDED, SCHEMA_V3_ADDED, SCHEMA_V4_ADDED, SCHEMA_V5_ADDED } from "./db";
+export { openDatabase, SCHEMA_V1, SCHEMA_V2_ADDED, SCHEMA_V3_ADDED, SCHEMA_V4_ADDED, SCHEMA_V5_ADDED, SCHEMA_V6_ADDED } from "./db";
 export { sha256OfBytes } from "./burn-photos";
 export { DataError } from "./errors";
 export { bumpChangeCounter } from "./meta";
@@ -42,6 +45,9 @@ export function createDataLayer(db: CandleDatabase, options: DataLayerOptions = 
     suppliers: createSuppliersRepo(db, now, newId),
     materialLots: createMaterialLotsRepo(db, now, newId),
     batchTrace: createBatchTraceRepo(db),
+    investigations: createInvestigationsRepo(db, now, newId),
+    investigationPhotos: createInvestigationPhotosRepo(db, now),
+    correctiveExperiments: createCorrectiveExperimentsRepo(db, now),
     drafts: createDraftsRepo(db, now),
     meta,
     example: createExampleRepo(db, now, newId),

@@ -81,6 +81,9 @@ export const exportBackup: ExportBackup = async (db, options) => {
         db.burnPhotos,
         db.suppliers,
         db.materialLots,
+        db.investigations,
+        db.investigationPhotos,
+        db.correctiveExperiments,
       ],
       async () => {
         const [
@@ -95,6 +98,9 @@ export const exportBackup: ExportBackup = async (db, options) => {
           burnPhotos,
           suppliers,
           materialLots,
+          investigations,
+          investigationPhotos,
+          correctiveExperiments,
         ] = await Promise.all([
             db.materials.toArray(),
             db.formulas.toArray(),
@@ -107,6 +113,9 @@ export const exportBackup: ExportBackup = async (db, options) => {
             db.burnPhotos.toArray(),
             db.suppliers.toArray(),
             db.materialLots.toArray(),
+            db.investigations.toArray(),
+            db.investigationPhotos.toArray(),
+            db.correctiveExperiments.toArray(),
           ]);
         return {
           materials: byId(materials),
@@ -121,6 +130,10 @@ export const exportBackup: ExportBackup = async (db, options) => {
           burnPhotos: byId(burnPhotos).map(photoToBackup),
           suppliers: byId(suppliers),
           materialLots: byId(materialLots),
+          investigations: byId(investigations),
+          // CandleFix: photos as base64, like burn photos.
+          investigationPhotos: byId(investigationPhotos).map(photoToBackup),
+          correctiveExperiments: byId(correctiveExperiments),
         };
       },
     ),
@@ -139,6 +152,9 @@ export const exportBackup: ExportBackup = async (db, options) => {
     burnPhotos: data.burnPhotos.length,
     suppliers: data.suppliers.length,
     materialLots: data.materialLots.length,
+    investigations: data.investigations.length,
+    investigationPhotos: data.investigationPhotos.length,
+    correctiveExperiments: data.correctiveExperiments.length,
   };
   // Hashing happens outside any Dexie transaction.
   const checksum = { algorithm: "SHA-256" as const, value: await sha256Hex(canonicalJson(data)) };

@@ -2,13 +2,18 @@
 
 import { cn } from "@/lib/utils";
 import { MESSAGES } from "@/lib/messages";
-import type { BurnPhoto } from "@/lib/types";
+import type { PhotoLike } from "./adapters";
 import { usePhotoUrls } from "./use-photo-urls";
 
-const M = MESSAGES.burnPhotos;
+const BURN_ALT = MESSAGES.burnPhotos;
 
-export function photoAlt(photo: BurnPhoto, index: number, total: number): string {
-  return photo.caption ?? M.photoAlt(index + 1, total);
+export function photoAlt(
+  photo: PhotoLike,
+  index: number,
+  total: number,
+  texts: { photoAlt: (n: number, total: number) => string } = BURN_ALT,
+): string {
+  return photo.caption ?? texts.photoAlt(index + 1, total);
 }
 
 /**
@@ -18,9 +23,12 @@ export function photoAlt(photo: BurnPhoto, index: number, total: number): string
 export function PhotoGrid({
   photos,
   variant = "screen",
+  texts,
 }: {
-  photos: BurnPhoto[];
+  photos: PhotoLike[];
   variant?: "screen" | "print";
+  /** Alt text for photos without a caption; burn wording unless given. */
+  texts?: { photoAlt: (n: number, total: number) => string };
 }) {
   const urls = usePhotoUrls(photos);
   if (photos.length === 0) return null;
@@ -40,7 +48,7 @@ export function PhotoGrid({
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={urls[photo.id]}
-                alt={photoAlt(photo, i, photos.length)}
+                alt={photoAlt(photo, i, photos.length, texts)}
                 loading="lazy"
                 width={photo.width}
                 height={photo.height}

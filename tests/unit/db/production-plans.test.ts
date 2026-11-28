@@ -138,7 +138,7 @@ describe("CurePilot: planned production entries", () => {
       entries: [],
       productionPlanId: plan.id,
     });
-    expect(await layer.batches.deletionImpact(batch.id)).toEqual({ milestones: 0, productionPlans: 1, burnSessions: 0 });
+    expect(await layer.batches.deletionImpact(batch.id)).toEqual({ milestones: 0, productionPlans: 1, burnSessions: 0, investigations: 0, followUpExperiments: 0 });
     await layer.batches.delete(batch.id);
     const item = await layer.productionPlans.get(plan.id);
     expect(item?.plan.batchId).toBeNull();

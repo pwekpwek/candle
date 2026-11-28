@@ -10,7 +10,7 @@ describe("meta", () => {
   it("returns defaults when no rows exist", async () => {
     const { layer } = setup();
     expect(await layer.meta.get()).toEqual({
-      schemaVersion: 5,
+      schemaVersion: 6,
       lastBackupAt: null,
       lastBackupCounts: null,
       changesSinceBackup: 0,

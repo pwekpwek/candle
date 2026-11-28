@@ -135,6 +135,19 @@ export async function earliestTestedOn(db: CandleDatabase, batchId: string): Pro
   return earliest;
 }
 
+/**
+ * CandleFix: the batch's earliest investigation date, or null without any.
+ * Only Dexie operations are awaited (safe inside a transaction over investigations).
+ */
+export async function earliestObservedOn(db: CandleDatabase, batchId: string): Promise<string | null> {
+  const investigations = await db.investigations.where("batchId").equals(batchId).toArray();
+  let earliest: string | null = null;
+  for (const investigation of investigations) {
+    if (earliest === null || investigation.observedOn < earliest) earliest = investigation.observedOn;
+  }
+  return earliest;
+}
+
 export function createBatchesRepo(db: CandleDatabase, now: () => string): BatchesRepo {
   /** Joins batches with their formula and version. A batch whose source is missing is left out. */
   async function withSources(batches: Batch[]): Promise<BatchListItem[]> {
@@ -239,7 +252,10 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
 
     update: (id, input) =>
       guard(() =>
-        db.transaction("rw", [db.batches, db.formulaVersions, db.burnSessions, db.materialLots, db.suppliers, db.meta], async () => {
+        db.transaction(
+          "rw",
+          [db.batches, db.formulaVersions, db.burnSessions, db.investigations, db.materialLots, db.suppliers, db.meta],
+          async () => {
           const existing = await db.batches.get(id);
           if (!existing) throw notFound("Batch", id);
           const version = await db.formulaVersions.get(existing.versionId);
@@ -253,6 +269,15 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
             throw new DataError(
               "invalid",
               `Batch ${id} has a burn test dated ${earliest}; the production date cannot be later.`,
+            );
+          }
+          // CandleFix: the same rule for investigations (an issue is never
+          // observed before the batch was made).
+          const observed = await earliestObservedOn(db, id);
+          if (observed !== null && input.producedOn > observed && input.producedOn !== existing.producedOn) {
+            throw new DataError(
+              "invalid",
+              `Batch ${id} has an investigation dated ${observed}; the production date cannot be later.`,
             );
           }
           // v0.3: no `lots` in the input keeps the stored links as they are.
@@ -279,25 +304,44 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
 
     deletionImpact: (id) =>
       guard(() =>
-        db.transaction("r", [db.curePlans, db.productionPlans, db.burnSessions], async () => {
-          const plan = await db.curePlans.get(id);
-          return {
-            milestones: plan?.milestones.length ?? 0,
-            productionPlans: await db.productionPlans.where("batchId").equals(id).count(),
-            burnSessions: await db.burnSessions.where("batchId").equals(id).count(),
-          };
-        }),
+        db.transaction(
+          "r",
+          [db.curePlans, db.productionPlans, db.burnSessions, db.investigations, db.correctiveExperiments],
+          async () => {
+            const plan = await db.curePlans.get(id);
+            return {
+              milestones: plan?.milestones.length ?? 0,
+              productionPlans: await db.productionPlans.where("batchId").equals(id).count(),
+              burnSessions: await db.burnSessions.where("batchId").equals(id).count(),
+              investigations: await db.investigations.where("batchId").equals(id).count(),
+              followUpExperiments: await db.correctiveExperiments.where("followUpBatchId").equals(id).count(),
+            };
+          },
+        ),
       ),
 
     delete: (id) =>
       guard(() =>
-        db.transaction("rw", [db.batches, db.curePlans, db.productionPlans, db.burnSessions, db.meta], async () => {
+        db.transaction(
+          "rw",
+          [db.batches, db.curePlans, db.productionPlans, db.burnSessions, db.investigations, db.correctiveExperiments, db.meta],
+          async () => {
           if (!(await db.batches.get(id))) throw notFound("Batch", id);
           // BurnMatrix: burn tests are observations of the batch; they are
           // never deleted with it (docs/v0.2-burnmatrix.md, Archive and delete).
           const sessions = await db.burnSessions.where("batchId").equals(id).count();
           if (sessions > 0) {
             throw new DataError("in-use", `Batch ${id} has ${sessions} burn test(s).`);
+          }
+          // CandleFix: investigations and experiments are history of the
+          // batch; they are never deleted with it (docs/v0.3-candlefix.md).
+          const investigations = await db.investigations.where("batchId").equals(id).count();
+          if (investigations > 0) {
+            throw new DataError("in-use", `Batch ${id} has ${investigations} investigation(s).`);
+          }
+          const followUps = await db.correctiveExperiments.where("followUpBatchId").equals(id).count();
+          if (followUps > 0) {
+            throw new DataError("in-use", `Batch ${id} is the follow-up of ${followUps} corrective experiment(s).`);
           }
           // CurePilot: the batch's cure plan goes with it, and an entry that
           // made it becomes open again (docs/v0.2-curepilot.md, Archive and delete).

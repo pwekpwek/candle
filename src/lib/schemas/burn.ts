@@ -90,10 +90,11 @@ export const BurnSessionSchema = z.strictObject({
   updatedAt: TimestampSchema,
 });
 
-/** Fields a photo has both on the device and in a backup file. */
-const PHOTO_FIELDS = {
-  id: IdSchema,
-  sessionId: IdSchema,
+/**
+ * Fields every stored photo kind has, on the device and in a backup file,
+ * without its id and owner link (v0.3 CandleFix shares them with investigation photos).
+ */
+export const PHOTO_BASE_FIELDS = {
   mimeType: z.literal("image/jpeg"),
   width: intRange(1, MAX_PHOTO_DIMENSION),
   height: intRange(1, MAX_PHOTO_DIMENSION),
@@ -102,6 +103,20 @@ const PHOTO_FIELDS = {
   caption: trimmedLength(MAX_PHOTO_CAPTION_LENGTH, "Caption").optional(),
   createdAt: TimestampSchema,
 };
+
+/** Fields a burn photo has both on the device and in a backup file. */
+// Key order kept as before (id, sessionId, then the rest), so parsed records look the same.
+const PHOTO_FIELDS = { id: IdSchema, sessionId: IdSchema, ...PHOTO_BASE_FIELDS };
+
+/** Longest base64 text a photo can have (4 characters per 3 bytes, padded). */
+export const MAX_PHOTO_BASE64_LENGTH = Math.ceil(MAX_PHOTO_BYTES / 3) * 4;
+
+/** A photo's bytes in a backup file: standard base64 with padding. */
+export const PhotoBase64Schema = z
+  .string()
+  .min(4)
+  .max(MAX_PHOTO_BASE64_LENGTH)
+  .regex(/^[A-Za-z0-9+/]*={0,2}$/, { error: "dataBase64 is not base64." });
 
 /**
  * True for a Uint8Array from any realm (IndexedDB structured clone may hand
@@ -128,18 +143,11 @@ export const BurnPhotoSchema = z
   })
   .refine((photo) => isJpeg(photo.bytes), { error: "The photo is not a JPEG.", path: ["bytes"] });
 
-/** Longest base64 text a photo can have (4 characters per 3 bytes, padded). */
-const MAX_PHOTO_BASE64_LENGTH = Math.ceil(MAX_PHOTO_BYTES / 3) * 4;
-
 /**
  * A photo in a backup file: `bytes` replaced by standard base64 with padding.
  * Decoding, length, JPEG marker and SHA-256 are checked by the restore step.
  */
 export const BurnPhotoBackupSchema = z.strictObject({
   ...PHOTO_FIELDS,
-  dataBase64: z
-    .string()
-    .min(4)
-    .max(MAX_PHOTO_BASE64_LENGTH)
-    .regex(/^[A-Za-z0-9+/]*={0,2}$/, { error: "dataBase64 is not base64." }),
+  dataBase64: PhotoBase64Schema,
 });

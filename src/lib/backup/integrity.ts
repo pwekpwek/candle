@@ -18,11 +18,19 @@ import type { IntegrityProblem, IntegrityReason } from "./contract";
  *   burn test         its batch
  *   photo             its burn test
  *   lot               its material and, when set, its supplier
+ *   investigation     its batch (v0.3 CandleFix)
+ *   investigation     its investigation
+ *     photo
+ *   corrective        its investigation; a hypothesis of that investigation;
+ *     experiment      its follow-up batch, which is not the investigation's
+ *                     own batch; each listed burn test, which is a burn test
+ *                     of the follow-up batch
  *
  * Soft links are not checked, as documented: a version's parent version and
  * the materials its inputs name (the preview's missing-material line), a burn
  * test's planned-test milestone and wick material, and a batch lot snapshot's
- * supplier id, code and name (docs/v0.2-burnmatrix.md, docs/v0.3-lots.md).
+ * supplier id, code and name (docs/v0.2-burnmatrix.md, docs/v0.3-lots.md), and
+ * a checked item's id against the current built-in lists (docs/v0.3-candlefix.md).
  *
  * The app's own writes keep every one of these links, so a full export always
  * passes. Only a file that leaves out parents (or was hand-edited) fails.
@@ -39,6 +47,8 @@ export function findBrokenLinks(data: BackupData): IntegrityProblem[] {
   const materialIds = new Set(data.materials.map((material) => material.id));
   const supplierIds = new Set(data.suppliers.map((supplier) => supplier.id));
   const lots = new Map(data.materialLots.map((lot) => [lot.id, lot]));
+  const sessions = new Map(data.burnSessions.map((session) => [session.id, session]));
+  const investigations = new Map(data.investigations.map((investigation) => [investigation.id, investigation]));
 
   /** Missing version, or a version of another formula; "ok" otherwise. */
   const versionLink = (versionId: string, formulaId: string): IntegrityReason | "ok" => {
@@ -99,6 +109,40 @@ export function findBrokenLinks(data: BackupData): IntegrityProblem[] {
       add("materialLots", lot.id, "supplier-missing", lot.supplierId);
     }
   }
+  // v0.3 CandleFix.
+  for (const investigation of data.investigations) {
+    if (!batches.has(investigation.batchId)) {
+      add("investigations", investigation.id, "batch-missing", investigation.batchId);
+    }
+  }
+  for (const photo of data.investigationPhotos) {
+    if (!investigations.has(photo.investigationId)) {
+      add("investigationPhotos", photo.id, "investigation-missing", photo.investigationId);
+    }
+  }
+  for (const experiment of data.correctiveExperiments) {
+    const investigation = investigations.get(experiment.investigationId);
+    if (!investigation) {
+      add("correctiveExperiments", experiment.id, "investigation-missing", experiment.investigationId);
+    } else {
+      if (!investigation.hypotheses.some((hypothesis) => hypothesis.id === experiment.hypothesisId)) {
+        add("correctiveExperiments", experiment.id, "hypothesis-missing", experiment.hypothesisId);
+      }
+      if (experiment.followUpBatchId === investigation.batchId) {
+        add("correctiveExperiments", experiment.id, "follow-up-is-original", experiment.followUpBatchId);
+      }
+    }
+    if (!batches.has(experiment.followUpBatchId)) {
+      add("correctiveExperiments", experiment.id, "follow-up-missing", experiment.followUpBatchId);
+    }
+    for (const sessionId of experiment.burnSessionIds) {
+      const session = sessions.get(sessionId);
+      if (!session) add("correctiveExperiments", experiment.id, "listed-session-missing", sessionId);
+      else if (session.batchId !== experiment.followUpBatchId) {
+        add("correctiveExperiments", experiment.id, "session-of-other-batch", sessionId);
+      }
+    }
+  }
   return problems;
 }
 
@@ -135,6 +179,9 @@ export function overlay(device: BackupData, puts: BackupData): BackupData {
     burnPhotos: lay(device.burnPhotos, puts.burnPhotos),
     suppliers: lay(device.suppliers, puts.suppliers),
     materialLots: lay(device.materialLots, puts.materialLots),
+    investigations: lay(device.investigations, puts.investigations),
+    investigationPhotos: lay(device.investigationPhotos, puts.investigationPhotos),
+    correctiveExperiments: lay(device.correctiveExperiments, puts.correctiveExperiments),
   };
 }
 

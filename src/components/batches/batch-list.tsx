@@ -181,9 +181,14 @@ export function BatchList() {
         title={B.title}
         description={B.listDescription}
         action={
-          <Button asChild variant="outline">
-            <Link href="/burn-tests">{MESSAGES.burnCompare.batchesLink}</Link>
-          </Button>
+          <>
+            <Button asChild variant="outline">
+              <Link href="/burn-tests">{MESSAGES.burnCompare.batchesLink}</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/investigations">{T.investigationsLink}</Link>
+            </Button>
+          </>
         }
       />
       {body}

@@ -350,14 +350,23 @@ export function createBurnSessionsRepo(
       ),
 
     deletionImpact: (id) =>
-      guard(async () => ({
-        photos: await db.burnPhotos.where("sessionId").equals(id).count(),
-      })),
+      guard(() =>
+        db.transaction("r", [db.burnPhotos, db.correctiveExperiments], async () => ({
+          photos: await db.burnPhotos.where("sessionId").equals(id).count(),
+          experiments: await db.correctiveExperiments.where("burnSessionIds").equals(id).count(),
+        })),
+      ),
 
     delete: (id) =>
       guard(() =>
-        db.transaction("rw", [db.burnSessions, db.burnPhotos, db.meta], async () => {
+        db.transaction("rw", [db.burnSessions, db.burnPhotos, db.correctiveExperiments, db.meta], async () => {
           if (!(await db.burnSessions.get(id))) throw notFound("Burn session", id);
+          // CandleFix: a burn test a corrective experiment lists is part of
+          // that experiment's history; remove it from the experiment first.
+          const experiments = await db.correctiveExperiments.where("burnSessionIds").equals(id).count();
+          if (experiments > 0) {
+            throw new DataError("in-use", `Burn test ${id} is listed by ${experiments} corrective experiment(s).`);
+          }
           await db.burnPhotos.where("sessionId").equals(id).delete();
           await db.burnSessions.delete(id);
           await bumpChangeCounter(db);

@@ -1,4 +1,4 @@
-# CandleLab Studio — Architecture and File Ownership (v0.1 to v0.3)
+# CandleLab Studio — Architecture and File Ownership (v0.1 to v0.3 CandleFix)
 
 Read this before any task. The specs are in `docs/specs/`. The task list is `docs/specs/6 Implementation Plan.md`. Progress is in `docs/BUILD-STATE.md`.
 
@@ -67,6 +67,10 @@ Read this before any task. The specs are in `docs/specs/`. The task list is `doc
 | `src/lib/batchtrace/{query,csv,index}.ts` | v0.3 lots | Batch search, filters, URL state, batch CSV |
 | `src/components/lots/**`, `src/app/materials/{lots,suppliers}/**`, links in `src/components/materials/materials-view.tsx` | v0.3 lots | Suppliers and lots in the material library |
 | `src/components/batches/**`, `src/app/batches/**` (v0.3 parts) | v0.3 lots | Lot pickers in the batch form, Lots on the batch page, search, filters and CSV on the Batches list |
+| `src/lib/db/{investigations,investigation-photos,corrective-experiments}.ts`, CandleFix parts of `src/lib/{types.ts,db,backup,schemas}` (`src/lib/schemas/candlefix.ts`), `src/lib/candlefix/contract.ts` | v0.3 CandleFix (lead) | Investigations, their photos, corrective experiments, schema 6, backup format 6, integrity links, contracts |
+| `src/lib/candlefix/{checklists,comparison,timeline,index}.ts`, `MESSAGES.candleFixChecks` | v0.3 CandleFix | Built-in things to check, before-and-after model, timeline |
+| `src/components/candlefix/{investigation/**,batch-section.tsx,index.ts}`, `src/app/investigations/new/**`, `src/app/investigations/[investigationId]/page.tsx`, `…/edit/**`, generalised `src/components/burn/photos/**` | v0.3 CandleFix | Investigations section on the batch page, investigation editor and page, photos |
+| `src/components/candlefix/{experiments,compare,list}/**`, `src/app/investigations/page.tsx`, `…/experiments/**`, `…/compare/**` | v0.3 CandleFix | Corrective experiments, before-and-after view, all-investigations list |
 
 ## Routes
 
@@ -96,6 +100,13 @@ Read this before any task. The specs are in `docs/specs/`. The task list is `doc
 | `/burn-tests/[sessionId]/report` | Printable report of one burn test (v0.2 BurnMatrix) |
 | `/burn-tests/compare?sessions=a,b,c,d` | Comparison of 1 to 4 burn tests (v0.2 BurnMatrix) |
 | `/burn-tests/compare/report?sessions=…` | Printable comparison report (v0.2 BurnMatrix) |
+| `/investigations` | All investigations, `?archived=1` shows archived ones; reached from the Batches page header (v0.3 CandleFix) |
+| `/investigations/new?batch=[batchId]` | Record an issue on a batch (v0.3 CandleFix) |
+| `/investigations/[investigationId]` | Investigation: observed issues, photos, things to check, hypotheses, corrective experiments, timeline (v0.3 CandleFix) |
+| `/investigations/[investigationId]/edit` | Edit an investigation (v0.3 CandleFix) |
+| `/investigations/[investigationId]/experiments/new?hypothesis=[hypothesisId]` | New corrective experiment (v0.3 CandleFix) |
+| `/investigations/[investigationId]/experiments/[experimentId]` | Edit or delete a corrective experiment (v0.3 CandleFix) |
+| `/investigations/[investigationId]/compare` | Before-and-after view (v0.3 CandleFix) |
 
 ## Decisions made during the build
 
@@ -180,3 +191,15 @@ Full design and compatibility notes: `docs/v0.3-lots.md`.
 - **Schema 5** adds `suppliers` and `materialLots` only; batches gain an optional `lots` field, so no records move. **Backup format 5** adds both stores; formats 1 to 4 are read, their batches checked without `lots`. Orphan checks: a lot's material and supplier, a batch's linked lot.
 - **Search and filters** run in memory over `batchTrace.read()`; their state lives in the URL and the list writes it with `router.replace`. The CSV is one row per component of each filtered batch.
 - The material's v0.1 free-text `supplier` field stays as a library note, separate from the supplier list (owner decision for later).
+
+## v0.3 CandleFix decisions (2026-11-28)
+
+Full design and compatibility notes: `docs/v0.3-candlefix.md`.
+
+- **An investigation belongs to one batch** (fixed at creation); its exact formula version is the batch's immutable version. It holds the observed date (never before the batch's production date, in the data layer too), 1–10 issues from a fixed list (`FIX_ISSUES`, "other" with its own text), notes, ticked or noted **things to check** and the maker's **hypotheses**. Up to 12 photos in `investigationPhotos`, through the BurnMatrix photo pipeline.
+- **Things to check are prompts, not a diagnosis.** Built-in lists per issue (`@/lib/candlefix`, text in `MESSAGES.candleFixChecks`); ids `<issue>.<slug>` never change. A tick stores the label it was ticked with, so a rewording never changes history; ticks for an issue no longer chosen are kept and shown apart.
+- **Hypotheses are the maker's words**, always labelled "Hypothesis", with a maker-set neutral status (open, testing, fits, doesNotFit, setAside; never "confirmed" or "proven"), shown in their own dashed block apart from observations.
+- **Corrective experiments** (`correctiveExperiments`, its own store) link one hypothesis to one follow-up batch (any batch but the investigated one) and 0–8 of that batch's burn tests. Investigation, hypothesis and follow-up batch are fixed at creation.
+- **Delete rules:** a batch with an investigation, or that is a follow-up batch, cannot be deleted (`in-use`); a burn test an experiment lists cannot be deleted; a hypothesis an experiment follows cannot be removed. Deleting an investigation deletes its photos and experiments after a confirmation that counts them. Investigations can be archived.
+- **Schema 6** adds `investigations`, `investigationPhotos`, `correctiveExperiments` (experiments index `*burnSessionIds`). **Backup format 6** adds the three stores; formats 1 to 5 are read. Restore integrity adds: investigation→batch, photo→investigation, experiment→investigation, →a hypothesis of it, →follow-up batch (not the original), →each listed burn test of the follow-up batch.
+- **Wording:** the CandleFix sections are scanned for judgement and diagnosis words (`tests/unit/messages/messages.test.ts`).

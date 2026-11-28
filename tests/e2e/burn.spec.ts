@@ -606,7 +606,7 @@ test("backup includes photos and restores them", async ({ page, browser }, testI
   await addPhotos(page, 3);
 
   const { file, backup } = await exportBackup(page, testInfo);
-  expect(backup.formatVersion).toBe(5);
+  expect(backup.formatVersion).toBe(6);
   expect(backup.counts.burnPhotos).toBe(3);
   expect(backup.data.burnPhotos).toHaveLength(3);
   for (const photo of backup.data.burnPhotos) {
