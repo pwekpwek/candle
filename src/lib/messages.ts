@@ -18,10 +18,11 @@ import {
   precisionLabel,
 } from "@/lib/gramguard";
 import type { Issue } from "@/lib/gramguard";
-import type { CheckFailure } from "@/lib/backup/contract";
+import type { CheckFailure, IntegrityProblem, IntegrityReason, RestoreMode } from "@/lib/backup/contract";
 import type {
   Basis,
   BackupCounts,
+  DataStoreName,
   MaterialType,
   PrecisionMg,
 } from "@/lib/types";
@@ -348,6 +349,27 @@ function countsList(counts: BackupCounts): string[] {
   return SUMMARY_ORDER.filter((s) => counts[s.key] > 0).map((s) =>
     countOf(counts[s.key], s.singular, s.plural),
   );
+}
+
+// WRITTEN HERE (restore integrity): what is wrong with a link a restore would break.
+const INTEGRITY_REASONS: Record<IntegrityReason, string> = {
+  "formula-missing": "its formula is missing",
+  "version-missing": "its formula version is missing",
+  "version-of-other-formula": "its formula version belongs to another formula",
+  "batch-missing": "its batch is missing",
+  "batch-of-other-version": "its batch was made from another version",
+  "session-missing": "its burn test is missing",
+  "material-missing": "its material is missing",
+  "supplier-missing": "its supplier is missing",
+  "lot-missing": "a lot it uses is missing",
+  "component-missing": "a lot it uses is recorded for a component its version doesn't have",
+  "lot-of-other-material": "a lot it uses is of a different material than that component",
+};
+
+/** WRITTEN HERE (restore integrity). e.g. "batch 3f2a9c1d…: its formula version is missing". */
+export function integrityProblemText(problem: IntegrityProblem): string {
+  const noun = SUMMARY_ORDER.find((s) => s.key === (problem.store as DataStoreName))?.singular ?? "record";
+  return `${noun} ${problem.id.slice(0, 8)}…: ${INTEGRITY_REASONS[problem.reason]}`;
 }
 
 export type RestoreSummaryInput = {
@@ -1389,6 +1411,22 @@ export const MESSAGES = {
     failNoSafety:
       "Something went wrong inside the app, and nothing was changed. Please try again, and report it if it keeps happening.",
     recheck: "Check the file again",
+
+    // ── WRITTEN HERE (restore integrity): a restore that would leave records
+    // linked to something missing or wrong. ──
+    integrityTitle: "This file can't be restored this way.",
+    integrityPreview: (mode: RestoreMode, problems: readonly IntegrityProblem[]) => {
+      const n = problems.length;
+      const first = integrityProblemText(problems[0]!);
+      return mode === "replace"
+        ? `"Replace everything" keeps only what is in this file, and ${countOf(n, "record")} in it would be left linked to something missing or wrong (first: ${first}). Choose "Add to what's here", or use a full backup.`
+        : `Adding this file would leave ${countOf(n, "record")} linked to something missing or wrong (first: ${first}). Nothing can be restored from it this way.`;
+    },
+    failIntegrity: (problems: readonly IntegrityProblem[]) => {
+      const n = problems.length;
+      const first = problems[0] ? ` (first: ${integrityProblemText(problems[0])})` : "";
+      return `The restore stopped before changing anything: ${countOf(n, "record")} would have been left linked to something missing or wrong${first}. Nothing on this device was changed. Check the file again to see what will happen now.`;
+    },
   },
 
   /**

@@ -11,6 +11,7 @@ export { backupFileName, exportBackup } from "./export";
 export { checkBackupText } from "./check";
 export { planRestore } from "./plan";
 export { applyRestore, deviceIdsOf, readDeviceData } from "./apply";
+export { findBrokenLinks, restoreProblems } from "./integrity";
 
 const _implemented: BackupModule = {
   canonicalJson,

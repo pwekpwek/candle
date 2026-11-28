@@ -12,7 +12,7 @@ import {
   zeroComponentText,
 } from "@/lib/messages";
 import type { Issue } from "@/lib/gramguard";
-import type { CheckFailure } from "@/lib/backup/contract";
+import type { CheckFailure, IntegrityProblem, IntegrityReason } from "@/lib/backup/contract";
 import type { BackupCounts } from "@/lib/types";
 
 // Expected strings below are copied from docs/specs/2 Calculation Rules.md
@@ -533,7 +533,29 @@ const SAMPLE_CHECKS: CheckFailure[] = [
 ];
 
 /** Exported helpers that take arguments: name → sampler. */
+/** Restore integrity: one problem per reason, so the scans read every reason's wording. */
+const INTEGRITY_REASONS: IntegrityReason[] = [
+  "formula-missing",
+  "version-missing",
+  "version-of-other-formula",
+  "batch-missing",
+  "batch-of-other-version",
+  "session-missing",
+  "material-missing",
+  "supplier-missing",
+  "lot-missing",
+  "component-missing",
+  "lot-of-other-material",
+];
+const SAMPLE_INTEGRITY: IntegrityProblem[] = INTEGRITY_REASONS.map((reason, index) => ({
+  store: index % 2 === 0 ? "batches" : "productionPlans",
+  id: `3f2a9c1d-0000-4000-8000-00000000000${index % 10}`,
+  reason,
+  missingId: "7b1e0000-0000-4000-8000-000000000000",
+}));
+
 const HELPER_SAMPLES: Record<string, () => string> = {
+  integrityProblemText: () => SAMPLE_INTEGRITY.map(messagesModule.integrityProblemText).join(" | "),
   messageForIssue: () => SAMPLE_ISSUES.map(messageForIssue).join("\n"),
   messageForCheckFailure: () => SAMPLE_CHECKS.map(messageForCheckFailure).join("\n"),
   restoreSummary: () =>
@@ -738,6 +760,8 @@ const MESSAGE_SAMPLES: Record<string, unknown[]> = {
   "backup.previewMissingMaterials": [3],
   "backup.previewBurnDatesBeforeBatch": [2],
   "backup.previewSharedPlannedTests": [1],
+  "backup.integrityPreview": ["replace", SAMPLE_INTEGRITY],
+  "backup.failIntegrity": [SAMPLE_INTEGRITY.slice(0, 1)],
   "backup.replaceAffects": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 }],
   "backup.replacedSentence": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0 }],
   "backup.renumberedSentence": ["Lavender Vanilla", 3, 4],
