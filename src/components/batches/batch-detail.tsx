@@ -141,7 +141,7 @@ function DetailBody({
   const [cureSavedNotice] = useState(() => searchParams.get("cureSaved") === "1");
   const hasParam = searchParams.get("created") !== null || searchParams.get("cureSaved") !== null;
   useEffect(() => {
-    if (hasParam) router.replace(here);
+    if (hasParam) router.replace(here, { scroll: false });
   }, [hasParam, router, here]);
 
   async function save(input: BatchInput) {

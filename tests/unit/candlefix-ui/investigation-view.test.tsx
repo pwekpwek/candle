@@ -112,7 +112,7 @@ describe("investigation page", () => {
     nav.search = "saved=1";
     render(<InvestigationView investigationId={s.inv.id} />);
     expect(await screen.findByText(M.savedNotice)).toBeInTheDocument();
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(`/investigations/${s.inv.id}`));
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(`/investigations/${s.inv.id}`, { scroll: false }));
   });
 
   it("archives and unarchives, with a badge", async () => {

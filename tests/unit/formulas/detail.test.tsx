@@ -519,7 +519,7 @@ describe("saved confirmation", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: MESSAGES.editor.enterMeasured }));
     expect(field("Soy wax")).toHaveFocus();
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(`/formulas/${s.formulaId}`));
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(`/formulas/${s.formulaId}`, { scroll: false }));
   });
 
   it("shows nothing without the parameter", async () => {

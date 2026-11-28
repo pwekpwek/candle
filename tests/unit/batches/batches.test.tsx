@@ -204,7 +204,7 @@ describe("batch page", () => {
     nav.search = "created=1";
     render(<BatchDetail batchId={s.batch.id} />);
     expect(await screen.findByText(B.createdNotice)).toBeInTheDocument();
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(`/batches/${s.batch.id}`));
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(`/batches/${s.batch.id}`, { scroll: false }));
   });
 
   it("saves edits and shows feedback", async () => {

@@ -112,7 +112,7 @@ function ViewBody({
   const [savedNotice] = useState(() => searchParams.get("saved") === "1");
   const hasParam = searchParams.get("saved") !== null;
   useEffect(() => {
-    if (hasParam) router.replace(here);
+    if (hasParam) router.replace(here, { scroll: false });
   }, [hasParam, router, here]);
 
   const archived = investigation.archivedAt !== null;

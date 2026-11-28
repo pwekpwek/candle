@@ -193,7 +193,7 @@ function FormulaBody({
   });
   const hasSavedParam = searchParams.get("saved") !== null;
   useEffect(() => {
-    if (hasSavedParam) router.replace(here);
+    if (hasSavedParam) router.replace(here, { scroll: false });
   }, [hasSavedParam, router, here]);
 
   const [measurement, setMeasurement] = useState<

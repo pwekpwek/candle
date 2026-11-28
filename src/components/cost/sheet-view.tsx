@@ -95,7 +95,7 @@ function ViewBody({ detail, onDeleted }: { detail: CostSheetDetail; onDeleted: (
   const [copiedNotice] = useState(() => searchParams.get("copied") === "1");
   const hasParam = searchParams.get("copied") !== null;
   useEffect(() => {
-    if (hasParam) router.replace(here);
+    if (hasParam) router.replace(here, { scroll: false });
   }, [hasParam, router, here]);
 
   const figures = sheet;

@@ -214,7 +214,7 @@ describe("cost sheet page: basis, copy and delete", () => {
     nav.search = "copied=1";
     await openSheet();
     expect(await screen.findByText(M.copiedNotice)).toBeInTheDocument();
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(expect.stringMatching(/^\/costs\/[0-9a-f-]{36}$/)));
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(expect.stringMatching(/^\/costs\/[0-9a-f-]{36}$/), { scroll: false }));
   });
 
   it("offers Try again when a copy fails, without leaving the sheet", async () => {
