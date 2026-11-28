@@ -1,5 +1,6 @@
 import { LIMITS, formatMinimalGrams, formatRequestedPercent, parseFixed } from "@/lib/gramguard";
 import { MESSAGES, messageForIssue } from "@/lib/messages";
+import { moneyToInput, parseMoneyField } from "@/components/cost-items/money";
 import type { MaterialInput } from "@/lib/db";
 import type { Basis, Material, MaterialType } from "@/lib/types";
 
@@ -14,6 +15,8 @@ export type FormValues = {
   wickSize: string;
   capacity: string;
   defaultFill: string;
+  /** Default price in pesos as typed. Blank means no price. */
+  price: string;
 };
 
 export type FieldKey =
@@ -23,7 +26,8 @@ export type FieldKey =
   | "maxFragrance"
   | "wickSize"
   | "capacity"
-  | "defaultFill";
+  | "defaultFill"
+  | "price";
 
 export type FormErrors = Partial<Record<FieldKey, string>>;
 
@@ -35,6 +39,7 @@ export const FIELD_ORDER: readonly FieldKey[] = [
   "wickSize",
   "capacity",
   "defaultFill",
+  "price",
   "notes",
 ];
 
@@ -53,6 +58,7 @@ export function emptyValues(type: MaterialType): FormValues {
     wickSize: "",
     capacity: "",
     defaultFill: "",
+    price: "",
   };
 }
 
@@ -73,6 +79,7 @@ export function valuesFromMaterial(material: Material): FormValues {
   if (material.vessel?.defaultFillMg !== undefined) {
     values.defaultFill = formatMinimalGrams(material.vessel.defaultFillMg);
   }
+  values.price = moneyToInput(material.defaultPriceCentavos);
   return values;
 }
 
@@ -113,6 +120,13 @@ const parseCapacity = (text: string) =>
 const parseFill = (text: string) =>
   parseOptional(text, 3, 1, LIMITS.maxWeightMg, M.fillInvalid, M.decimalsGrams);
 
+const parsePrice = (text: string) =>
+  parseMoneyField(text, {
+    invalid: M.priceInvalid,
+    decimals: M.priceDecimals,
+    range: M.priceRange,
+  });
+
 /** The message for one field, or undefined when it is fine. */
 export function validateField(values: FormValues, key: FieldKey): string | undefined {
   switch (key) {
@@ -124,6 +138,8 @@ export function validateField(values: FormValues, key: FieldKey): string | undef
       return values.type === "vessel" ? parseCapacity(values.capacity).error : undefined;
     case "defaultFill":
       return values.type === "vessel" ? parseFill(values.defaultFill).error : undefined;
+    case "price":
+      return parsePrice(values.price).error;
     default:
       return undefined;
   }
@@ -150,6 +166,8 @@ export function toInput(values: FormValues): MaterialInput {
     supplier: values.supplier,
     notes: values.notes,
   };
+  const price = parsePrice(values.price).value;
+  if (price !== undefined) input.defaultPriceCentavos = price;
   if (values.type === "wax") {
     const percent = parsePercent(values.maxFragrance).value;
     input.wax =

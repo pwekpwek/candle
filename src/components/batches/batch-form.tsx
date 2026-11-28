@@ -30,8 +30,10 @@ import { MESSAGES } from "@/lib/messages";
 import type { BatchLot, FormulaVersion, MeasurementEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
+  checkCandlesMade,
   checkDate,
   checkLabel,
+  checkSellable,
   checkMeasured,
   collectEntries,
   initialLotChoices,
@@ -55,6 +57,9 @@ export type BatchFormInitial = {
   entries?: readonly MeasurementEntry[];
   /** The lots stored on the batch (v0.3). */
   lots?: readonly BatchLot[];
+  /** v0.3 TrueCandle Cost: the candle counts stored on the batch. */
+  candlesMade?: number;
+  sellable?: number;
 };
 
 export type BatchFormProps = {
@@ -141,6 +146,12 @@ export function BatchForm({
       (initial?.entries ?? []).map((e) => [e.componentId, formatMeasured(e.actualMg, precisionMg)]),
     ),
   );
+  const [candlesMade, setCandlesMade] = useState(
+    initial?.candlesMade === undefined ? "" : String(initial.candlesMade),
+  );
+  const [sellable, setSellable] = useState(
+    initial?.sellable === undefined ? "" : String(initial.sellable),
+  );
   const [lotChoices, setLotChoices] = useState<LotChoices>(() => initialLotChoices(initial?.lots));
   const [errors, setErrors] = useState<FormErrors>({ measured: {} });
   const [busy, setBusy] = useState(false);
@@ -171,6 +182,9 @@ export function BatchForm({
   function setLabelError(message: string | null) {
     setErrors((prev) => ({ ...prev, label: message ?? undefined }));
   }
+  function setCountError(key: "candlesMade" | "sellable", message: string | null) {
+    setErrors((prev) => ({ ...prev, [key]: message ?? undefined }));
+  }
   function setMeasuredError(id: string, message: string | null) {
     setErrors((prev) => {
       const measured = { ...prev.measured };
@@ -184,11 +198,12 @@ export function BatchForm({
     event.preventDefault();
     if (submitting.current) return; // guard double submit (FLOW-07)
     const { errors: found, input } = validateForm(
-      { producedOn, label, notes, texts, lots: lotChoices },
+      { producedOn, label, notes, texts, lots: lotChoices, candlesMade, sellable },
       componentIds,
       today,
       latestProducedOn,
       storedProducedOn,
+      { candlesMade: initial?.candlesMade, sellable: initial?.sellable },
     );
     setErrors(found);
     if (input === null) {
@@ -244,6 +259,54 @@ export function BatchForm({
                 if (errors.label && checkLabel(e.target.value) === null) setLabelError(null);
               }}
               onBlur={() => setLabelError(checkLabel(label))}
+            />
+          )}
+        </Field>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label={B.candlesMadeLabel} hint={B.candlesHint} error={errors.candlesMade}>
+          {(c) => (
+            <Input
+              {...c}
+              inputMode="numeric"
+              autoComplete="off"
+              value={candlesMade}
+              onChange={(e) => {
+                touched();
+                setCandlesMade(e.target.value);
+                if (errors.candlesMade && checkCandlesMade(e.target.value) === null) {
+                  setCountError("candlesMade", null);
+                }
+                // Sellable is compared with candles made, so its message can change too.
+                if (errors.sellable && checkSellable(e.target.value, sellable) === null) {
+                  setCountError("sellable", null);
+                }
+              }}
+              onBlur={() => {
+                setCountError("candlesMade", checkCandlesMade(candlesMade));
+                if (sellable.trim() !== "") setCountError("sellable", checkSellable(candlesMade, sellable));
+              }}
+              className="tabular"
+            />
+          )}
+        </Field>
+        <Field label={B.sellableLabel} error={errors.sellable}>
+          {(c) => (
+            <Input
+              {...c}
+              inputMode="numeric"
+              autoComplete="off"
+              value={sellable}
+              onChange={(e) => {
+                touched();
+                setSellable(e.target.value);
+                if (errors.sellable && checkSellable(candlesMade, e.target.value) === null) {
+                  setCountError("sellable", null);
+                }
+              }}
+              onBlur={() => setCountError("sellable", checkSellable(candlesMade, sellable))}
+              className="tabular"
             />
           )}
         </Field>

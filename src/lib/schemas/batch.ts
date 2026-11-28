@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { MAX_BATCH_LABEL_LENGTH } from "@/lib/types";
+import { MAX_BATCH_LABEL_LENGTH, MAX_CANDLES } from "@/lib/types";
 import { BatchLotSchema, batchLotSlot } from "./lots";
 import { MeasurementEntrySchema } from "./measurement";
-import { IdSchema, IsoDateSchema, TimestampSchema, hasUniqueKeys } from "./primitives";
+import { IdSchema, IsoDateSchema, TimestampSchema, hasUniqueKeys, intRange } from "./primitives";
 
 /** 1 to MAX_BATCH_LABEL_LENGTH characters after trimming. Stored trimmed. */
 export const BatchLabelSchema = z.string().refine(
@@ -32,9 +32,7 @@ const BATCH_FIELDS = {
  */
 export const BatchSchemaV2 = z.strictObject(BATCH_FIELDS);
 
-/** Store `batches` (v0.2 BatchTrace; lot links added in v0.3). */
-export const BatchSchema = z.strictObject({
-  ...BATCH_FIELDS,
+const BATCH_LOTS = {
   /** Absent when no lot is recorded; never an empty array. At most one per component. */
   lots: z
     .array(BatchLotSchema)
@@ -43,4 +41,27 @@ export const BatchSchema = z.strictObject({
       error: "Each component can have one lot per batch.",
     })
     .optional(),
-});
+};
+
+/**
+ * A batch as backup formats 5 and 6 hold it: lot links, no candle counts. Those
+ * files are checked against this shape (docs/v0.3-cost.md).
+ */
+export const BatchSchemaV5 = z.strictObject({ ...BATCH_FIELDS, ...BATCH_LOTS });
+
+/** Store `batches` (v0.2 BatchTrace; lot links added in v0.3; candle counts in v0.3 TrueCandle Cost). */
+export const BatchSchema = z
+  .strictObject({
+    ...BATCH_FIELDS,
+    ...BATCH_LOTS,
+    candlesMade: intRange(1, MAX_CANDLES).optional(),
+    sellable: intRange(0, MAX_CANDLES).optional(),
+  })
+  .refine((batch) => batch.sellable === undefined || batch.candlesMade !== undefined, {
+    error: "Sellable candles need the number of candles made.",
+    path: ["sellable"],
+  })
+  .refine((batch) => batch.sellable === undefined || batch.sellable <= (batch.candlesMade ?? 0), {
+    error: "Sellable candles cannot be more than candles made.",
+    path: ["sellable"],
+  });

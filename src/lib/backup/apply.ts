@@ -39,6 +39,8 @@ async function readStores(db: CandleDatabase): Promise<DeviceData> {
   const investigations = await db.investigations.toArray();
   const investigationPhotos = await db.investigationPhotos.toArray();
   const correctiveExperiments = await db.correctiveExperiments.toArray();
+  const costItems = await db.costItems.toArray();
+  const costSheets = await db.costSheets.toArray();
   return {
     materials: byId(materials),
     formulas: byId(formulas),
@@ -55,6 +57,8 @@ async function readStores(db: CandleDatabase): Promise<DeviceData> {
     investigations: byId(investigations),
     investigationPhotos: byId(investigationPhotos).map(photoToBackup),
     correctiveExperiments: byId(correctiveExperiments),
+    costItems: byId(costItems),
+    costSheets: byId(costSheets),
   };
 }
 
@@ -75,6 +79,8 @@ function dataTables(db: CandleDatabase) {
     db.investigations,
     db.investigationPhotos,
     db.correctiveExperiments,
+    db.costItems,
+    db.costSheets,
   ];
 }
 
@@ -205,6 +211,8 @@ export const applyRestore: ApplyRestore = async (db, plan, options = {}) => {
             await db.investigations.clear();
             await db.investigationPhotos.clear();
             await db.correctiveExperiments.clear();
+            await db.costItems.clear();
+            await db.costSheets.clear();
           }
           for (const store of DATA_STORES) {
             await writeStore(db, store, plan);
@@ -295,6 +303,12 @@ async function writeStore(db: CandleDatabase, store: DataStoreName, plan: Restor
     case "correctiveExperiments":
       await db.correctiveExperiments.bulkPut(plan.puts.correctiveExperiments);
       return;
+    case "costItems":
+      await db.costItems.bulkPut(plan.puts.costItems);
+      return;
+    case "costSheets":
+      await db.costSheets.bulkPut(plan.puts.costSheets);
+      return;
   }
 }
 
@@ -314,6 +328,8 @@ async function readCounts(db: CandleDatabase): Promise<BackupCounts> {
     investigations,
     investigationPhotos,
     correctiveExperiments,
+    costItems,
+    costSheets,
   ] = await Promise.all([
       db.materials.count(),
       db.formulas.count(),
@@ -329,6 +345,8 @@ async function readCounts(db: CandleDatabase): Promise<BackupCounts> {
       db.investigations.count(),
       db.investigationPhotos.count(),
       db.correctiveExperiments.count(),
+      db.costItems.count(),
+      db.costSheets.count(),
     ]);
   return {
     materials,
@@ -345,5 +363,7 @@ async function readCounts(db: CandleDatabase): Promise<BackupCounts> {
     investigations,
     investigationPhotos,
     correctiveExperiments,
+    costItems,
+    costSheets,
   };
 }

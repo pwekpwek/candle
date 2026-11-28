@@ -134,7 +134,7 @@ export const backupData = {
   batches: [],
   curePlans: [],
   productionPlans: [], burnSessions: [], burnPhotos: [], suppliers: [], materialLots: [],
-  investigations: [], investigationPhotos: [], correctiveExperiments: [],
+  investigations: [], investigationPhotos: [], correctiveExperiments: [], costItems: [], costSheets: [],
 };
 
 export const backupEnvelope: BackupEnvelope = {
@@ -143,7 +143,7 @@ export const backupEnvelope: BackupEnvelope = {
   schemaVersion: 3,
   appVersion: "0.2.0",
   exportedAt: T1,
-  counts: { materials: 4, formulas: 1, formulaVersions: 1, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 },
+  counts: { materials: 4, formulas: 1, formulaVersions: 1, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0, costItems: 0, costSheets: 0 },
   checksum: { algorithm: "SHA-256", value: "a".repeat(64) },
   data: backupData,
 };

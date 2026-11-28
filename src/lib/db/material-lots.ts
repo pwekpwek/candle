@@ -1,5 +1,7 @@
 import { MaterialLotSchema } from "@/lib/schemas";
-import type { MaterialLot } from "@/lib/types";
+import { LIMITS } from "@/lib/gramguard/contract";
+import { MAX_LOT_PIECES, priceUnitOf } from "@/lib/types";
+import type { Material, MaterialLot } from "@/lib/types";
 import type { CandleDatabase, MaterialLotInput, MaterialLotListItem, MaterialLotsRepo } from "./contract";
 import { DataError, guard, notFound, parseRecord } from "./errors";
 import { bumpChangeCounter } from "./meta";
@@ -27,8 +29,21 @@ function editable(input: MaterialLotInput) {
     supplierId: input.supplierId,
     code: typeof input.code === "string" ? input.code.trim() : input.code,
     ...(receivedOn !== undefined ? { receivedOn } : {}),
+    ...(input.purchase !== undefined ? { purchase: input.purchase } : {}),
     ...(notes !== undefined ? { notes } : {}),
   };
+}
+
+/**
+ * v0.3 TrueCandle Cost: a purchase quantity is milligrams for wax and
+ * fragrance oil, whole pieces for wicks and vessels.
+ */
+function checkPurchase(lot: MaterialLot, material: Material): void {
+  if (!lot.purchase) return;
+  const max = priceUnitOf(material.type) === "kg" ? LIMITS.maxWeightMg : MAX_LOT_PIECES;
+  if (lot.purchase.quantity > max) {
+    throw new DataError("invalid", `Lot quantity ${lot.purchase.quantity} is out of range for a ${material.type}.`);
+  }
 }
 
 export function createMaterialLotsRepo(
@@ -127,6 +142,7 @@ export function createMaterialLotsRepo(
             },
             "lot",
           );
+          checkPurchase(lot, material);
           await checkUnique(lot);
           await db.materialLots.add(lot);
           await bumpChangeCounter(db);
@@ -136,7 +152,7 @@ export function createMaterialLotsRepo(
 
     update: (id, input) =>
       guard(() =>
-        db.transaction("rw", [db.materialLots, db.suppliers, db.meta], async () => {
+        db.transaction("rw", [db.materialLots, db.materials, db.suppliers, db.meta], async () => {
           const existing = await db.materialLots.get(id);
           if (!existing) throw notFound("Lot", id);
           if (input.materialId !== existing.materialId) {
@@ -155,6 +171,11 @@ export function createMaterialLotsRepo(
             },
             "lot",
           );
+          if (lot.purchase) {
+            const material = await db.materials.get(lot.materialId);
+            if (!material) throw notFound("Material", lot.materialId);
+            checkPurchase(lot, material);
+          }
           await checkUnique(lot);
           await db.materialLots.put(lot);
           await bumpChangeCounter(db);

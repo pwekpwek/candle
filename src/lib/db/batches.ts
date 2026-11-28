@@ -40,14 +40,20 @@ function checkEntries(version: FormulaVersion, entries: readonly MeasurementEntr
  * The editable part of a batch record, trimmed, with blank optional text left
  * out. `lots` is already resolved (`resolveLots`); empty leaves the field out.
  */
-function editable(version: FormulaVersion, input: BatchInput, lots: readonly BatchLot[]) {
+function editable(version: FormulaVersion, input: BatchInput, lots: readonly BatchLot[], stored?: Batch) {
   const label = optionalText(input.label);
   const notes = optionalText(input.notes);
+  // v0.3 TrueCandle Cost: absent keeps the stored count, null clears it. The
+  // schema refuses sellable without candles made, or above them.
+  const candlesMade = input.candlesMade === undefined ? stored?.candlesMade : (input.candlesMade ?? undefined);
+  const sellable = input.sellable === undefined ? stored?.sellable : (input.sellable ?? undefined);
   return {
     producedOn: input.producedOn,
     ...(label !== undefined ? { label } : {}),
     entries: checkEntries(version, input.entries ?? []),
     ...(lots.length > 0 ? { lots: [...lots] } : {}),
+    ...(candlesMade !== undefined ? { candlesMade } : {}),
+    ...(sellable !== undefined ? { sellable } : {}),
     ...(notes !== undefined ? { notes } : {}),
   };
 }
@@ -290,7 +296,7 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
               id: existing.id,
               formulaId: existing.formulaId,
               versionId: existing.versionId,
-              ...editable(version, input, lots),
+              ...editable(version, input, lots, existing),
               createdAt: existing.createdAt,
               updatedAt: now(),
             },
@@ -306,7 +312,7 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
       guard(() =>
         db.transaction(
           "r",
-          [db.curePlans, db.productionPlans, db.burnSessions, db.investigations, db.correctiveExperiments],
+          [db.curePlans, db.productionPlans, db.burnSessions, db.investigations, db.correctiveExperiments, db.costSheets],
           async () => {
             const plan = await db.curePlans.get(id);
             return {
@@ -315,6 +321,7 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
               burnSessions: await db.burnSessions.where("batchId").equals(id).count(),
               investigations: await db.investigations.where("batchId").equals(id).count(),
               followUpExperiments: await db.correctiveExperiments.where("followUpBatchId").equals(id).count(),
+              costSheets: await db.costSheets.where("batchId").equals(id).count(),
             };
           },
         ),
@@ -324,7 +331,7 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
       guard(() =>
         db.transaction(
           "rw",
-          [db.batches, db.curePlans, db.productionPlans, db.burnSessions, db.investigations, db.correctiveExperiments, db.meta],
+          [db.batches, db.curePlans, db.productionPlans, db.burnSessions, db.investigations, db.correctiveExperiments, db.costSheets, db.meta],
           async () => {
           if (!(await db.batches.get(id))) throw notFound("Batch", id);
           // BurnMatrix: burn tests are observations of the batch; they are
@@ -342,6 +349,12 @@ export function createBatchesRepo(db: CandleDatabase, now: () => string): Batche
           const followUps = await db.correctiveExperiments.where("followUpBatchId").equals(id).count();
           if (followUps > 0) {
             throw new DataError("in-use", `Batch ${id} is the follow-up of ${followUps} corrective experiment(s).`);
+          }
+          // TrueCandle Cost: a cost sheet is costed from the batch; it is never
+          // deleted with it (docs/v0.3-cost.md, Archive and delete).
+          const sheets = await db.costSheets.where("batchId").equals(id).count();
+          if (sheets > 0) {
+            throw new DataError("in-use", `Batch ${id} has ${sheets} cost sheet(s).`);
           }
           // CurePilot: the batch's cure plan goes with it, and an entry that
           // made it becomes open again (docs/v0.2-curepilot.md, Archive and delete).

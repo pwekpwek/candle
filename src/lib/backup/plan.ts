@@ -33,6 +33,8 @@ function zeroCounts(): BackupCounts {
     investigations: 0,
     investigationPhotos: 0,
     correctiveExperiments: 0,
+    costItems: 0,
+    costSheets: 0,
   };
 }
 
@@ -52,6 +54,8 @@ function emptyTally(): Record<DataStoreName, StoreTally> {
     investigations: { new: 0, identical: 0, conflict: 0 },
     investigationPhotos: { new: 0, identical: 0, conflict: 0 },
     correctiveExperiments: { new: 0, identical: 0, conflict: 0 },
+    costItems: { new: 0, identical: 0, conflict: 0 },
+    costSheets: { new: 0, identical: 0, conflict: 0 },
   };
 }
 
@@ -113,6 +117,8 @@ function countsOf(data: BackupData): BackupCounts {
     investigations: data.investigations.length,
     investigationPhotos: data.investigationPhotos.length,
     correctiveExperiments: data.correctiveExperiments.length,
+    costItems: data.costItems.length,
+    costSheets: data.costSheets.length,
   };
 }
 
@@ -149,6 +155,8 @@ function tallyAgainst(envelopeData: BackupData, device: DeviceData): Record<Data
     investigations: sameByCanonical,
     investigationPhotos: samePhoto as (a: never, b: never) => boolean,
     correctiveExperiments: sameByCanonical,
+    costItems: sameByCanonical,
+    costSheets: sameByCanonical,
   };
   for (const store of DATA_STORES) {
     const deviceMap = byId(device[store] as { id: string }[]);
@@ -189,6 +197,8 @@ function planReplace(
       investigations: [...data.investigations],
       investigationPhotos: [...data.investigationPhotos],
       correctiveExperiments: [...data.correctiveExperiments],
+      costItems: [...data.costItems],
+      costSheets: [...data.costSheets],
     },
     clear: true,
     added: { ...fileCounts },
@@ -266,6 +276,8 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
     investigations: [],
     investigationPhotos: [],
     correctiveExperiments: [],
+    costItems: [],
+    costSheets: [],
   };
 
   // Materials, measurements and batches: new, identical or conflict.
@@ -314,6 +326,8 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
   //
   // v0.3 CandleFix: investigations (with their checks and hypotheses) and
   // corrective experiments are compared whole; their photos without bytes.
+  //
+  // v0.3 TrueCandle Cost: packaging items and cost sheets are compared whole.
   const editableStores = [
     "batches",
     "curePlans",
@@ -325,6 +339,8 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
     "investigations",
     "investigationPhotos",
     "correctiveExperiments",
+    "costItems",
+    "costSheets",
   ] as const;
   for (const store of editableStores) {
     const deviceMap = byId<{ id: string }>(device[store]);
@@ -476,6 +492,8 @@ export const planRestore: PlanRestore = (envelope, device, options) => {
     investigations: device.investigations.length + added.investigations,
     investigationPhotos: device.investigationPhotos.length + added.investigationPhotos,
     correctiveExperiments: device.correctiveExperiments.length + added.correctiveExperiments,
+    costItems: device.costItems.length + added.costItems,
+    costSheets: device.costSheets.length + added.costSheets,
   };
   const present = new Set([
     ...device.materials.map((material) => material.id),

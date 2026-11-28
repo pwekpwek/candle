@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { getDataLayer } from "@/lib/db";
 import { MESSAGES } from "@/lib/messages";
-import type { Basis, Material, MaterialType } from "@/lib/types";
+import { priceUnitOf, type Basis, type Material, type MaterialType } from "@/lib/types";
 import {
   FIELD_ORDER,
   emptyValues,
@@ -243,6 +243,25 @@ export function MaterialForm({ target, usedIn, onDone, onCancel }: MaterialFormP
           </Field>
         </>
       ) : null}
+
+      <Field
+        label={priceUnitOf(values.type) === "kg" ? M.priceLabelKg : M.priceLabelEach}
+        hint={`${M.priceHint} ${M.priceNote}`}
+        error={errors.price}
+      >
+        {(c) => (
+          <Input
+            {...c}
+            ref={register("price")}
+            inputMode="decimal"
+            autoComplete="off"
+            value={values.price}
+            onChange={(e) => set("price", e.target.value)}
+            onBlur={() => blur("price")}
+            className="text-right tabular-nums"
+          />
+        )}
+      </Field>
 
       <Field label={M.notesLabel}>
         {(c) => (

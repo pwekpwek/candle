@@ -115,7 +115,7 @@ describe("lot form model", () => {
   it("round-trips a stored lot", () => {
     expect(
       lotValuesFrom({ materialId: "m1", supplierId: null, code: "A", receivedOn: "2026-11-01" }),
-    ).toEqual({ materialId: "m1", supplierId: "", code: "A", receivedOn: "2026-11-01", notes: "" });
+    ).toEqual({ materialId: "m1", supplierId: "", code: "A", paid: "", quantity: "", unit: "kg", receivedOn: "2026-11-01", notes: "" });
   });
 });
 

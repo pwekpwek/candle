@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { LIMITS } from "@/lib/gramguard/contract";
+import { MAX_MONEY_CENTAVOS } from "@/lib/types";
 import {
   BasisSchema,
   IdSchema,
@@ -38,8 +39,7 @@ export const MaterialSnapshotSchema = z.strictObject({
   vessel: VesselDetailsSchema.optional(),
 });
 
-/** Store `materials`. */
-export const MaterialSchema = z.strictObject({
+const MATERIAL_FIELDS = {
   id: IdSchema,
   type: MaterialTypeSchema,
   name: NameSchema,
@@ -51,4 +51,20 @@ export const MaterialSchema = z.strictObject({
   createdAt: TimestampSchema,
   updatedAt: TimestampSchema,
   archivedAt: NullableTimestampSchema,
+};
+
+/** Whole centavos, 0 to MAX_MONEY_CENTAVOS (v0.3 TrueCandle Cost). */
+export const CentavosSchema = intRange(0, MAX_MONEY_CENTAVOS);
+
+/**
+ * A material as backup formats 1 to 6 hold it: no price. Older files are
+ * checked against this shape, so a format 6 file whose material carries a
+ * price is refused as damaged (docs/v0.3-cost.md).
+ */
+export const MaterialSchemaV1 = z.strictObject(MATERIAL_FIELDS);
+
+/** Store `materials`. v0.3 TrueCandle Cost adds the optional default price (per kg or per piece by type). */
+export const MaterialSchema = z.strictObject({
+  ...MATERIAL_FIELDS,
+  defaultPriceCentavos: CentavosSchema.optional(),
 });

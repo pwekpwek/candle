@@ -193,7 +193,7 @@ describe("CurePilot: cure plans", () => {
   it("deleting a batch deletes its cure plan in the same transaction, and the impact says how many milestones go", async () => {
     const { layer, db, batch } = await withBatch();
     await layer.curePlans.save(batch.id, STANDARD);
-    expect(await layer.batches.deletionImpact(batch.id)).toEqual({ milestones: 3, productionPlans: 0, burnSessions: 0, investigations: 0, followUpExperiments: 0 });
+    expect(await layer.batches.deletionImpact(batch.id)).toEqual({ milestones: 3, productionPlans: 0, burnSessions: 0, investigations: 0, followUpExperiments: 0, costSheets: 0 });
     const c0 = await counterOf(layer);
     await layer.batches.delete(batch.id);
     expect(await db.curePlans.count()).toBe(0);

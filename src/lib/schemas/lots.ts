@@ -1,11 +1,19 @@
 import { z } from "zod";
-import { MAX_LOT_CODE_LENGTH, MAX_SUPPLIER_NAME_LENGTH, MAX_TRACE_NOTES_LENGTH } from "@/lib/types";
+import {
+  MAX_LOT_CODE_LENGTH,
+  MAX_LOT_PIECES,
+  MAX_MONEY_CENTAVOS,
+  MAX_SUPPLIER_NAME_LENGTH,
+  MAX_TRACE_NOTES_LENGTH,
+} from "@/lib/types";
+import { LIMITS } from "@/lib/gramguard/contract";
 import {
   IdSchema,
   IsoDateSchema,
   NonEmptyStringSchema,
   NullableTimestampSchema,
   TimestampSchema,
+  intRange,
 } from "./primitives";
 
 function trimmedText(max: number, what: string) {
@@ -28,8 +36,7 @@ export const SupplierSchema = z.strictObject({
   archivedAt: NullableTimestampSchema,
 });
 
-/** Store `materialLots` (v0.3). */
-export const MaterialLotSchema = z.strictObject({
+const LOT_FIELDS = {
   id: IdSchema,
   materialId: IdSchema,
   supplierId: IdSchema.nullable(),
@@ -39,6 +46,25 @@ export const MaterialLotSchema = z.strictObject({
   createdAt: TimestampSchema,
   updatedAt: TimestampSchema,
   archivedAt: NullableTimestampSchema,
+};
+
+/**
+ * A lot's purchase (v0.3 TrueCandle Cost). The quantity is milligrams or pieces
+ * by the material's type; this schema allows the wider of the two ranges and
+ * the data layer checks the one that applies.
+ */
+export const LotPurchaseSchema = z.strictObject({
+  paidCentavos: intRange(0, MAX_MONEY_CENTAVOS),
+  quantity: intRange(1, Math.max(LIMITS.maxWeightMg, MAX_LOT_PIECES)),
+});
+
+/** A lot as backup formats 5 and 6 hold it: no purchase. */
+export const MaterialLotSchemaV5 = z.strictObject(LOT_FIELDS);
+
+/** Store `materialLots` (v0.3; purchase added in v0.3 TrueCandle Cost). */
+export const MaterialLotSchema = z.strictObject({
+  ...LOT_FIELDS,
+  purchase: LotPurchaseSchema.optional(),
 });
 
 export const BatchLotPartSchema = z.enum(["row", "wick", "vessel"]);

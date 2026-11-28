@@ -178,7 +178,15 @@ export function DeleteFormulaDialog({
 type Impact =
   | { state: "loading" }
   | { state: "failed" }
-  | { state: "ready"; versions: number; measurements: number; batches: number; productionPlans: number };
+  | {
+      state: "ready";
+      versions: number;
+      measurements: number;
+      batches: number;
+      productionPlans: number;
+      /** TrueCandle Cost: sheets based on its versions also keep the formula. */
+      costSheets: number;
+    };
 
 function DeleteBody({
   formula,
@@ -221,18 +229,21 @@ function DeleteBody({
       submitting.current = false;
       setBusy(false);
       if (error instanceof DataError && error.code === "in-use") {
-        // Batches exist (made after this dialog opened, or another tab): show the refusal.
+        // Batches or cost sheets exist (made after this dialog opened, or another tab): show the refusal.
+        // When the counts cannot say which, the batch wording stands as before.
+        const atLeastOne = <T extends { batches: number; costSheets: number }>(c: T): T =>
+          c.batches > 0 || c.costSheets > 0 ? c : { ...c, batches: 1 };
         getDataLayer()
           .formulas.deletionImpact(formula.id)
-          .then((counts) => setImpact({ state: "ready", ...counts, batches: Math.max(1, counts.batches) }))
-          .catch(() => setImpact((prev) => (prev.state === "ready" ? { ...prev, batches: Math.max(1, prev.batches) } : prev)));
+          .then((counts) => setImpact({ state: "ready", ...atLeastOne(counts) }))
+          .catch(() => setImpact((prev) => (prev.state === "ready" ? atLeastOne(prev) : prev)));
         return;
       }
       setFailed(true);
     }
   }
 
-  const refused = impact.state === "ready" && impact.batches > 0;
+  const refused = impact.state === "ready" && (impact.batches > 0 || impact.costSheets > 0);
 
   return (
     <div className="grid gap-4">
@@ -245,7 +256,12 @@ function DeleteBody({
         <Notice variant="error">{F.deleteImpactFailed}</Notice>
       ) : refused ? (
         <Notice variant="info" title={B.formulaDeleteRefusedTitle}>
-          {B.formulaDeleteRefused(impact.batches)}
+          {impact.batches > 0 ? <span className="block">{B.formulaDeleteRefused(impact.batches)}</span> : null}
+          {impact.costSheets > 0 ? (
+            <span className="block" data-testid="formula-delete-blocked-cost-sheets">
+              {B.formulaDeleteRefusedCostSheets(impact.costSheets)}
+            </span>
+          ) : null}
         </Notice>
       ) : (
         <>

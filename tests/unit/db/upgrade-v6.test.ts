@@ -114,9 +114,9 @@ describe("schema 5 (v0.3 lots) to schema 6 (CandleFix)", () => {
 
     const db = openDatabase(name);
     await db.open();
-    expect(db.verno).toBe(6);
+    expect(db.verno).toBe(7);
     expect(db.tables.map((t) => t.name).sort()).toEqual(
-      [...V5_STORES, "investigations", "investigationPhotos", "correctiveExperiments", "drafts", "meta"].sort(),
+      [...V5_STORES, "investigations", "investigationPhotos", "correctiveExperiments", "costItems", "costSheets", "drafts", "meta"].sort(),
     );
     const after = await readDeviceData(db);
     for (const store of V5_STORES) {
@@ -150,11 +150,11 @@ describe("schema 5 (v0.3 lots) to schema 6 (CandleFix)", () => {
     await makeV5Database(name, {
       materials: [], formulas: [], formulaVersions: [], measurements: [], batches: [], curePlans: [],
       productionPlans: [], burnSessions: [], burnPhotos: [], suppliers: [], materialLots: [],
-      investigations: [], investigationPhotos: [], correctiveExperiments: [],
+      investigations: [], investigationPhotos: [], correctiveExperiments: [], costItems: [], costSheets: [],
     });
     const db = openDatabase(name);
     await db.open();
-    expect(db.verno).toBe(6);
+    expect(db.verno).toBe(7);
     expect(await db.investigations.count()).toBe(0);
     db.close();
   });

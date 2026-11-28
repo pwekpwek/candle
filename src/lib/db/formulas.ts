@@ -78,6 +78,7 @@ export function createFormulasRepo(db: CandleDatabase, now: () => string): Formu
         measurements: await db.measurements.where("formulaId").equals(id).count(),
         batches: await db.batches.where("formulaId").equals(id).count(),
         productionPlans: await db.productionPlans.where("formulaId").equals(id).count(),
+        costSheets: await db.costSheets.where("formulaId").equals(id).count(),
       })),
 
     deletePermanently: (id) =>
@@ -90,6 +91,7 @@ export function createFormulasRepo(db: CandleDatabase, now: () => string): Formu
             db.measurements,
             db.batches,
             db.productionPlans,
+            db.costSheets,
             db.drafts,
             db.meta,
           ],
@@ -99,6 +101,11 @@ export function createFormulasRepo(db: CandleDatabase, now: () => string): Formu
             const batches = await db.batches.where("formulaId").equals(id).count();
             if (batches > 0) {
               throw new DataError("in-use", `Formula ${id} has ${batches} batch(es).`);
+            }
+            // TrueCandle Cost: a cost sheet keeps its version, so refuse too.
+            const sheets = await db.costSheets.where("formulaId").equals(id).count();
+            if (sheets > 0) {
+              throw new DataError("in-use", `Formula ${id} has ${sheets} cost sheet(s).`);
             }
             // CurePilot: open planned production entries go with the formula.
             // An entry with a batch cannot be here: its batch blocks the delete.

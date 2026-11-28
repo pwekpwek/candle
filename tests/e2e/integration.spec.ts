@@ -277,7 +277,7 @@ for (const vp of VIEWPORTS) {
 
       // 6. Backup, then restore in a fresh profile.
       const { file, backup } = await exportBackup(page, testInfo);
-      expect(backup.formatVersion).toBe(6);
+      expect(backup.formatVersion).toBe(7);
       expect(backup.counts).toMatchObject({
         formulas: 1,
         formulaVersions: 2,

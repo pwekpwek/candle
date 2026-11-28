@@ -84,6 +84,8 @@ export const exportBackup: ExportBackup = async (db, options) => {
         db.investigations,
         db.investigationPhotos,
         db.correctiveExperiments,
+        db.costItems,
+        db.costSheets,
       ],
       async () => {
         const [
@@ -101,6 +103,8 @@ export const exportBackup: ExportBackup = async (db, options) => {
           investigations,
           investigationPhotos,
           correctiveExperiments,
+          costItems,
+          costSheets,
         ] = await Promise.all([
             db.materials.toArray(),
             db.formulas.toArray(),
@@ -116,6 +120,8 @@ export const exportBackup: ExportBackup = async (db, options) => {
             db.investigations.toArray(),
             db.investigationPhotos.toArray(),
             db.correctiveExperiments.toArray(),
+            db.costItems.toArray(),
+            db.costSheets.toArray(),
           ]);
         return {
           materials: byId(materials),
@@ -134,6 +140,8 @@ export const exportBackup: ExportBackup = async (db, options) => {
           // CandleFix: photos as base64, like burn photos.
           investigationPhotos: byId(investigationPhotos).map(photoToBackup),
           correctiveExperiments: byId(correctiveExperiments),
+          costItems: byId(costItems),
+          costSheets: byId(costSheets),
         };
       },
     ),
@@ -155,6 +163,8 @@ export const exportBackup: ExportBackup = async (db, options) => {
     investigations: data.investigations.length,
     investigationPhotos: data.investigationPhotos.length,
     correctiveExperiments: data.correctiveExperiments.length,
+    costItems: data.costItems.length,
+    costSheets: data.costSheets.length,
   };
   // Hashing happens outside any Dexie transaction.
   const checksum = { algorithm: "SHA-256" as const, value: await sha256Hex(canonicalJson(data)) };

@@ -128,12 +128,14 @@ describe("formulas", () => {
       measurements: 2,
       batches: 0,
       productionPlans: 0,
+      costSheets: 0,
     });
     expect(await layer.formulas.deletionImpact(id())).toEqual({
       versions: 0,
       measurements: 0,
       batches: 0,
       productionPlans: 0,
+      costSheets: 0,
     });
   });
 

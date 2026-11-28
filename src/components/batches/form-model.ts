@@ -1,6 +1,7 @@
 import { parseMeasured } from "@/lib/gramguard";
 import { MESSAGES, messageForIssue } from "@/lib/messages";
-import { MAX_BATCH_LABEL_LENGTH } from "@/lib/types";
+import { parseWholeNumber } from "@/lib/cost";
+import { MAX_BATCH_LABEL_LENGTH, MAX_CANDLES } from "@/lib/types";
 import type { BatchInput, BatchLotInput } from "@/lib/db";
 import type { BatchLot, MeasurementEntry } from "@/lib/types";
 import { formatProducedOn, isRealDate } from "./text";
@@ -52,11 +53,19 @@ export type FormValues = {
   texts: Record<string, string>;
   /** The lot per component. Leave out to send no `lots` (the stored links stay). */
   lots?: LotChoices;
+  /** v0.3 TrueCandle Cost: candles made and sellable as typed. Blank means not recorded. */
+  candlesMade?: string;
+  sellable?: string;
 };
+
+/** The counts stored on the batch, so a cleared field can send null to clear them. */
+export type StoredCounts = { candlesMade?: number; sellable?: number };
 
 export type FormErrors = {
   producedOn?: string;
   label?: string;
+  candlesMade?: string;
+  sellable?: string;
   measured: Record<string, string>;
 };
 
@@ -85,6 +94,21 @@ export function checkLabel(value: string): string | null {
   return value.trim().length > MAX_BATCH_LABEL_LENGTH ? B.labelTooLong : null;
 }
 
+/** Blank is fine. Otherwise a whole number from 1 to 100,000. */
+export function checkCandlesMade(text: string): string | null {
+  const parsed = parseWholeNumber(text, 1, MAX_CANDLES);
+  return parsed.ok || parsed.reason === "empty" ? null : B.candlesMadeInvalid;
+}
+
+/** Blank is fine. Otherwise a whole number, needing candles made and not above it. */
+export function checkSellable(madeText: string, sellableText: string): string | null {
+  const sellable = parseWholeNumber(sellableText, 0, MAX_CANDLES);
+  if (sellable.ok === false) return sellable.reason === "empty" ? null : B.sellableInvalid;
+  const made = parseWholeNumber(madeText, 1, MAX_CANDLES);
+  if (made.ok === false) return made.reason === "empty" ? B.sellableNeedsMade : null;
+  return sellable.value > made.value ? B.sellableAbove : null;
+}
+
 export function checkMeasured(componentId: string, text: string): string | null {
   const parsed = parseMeasured(text, `measured.${componentId}`);
   return parsed.ok ? null : messageForIssue(parsed.issue);
@@ -111,12 +135,19 @@ export function validateForm(
   today: string,
   latestProducedOn: string | null = null,
   storedProducedOn: string | null = null,
+  storedCounts: StoredCounts = {},
 ): { errors: FormErrors; input: BatchInput | null } {
   const errors: FormErrors = { measured: {} };
   const dateError = checkDate(values.producedOn, today, latestProducedOn, storedProducedOn);
   if (dateError) errors.producedOn = dateError;
   const labelError = checkLabel(values.label);
   if (labelError) errors.label = labelError;
+  const madeText = values.candlesMade ?? "";
+  const sellableText = values.sellable ?? "";
+  const madeError = checkCandlesMade(madeText);
+  if (madeError) errors.candlesMade = madeError;
+  const sellableError = checkSellable(madeText, sellableText);
+  if (sellableError) errors.sellable = sellableError;
   for (const id of componentIds) {
     const problem = checkMeasured(id, values.texts[id] ?? "");
     if (problem) errors.measured[id] = problem;
@@ -124,10 +155,21 @@ export function validateForm(
   const invalid =
     errors.producedOn !== undefined ||
     errors.label !== undefined ||
+    errors.candlesMade !== undefined ||
+    errors.sellable !== undefined ||
     Object.keys(errors.measured).length > 0;
   if (invalid) return { errors, input: null };
   const label = values.label.trim();
   const notes = values.notes.trim();
+  const made = parseWholeNumber(madeText, 1, MAX_CANDLES);
+  const sellable = parseWholeNumber(sellableText, 0, MAX_CANDLES);
+  // A number is sent as one, a field cleared over a stored value sends null, and a blank that
+  // never held a value is left out (absent keeps what is stored).
+  const counts: Pick<BatchInput, "candlesMade" | "sellable"> = {};
+  if (made.ok) counts.candlesMade = made.value;
+  else if (storedCounts.candlesMade !== undefined) counts.candlesMade = null;
+  if (sellable.ok) counts.sellable = sellable.value;
+  else if (storedCounts.sellable !== undefined) counts.sellable = null;
   return {
     errors,
     input: {
@@ -136,6 +178,7 @@ export function validateForm(
       ...(notes !== "" ? { notes } : {}),
       entries: collectEntries(componentIds, values.texts),
       ...(values.lots ? { lots: lotInputs(values.lots, componentIds) } : {}),
+      ...counts,
     },
   };
 }

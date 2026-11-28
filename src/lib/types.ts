@@ -34,6 +34,12 @@ export type Material = {
   wax?: WaxDetails;
   wick?: WickDetails;
   vessel?: VesselDetails;
+  /**
+   * v0.3 TrueCandle Cost: the maker's usual price, whole centavos. Per kg for
+   * wax and fragrance oil, per piece for wicks and vessels (`priceUnitOf`).
+   * Absent when not recorded.
+   */
+  defaultPriceCentavos?: number;
   createdAt: string;
   updatedAt: string;
   /** Archived materials are hidden from pickers. */
@@ -170,9 +176,24 @@ export type Batch = {
    * recorded, so every v0.2 batch stays valid. See docs/v0.3-lots.md.
    */
   lots?: BatchLot[];
+  /** v0.3 TrueCandle Cost: candles made in the batch, 1–MAX_CANDLES. Optional. */
+  candlesMade?: number;
+  /** v0.3 TrueCandle Cost: candles fit to sell, 0–candlesMade. Present only with `candlesMade`. */
+  sellable?: number;
   notes?: string;
   createdAt: string;
   updatedAt: string;
+};
+
+/**
+ * v0.3 TrueCandle Cost: a lot's purchase. `quantity` is what was received:
+ * milligrams for wax and fragrance oil, whole pieces for wicks and vessels
+ * (the lot's material type decides; the data layer checks the range).
+ */
+export type LotPurchase = {
+  /** Whole centavos, 0–MAX_MONEY_CENTAVOS. */
+  paidCentavos: number;
+  quantity: number;
 };
 
 /** Which component of the batch's version a lot is recorded for (v0.3). */
@@ -225,6 +246,8 @@ export type MaterialLot = {
   code: string;
   /** Date received (YYYY-MM-DD), local calendar. Optional. */
   receivedOn?: string;
+  /** v0.3 TrueCandle Cost: what was paid for the lot as received. Optional. */
+  purchase?: LotPurchase;
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -520,6 +543,127 @@ export type CorrectiveExperiment = {
   updatedAt: string;
 };
 
+// ─────────────────────────── v0.3 TrueCandle Cost ───────────────────────────
+// Design: docs/v0.3-cost.md. Money is whole centavos (PHP only), rounded half
+// up only when shown. Cost sheets are snapshots of quantities and prices.
+
+/** The unit a material's price is for: per kg (wax, fragrance oil) or per piece (wick, vessel). */
+export type PriceUnit = "kg" | "piece";
+
+export function priceUnitOf(type: MaterialType): PriceUnit {
+  return type === "wax" || type === "fragranceOil" ? "kg" : "piece";
+}
+
+/** Store `costItems` (v0.3 TrueCandle Cost). Packaging and other priced items: labels, boxes, lids. */
+export type CostItem = {
+  id: string;
+  /** 1–MAX_COST_ITEM_NAME_LENGTH after trimming; unique, case-insensitive. */
+  name: string;
+  /** Price of one, whole centavos. */
+  unitCentavos: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  /** Archived items are hidden from the sheet's picker. */
+  archivedAt: string | null;
+};
+
+/** Where a cost line's unit price came from. A snapshot: never changes with the lot or material. */
+export type CostPrice =
+  /** The batch's lot on that component: paid for the quantity received (mg or pieces). */
+  | { source: "lot"; lotId: string; lotCode: string; paidCentavos: number; quantity: number }
+  /** The material's default price when the sheet was made, per kg or per piece. */
+  | { source: "material"; unitCentavos: number }
+  /** Typed by the maker on this sheet, per kg or per piece. */
+  | { source: "sheet"; unitCentavos: number }
+  /** No price known: counts as zero and marks the sheet incomplete. */
+  | { source: "none" };
+
+export type CostPriceSource = CostPrice["source"];
+
+/** A material line's quantity: a weight for wax and oil rows, pieces per candle made for the wick and vessel. */
+export type CostQuantity =
+  | { unit: "mg"; mg: number; from: "planned" | "measured" }
+  | { unit: "piece"; perCandle: number };
+
+/** One component of the sheet's version, with the quantity and price it was costed at. */
+export type CostMaterialLine = {
+  /** `batchLotSlot` form: "row:<componentId>", "wick" or "vessel". Unique in the sheet. */
+  key: string;
+  materialId: string;
+  materialType: MaterialType;
+  /** The material's name in the version's snapshot. */
+  name: string;
+  quantity: CostQuantity;
+  price: CostPrice;
+};
+
+/** Packaging or another item on a sheet: each sellable candle, or once for the batch. */
+export type CostItemPer = "sellable" | "batch";
+
+export type CostItemLine = {
+  /** The line's own id (UUID), unique in the sheet. */
+  id: string;
+  /** Soft link to the `costItems` entry it was picked from, or null for a one-off. */
+  itemId: string | null;
+  /** Snapshot, 1–MAX_COST_ITEM_NAME_LENGTH after trimming. */
+  name: string;
+  unitCentavos: number;
+  per: CostItemPer;
+  /** 1–MAX_ITEM_QUANTITY. */
+  quantity: number;
+};
+
+export type CostOverhead =
+  /** A fixed amount for the batch. */
+  | { mode: "fixed"; centavos: number }
+  /** A percentage of materials plus labour, hundredths of 1% (12.5% = 1250). */
+  | { mode: "percent"; bp: number };
+
+/** A pricing scenario: set by the price per candle, or by a target gross margin (hundredths of 1%, below 100%). */
+export type CostScenario = { mode: "price"; priceCentavos: number } | { mode: "margin"; marginBp: number };
+
+/**
+ * Store `costSheets` (v0.3 TrueCandle Cost). The cost of one batch, from a
+ * saved version (planned weights) or a recorded batch (measured weights and
+ * its lots). Basis, formula, version, batch and the lines' quantities are
+ * fixed at creation; prices are snapshots.
+ */
+export type CostSheet = {
+  id: string;
+  /** 1–MAX_COST_SHEET_TITLE_LENGTH after trimming. Optional. */
+  title?: string;
+  basis: "version" | "batch";
+  formulaId: string;
+  versionId: string;
+  /** Set exactly when `basis` is "batch". */
+  batchId: string | null;
+  /** 1–MAX_CANDLES. */
+  candlesMade: number;
+  /** 0–candlesMade. */
+  sellable: number;
+  /** One per component of the version, in the version's order. */
+  materials: CostMaterialLine[];
+  /** 0–MAX_SHEET_ITEMS. */
+  items: CostItemLine[];
+  /** Hundredths of an hour, 0–MAX_LABOUR_HOURS_X100. */
+  labourHoursX100: number;
+  /** Per hour, whole centavos. */
+  labourRateCentavos: number;
+  overhead: CostOverhead;
+  /** Testing allowance for the batch, whole centavos. */
+  testingCentavos: number;
+  /** "Prices include 12% VAT". Off by default: costs are recorded as paid. */
+  pricesIncludeVat: boolean;
+  wholesale: CostScenario | null;
+  retail: CostScenario | null;
+  /** Soft link to the sheet this one was copied from. */
+  copiedFromId: string | null;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 /**
  * The exported stores, in dependency order. `batches` was added in v0.2
  * (format 2); `curePlans` and `productionPlans` in v0.2 CurePilot (format 3);
@@ -541,6 +685,8 @@ export const DATA_STORES = [
   "investigations",
   "investigationPhotos",
   "correctiveExperiments",
+  "costItems",
+  "costSheets",
 ] as const;
 export type DataStoreName = (typeof DATA_STORES)[number];
 
@@ -563,26 +709,32 @@ export type BackupData = {
   /** Photos in their backup form (base64 bytes). */
   investigationPhotos: InvestigationPhotoBackup[];
   correctiveExperiments: CorrectiveExperiment[];
+  /** v0.3 TrueCandle Cost (format 7). */
+  costItems: CostItem[];
+  costSheets: CostSheet[];
 };
 
 export type BackupCounts = Record<DataStoreName, number>;
 
 export const BACKUP_FORMAT = "candlelab-backup" as const;
 /**
+ * 7 since v0.3 TrueCandle Cost (adds `costItems` and `costSheets`; prices on
+ * materials and lots, candle counts on batches);
  * 6 since v0.3 CandleFix (adds `investigations`, `investigationPhotos` and
  * `correctiveExperiments`); 5 (v0.3 lots) added `suppliers`, `materialLots`
  * and lot links on batches; 4 (BurnMatrix) added `burnSessions` and
  * `burnPhotos`; 3 added `curePlans` and `productionPlans`; 2 added `batches`.
- * Format 1 to 5 files are migrated on restore.
+ * Format 1 to 6 files are migrated on restore.
  */
-export const BACKUP_FORMAT_VERSION = 6 as const;
+export const BACKUP_FORMAT_VERSION = 7 as const;
 /**
- * IndexedDB schema. 6 since v0.3 CandleFix (investigations, their photos and
+ * IndexedDB schema. 7 since v0.3 TrueCandle Cost (cost items and cost
+ * sheets); 6 since v0.3 CandleFix (investigations, their photos and
  * corrective experiments); 5 (v0.3) added suppliers and lots; 4 (BurnMatrix)
  * added burn sessions and photos; 3 (CurePilot) added cure plans and
  * production entries; 2 added the `batches` store.
  */
-export const SCHEMA_VERSION = 6 as const;
+export const SCHEMA_VERSION = 7 as const;
 export const CALC_VERSION = 1 as const;
 export const APP_VERSION = "0.3.0" as const;
 /** v0.3: longest supplier name after trimming. */
@@ -649,6 +801,32 @@ export const MAX_EXPERIMENT_CHANGE_LENGTH = 500 as const;
 export const MAX_EXPERIMENT_SESSIONS = 8 as const;
 /** CandleFix: most photos in one investigation (same as a burn session). */
 export const MAX_INVESTIGATION_PHOTOS = 12 as const;
+/** TrueCandle Cost: largest amount of money, in centavos (₱10,000,000.00). */
+export const MAX_MONEY_CENTAVOS = 1_000_000_000 as const;
+/** TrueCandle Cost: most pieces one lot can record as received. */
+export const MAX_LOT_PIECES = 1_000_000 as const;
+/** TrueCandle Cost: most candles in one batch or sheet. */
+export const MAX_CANDLES = 100_000 as const;
+/** TrueCandle Cost: most wicks or vessels per candle on a sheet. */
+export const MAX_PIECES_PER_CANDLE = 50 as const;
+/** TrueCandle Cost: most item lines on one sheet. */
+export const MAX_SHEET_ITEMS = 30 as const;
+/** TrueCandle Cost: largest quantity on one item line. */
+export const MAX_ITEM_QUANTITY = 1000 as const;
+/** TrueCandle Cost: most labour, in hundredths of an hour (1,000 hours). */
+export const MAX_LABOUR_HOURS_X100 = 100_000 as const;
+/** TrueCandle Cost: largest overhead percentage, in hundredths of 1% (1,000%). */
+export const MAX_OVERHEAD_BP = 100_000 as const;
+/** TrueCandle Cost: largest target margin, in hundredths of 1% (99.99%; 100% cannot be reached). */
+export const MAX_MARGIN_BP = 9999 as const;
+/** TrueCandle Cost: VAT rate the "Prices include 12% VAT" switch uses, in hundredths of 1%. */
+export const VAT_BP = 1200 as const;
+/** TrueCandle Cost: longest item name after trimming. */
+export const MAX_COST_ITEM_NAME_LENGTH = 60 as const;
+/** TrueCandle Cost: longest sheet title after trimming. */
+export const MAX_COST_SHEET_TITLE_LENGTH = 60 as const;
+/** TrueCandle Cost: longest notes on an item or sheet after trimming. */
+export const MAX_COST_NOTES_LENGTH = 2000 as const;
 export const DB_NAME = "candlelab" as const;
 
 /** The backup file (docs/specs/4 Data Model.md, "Backup file"). */

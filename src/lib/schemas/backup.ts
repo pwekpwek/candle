@@ -13,6 +13,7 @@ import {
   InvestigationPhotoBackupSchema,
   InvestigationSchema,
 } from "./candlefix";
+import { CostItemSchema, CostSheetSchema } from "./cost";
 import { FormulaVersionSchema } from "./version";
 
 /** BackupCounts: one whole number per exported store. */
@@ -31,9 +32,11 @@ export const BackupCountsSchema = z.strictObject({
   investigations: z.int().min(0),
   investigationPhotos: z.int().min(0),
   correctiveExperiments: z.int().min(0),
+  costItems: z.int().min(0),
+  costSheets: z.int().min(0),
 });
 
-/** The exported stores (DATA-15), current format (6). Drafts and meta are not exported (DATA-17). */
+/** The exported stores (DATA-15), current format (7). Drafts and meta are not exported (DATA-17). */
 export const BackupDataSchema = z.strictObject({
   materials: z.array(MaterialSchema),
   formulas: z.array(FormulaSchema),
@@ -49,6 +52,8 @@ export const BackupDataSchema = z.strictObject({
   investigations: z.array(InvestigationSchema),
   investigationPhotos: z.array(InvestigationPhotoBackupSchema),
   correctiveExperiments: z.array(CorrectiveExperimentSchema),
+  costItems: z.array(CostItemSchema),
+  costSheets: z.array(CostSheetSchema),
 });
 
 /** SHA-256 of the data section, lowercase hex (DATA-16). */

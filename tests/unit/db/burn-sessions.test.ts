@@ -336,7 +336,7 @@ describe("BurnMatrix: deletes", () => {
   it("deleting a batch is refused while it has burn sessions, and allowed after they are deleted", async () => {
     const { layer, db, batch } = await withBatch();
     const { session } = await layer.burnSessions.create({ sessionId: id(), batchId: batch.id, ...input() });
-    expect(await layer.batches.deletionImpact(batch.id)).toEqual({ milestones: 4, productionPlans: 0, burnSessions: 1, investigations: 0, followUpExperiments: 0 });
+    expect(await layer.batches.deletionImpact(batch.id)).toEqual({ milestones: 4, productionPlans: 0, burnSessions: 1, investigations: 0, followUpExperiments: 0, costSheets: 0 });
     const before = await counterOf(layer);
     expect(await code(layer.batches.delete(batch.id))).toBe("in-use");
     expect(await db.batches.get(batch.id)).toBeDefined();

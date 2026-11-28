@@ -122,12 +122,12 @@ describe("photo base64", () => {
 });
 
 describe("backup format 4 export", () => {
-  it("exports sessions and photos (bytes as base64 with their SHA-256), format 6, schema 6, a checksum over all fourteen stores, and its size", async () => {
+  it("exports sessions and photos (bytes as base64 with their SHA-256), format 7, schema 7, a checksum over all sixteen stores, and its size", async () => {
     const { device, session, second, photos } = await sourceWithBurns();
     const exported = await exportBackup(device.db, { now: () => NOW });
     const { envelope, json } = exported;
-    expect(envelope.formatVersion).toBe(6);
-    expect(envelope.schemaVersion).toBe(6);
+    expect(envelope.formatVersion).toBe(7);
+    expect(envelope.schemaVersion).toBe(7);
     expect(envelope.counts).toMatchObject({ burnSessions: 2, burnPhotos: 2 });
     expect(envelope.data.burnSessions.map((s) => s.id)).toEqual([session.id, second.id].sort());
     const filePhoto = envelope.data.burnPhotos.find((p) => p.id === photos[0]!.id)!;
@@ -304,6 +304,7 @@ describe("format 4 checks", () => {
       investigations: 0,
       investigationPhotos: 0,
       correctiveExperiments: 0,
+      costSheets: 0,
     });
   });
 
@@ -358,7 +359,7 @@ describe("the real CurePilot export (good-v3.json, format 3)", () => {
     if (!result.ok) throw new Error(result.failure.code);
     expect(result.envelope.formatVersion).toBe(3);
     expect(result.envelope.checksum).toEqual(file.checksum);
-    expect(result.envelope.counts).toEqual({ ...file.counts, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 });
+    expect(result.envelope.counts).toEqual({ ...file.counts, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0, costItems: 0, costSheets: 0 });
     expect(result.envelope.data.burnSessions).toEqual([]);
     expect(result.envelope.data.burnPhotos).toEqual([]);
   });

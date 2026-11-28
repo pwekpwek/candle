@@ -343,7 +343,7 @@ describe("restore check-failure messages (Data Model step 1)", () => {
     [{ code: "checksum" }, "This backup is damaged or was edited."],
     [{ code: "duplicates" }, "This backup is damaged: duplicate records."],
     [
-      { code: "orphans", versions: 2, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, materialLots: 0, batchLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 },
+      { code: "orphans", versions: 2, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, materialLots: 0, batchLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0, costSheets: 0 },
       "This backup is incomplete: 2 versions refer to a missing formula.",
     ],
   ];
@@ -367,7 +367,7 @@ describe("restore check-failure messages (Data Model step 1)", () => {
 
   it("orphans with one version and one measurement", () => {
     expect(
-      messageForCheckFailure({ code: "orphans", versions: 1, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, materialLots: 0, batchLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 }),
+      messageForCheckFailure({ code: "orphans", versions: 1, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, materialLots: 0, batchLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0, costSheets: 0 }),
     ).toBe(
       "This backup is incomplete: 1 version refers to a missing formula and 1 measurement refers to a missing version.",
     );
@@ -381,7 +381,7 @@ describe("restore result summary (Data Model step 5)", () => {
       formulaVersions: number,
       materials: number,
       measurements: number,
-    ): BackupCounts => ({ formulas, formulaVersions, materials, measurements, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 });
+    ): BackupCounts => ({ formulas, formulaVersions, materials, measurements, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0, costItems: 0, costSheets: 0 });
     expect(
       restoreSummary({
         fileName: "candlelab-backup-20261114-140512.json",
@@ -407,14 +407,14 @@ describe("restore result summary (Data Model step 5)", () => {
       materialLots: 1,
       investigations: 1,
       investigationPhotos: 1,
-      correctiveExperiments: 1,
+      correctiveExperiments: 1, costItems: 0, costSheets: 0,
     };
     expect(
       restoreSummary({
         fileName: "b.json",
         added: one,
         skippedIdentical: 1,
-        kept: { formulas: 1, formulaVersions: 0, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 },
+        kept: { formulas: 1, formulaVersions: 0, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0, costItems: 0, costSheets: 0 },
       }),
     ).toBe(
       "Restored from b.json: added 1 formula, 1 version, 1 material, 1 measurement, 1 batch, 1 cure plan, 1 planned production entry, 1 burn test, 1 photo, 1 supplier, 1 lot, 1 investigation, 1 investigation photo, 1 corrective experiment. Skipped 1 identical item. Kept this device's copy of 1 formula.",
@@ -425,9 +425,9 @@ describe("restore result summary (Data Model step 5)", () => {
     expect(
       restoreSummary({
         fileName: "b.json",
-        added: { formulas: 0, formulaVersions: 2, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 },
+        added: { formulas: 0, formulaVersions: 2, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0, costItems: 0, costSheets: 0 },
         skippedIdentical: 0,
-        kept: { formulas: 0, formulaVersions: 2, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 },
+        kept: { formulas: 0, formulaVersions: 2, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0, costItems: 0, costSheets: 0 },
       }),
     ).toBe(
       "Restored from b.json: added 2 versions. Kept this device's copy of 2 versions.",
@@ -532,7 +532,7 @@ const SAMPLE_CHECKS: CheckFailure[] = [
   { code: "incomplete" },
   { code: "checksum" },
   { code: "duplicates" },
-  { code: "orphans", versions: 1, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, materialLots: 0, batchLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 },
+  { code: "orphans", versions: 1, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, materialLots: 0, batchLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0, costSheets: 0 },
 ];
 
 /** Exported helpers that take arguments: name → sampler. */
@@ -564,9 +564,9 @@ const HELPER_SAMPLES: Record<string, () => string> = {
   restoreSummary: () =>
     restoreSummary({
       fileName: "a.json",
-      added: { formulas: 1, formulaVersions: 2, materials: 3, measurements: 4, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 },
+      added: { formulas: 1, formulaVersions: 2, materials: 3, measurements: 4, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0, costItems: 0, costSheets: 0 },
       skippedIdentical: 5,
-      kept: { formulas: 0, formulaVersions: 1, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 },
+      kept: { formulas: 0, formulaVersions: 1, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0, costItems: 0, costSheets: 0 },
     }),
   basisWords: () => basisWords("wax") + basisWords("total"),
   basisExplanation: () => basisExplanation(800, "wax") + basisExplanation(800, "total"),
@@ -654,6 +654,63 @@ const MESSAGE_SAMPLES: Record<string, unknown[]> = {
   "lots.unarchiveLabel": ["LOT-TEST-001"],
   "lots.deleteLabel": ["LOT-TEST-001"],
   "lots.deleteBody": ["LOT-TEST-001"],
+  // v0.3 TrueCandle Cost.
+  "lots.priceLine": ["₱217.50 per kg"],
+  "batches.countsLine": [12, 10],
+  "batches.costSheetsDeleteBlocked": [2],
+  "batches.formulaDeleteRefusedCostSheets": [1],
+  "costItems.editLabel": ["Demo Box"],
+  "costItems.archiveLabel": ["Demo Box"],
+  "costItems.unarchiveLabel": ["Demo Box"],
+  "costItems.deleteLabel": ["Demo Box"],
+  "costItems.deleteBody": ["Demo Box", 3],
+  "cost.newSheetFromVersion": [2],
+  "cost.filterFormula": ["Demo Soy Blend"],
+  "cost.filterBatch": ["CL-2611-A"],
+  "cost.basisBatch": ["CL-2611-A"],
+  "cost.basisVersion": [2, "Demo Soy Blend"],
+  "cost.rowCandles": [12, 10],
+  "cost.rowPerSellable": ["₱216.11"],
+  "cost.newDescriptionVersion": [2, "Demo Soy Blend"],
+  "cost.newDescriptionBatch": ["CL-2611-A"],
+  "cost.candlesHintVessels": [6],
+  "cost.errTitleLong": [60],
+  "cost.errNotesLong": [2000],
+  "cost.errCandlesRange": [100000],
+  "cost.errPiecesPerCandle": [50],
+  "cost.errMoneyRange": ["₱10,000,000.00"],
+  "cost.errItemName": [60],
+  "cost.errItemQuantity": [1000],
+  "cost.errPercentRange": ["1000%"],
+  "cost.basisBatchLink": ["CL-2611-A"],
+  "cost.basisVersionLink": [2, "Demo Soy Blend"],
+  "cost.formulaLink": ["Demo Soy Blend"],
+  "cost.candlesLine": [12, 10],
+  "cost.quantityMeasured": ["1,630.50 g"],
+  "cost.quantityPlanned": ["1,630.50 g"],
+  "cost.quantityPerCandle": [1, 12],
+  "cost.sourceLot": ["SOY-DEMO-01", "₱4,350.00", "20 kg"],
+  "cost.sourceMaterial": ["₱1,850.00 per kg"],
+  "cost.sourceSheet": ["₱1,900.00 per kg"],
+  "cost.receivedPieces": [100],
+  "cost.itemQuantitySellable": [1, 10],
+  "cost.itemQuantityBatch": [1],
+  "cost.itemUnit": ["₱6.75"],
+  "cost.labourDetail": ["3.5", "₱95.00"],
+  "cost.overheadPercentDetail": ["12.5%"],
+  "cost.nonSellableDetail": [2],
+  "cost.incompleteBody": [1],
+  "cost.scenarioSetByMargin": ["40%"],
+  "cost.deleteBody": ["Price list sheet"],
+  "cost.linePriceLegend": ["Soy wax"],
+  "cost.priceTypedLabelKg": ["Soy wax"],
+  "cost.priceTypedLabelPiece": ["Tin 180"],
+  "cost.piecesLabel": ["Tin 180"],
+  "cost.itemsAtMax": [30],
+  "cost.itemRemove": ["Label"],
+  "cost.scenarioModeLabel": ["Wholesale"],
+  "cost.scenarioPriceLabel": ["Retail"],
+  "cost.scenarioMarginLabel": ["Wholesale"],
   "app.navScheduleCount": [2],
   "schedule.cureTime": [14],
   "schedule.plannedCureEnd": ["Dec 2, 2026"],
@@ -754,10 +811,10 @@ const MESSAGE_SAMPLES: Record<string, unknown[]> = {
   "scale.newWax": ["1000.0 g"],
   "backup.lastBackup": ["3 days ago", 4],
   "backup.exportedLine": ["Nov 14, 14:05", 12, 31],
-  "backup.previewAdd": [{ formulas: 9, formulaVersions: 22, materials: 14, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 }],
-  "backup.previewAlreadyHere": [{ formulas: 3, formulaVersions: 9, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 }],
-  "backup.previewConflicts": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 }],
-  "backup.previewReplace": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 }],
+  "backup.previewAdd": [{ formulas: 9, formulaVersions: 22, materials: 14, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0, costItems: 0, costSheets: 0 }],
+  "backup.previewAlreadyHere": [{ formulas: 3, formulaVersions: 9, materials: 0, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0, costItems: 0, costSheets: 0 }],
+  "backup.previewConflicts": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0, costItems: 0, costSheets: 0 }],
+  "backup.previewReplace": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0, costItems: 0, costSheets: 0 }],
   "backup.previewVersionConflicts": [2],
   "backup.previewRenumbered": [1],
   "backup.previewMissingMaterials": [3],
@@ -765,13 +822,13 @@ const MESSAGE_SAMPLES: Record<string, unknown[]> = {
   "backup.previewSharedPlannedTests": [1],
   "backup.integrityPreview": ["replace", SAMPLE_INTEGRITY],
   "backup.failIntegrity": [SAMPLE_INTEGRITY.slice(0, 1)],
-  "backup.replaceAffects": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 }],
-  "backup.replacedSentence": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 }],
+  "backup.replaceAffects": [{ formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0, costItems: 0, costSheets: 0 }],
+  "backup.replacedSentence": [{ formulas: 0, formulaVersions: 0, materials: 1, measurements: 0, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0, costItems: 0, costSheets: 0 }],
   "backup.renumberedSentence": ["Lavender Vanilla", 3, 4],
   "backup.renumberedMany": [5],
   "backup.replaceSummary": [
     "candlelab-backup-20261114-140512.json",
-    { formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0 },
+    { formulas: 2, formulaVersions: 3, materials: 7, measurements: 1, batches: 0, curePlans: 0, productionPlans: 0, burnSessions: 0, burnPhotos: 0, suppliers: 0, materialLots: 0, investigations: 0, investigationPhotos: 0, correctiveExperiments: 0, costItems: 0, costSheets: 0 },
   ],
   // ── v0.3 CandleFix (4a): investigation section, editor, page and photos. Add samples below this line. ──
   "batches.investigationsDeleteBlocked": [2],
@@ -990,6 +1047,39 @@ describe("wording scan: CandleFix sections make no judgement and name no cause",
     }
     expect(strings.length).toBeGreaterThan(80);
     const hits = strings.filter((s) => JUDGEMENT.test(s.text) || CANDLEFIX_WORDS.test(s.text));
+    expect(hits.map((s) => `${s.path}: ${s.text}`)).toEqual([]);
+  });
+});
+
+// ─────────── v0.3 TrueCandle Cost: arithmetic, never pricing advice ───────────
+
+/**
+ * TrueCandle Cost shows costs, prices, profit and margin as arithmetic. Nothing
+ * may call a price good, fair, ideal or recommended, or tell the maker what to
+ * charge (docs/v0.3-cost.md, "Wording"). Scans the cost sections, and the
+ * price and count keys added to existing sections, with the broad judgement
+ * list plus pricing-advice words.
+ */
+const COST_WORDS =
+  /\b(recommend\w*|should charge|should sell|fair price|ideal|optimal|best price|guarantee\w*|profitable|worth it|underpriced|overpriced|too (?:low|high)|cheap|expensive)\b/i;
+
+describe("wording scan: TrueCandle Cost sections give no pricing advice", () => {
+  it("the cost sections exist and no string contains a judgement or pricing-advice word", () => {
+    const strings: { path: string; text: string }[] = [];
+    for (const section of ["cost", "costItems"] as const) {
+      const value = (MESSAGES as Record<string, unknown>)[section];
+      expect(value, `MESSAGES.${section}`).toBeDefined();
+      collectStrings(value, section, strings);
+    }
+    expect(strings.length).toBeGreaterThan(60);
+    const hits = strings.filter((s) => JUDGEMENT.test(s.text) || COST_WORDS.test(s.text));
+    expect(hits.map((s) => `${s.path}: ${s.text}`)).toEqual([]);
+  });
+
+  it("price and count wording added to the materials, lots and batches sections gives no pricing advice", () => {
+    const strings: { path: string; text: string }[] = [];
+    for (const section of ["materials", "lots", "batches"] as const) collectStrings(MESSAGES[section], section, strings);
+    const hits = strings.filter((s) => COST_WORDS.test(s.text));
     expect(hits.map((s) => `${s.path}: ${s.text}`)).toEqual([]);
   });
 });

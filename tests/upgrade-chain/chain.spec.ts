@@ -46,6 +46,7 @@ import {
   saveBatchChanges,
   setBatchLot,
 } from "../e2e/helpers-lots";
+import { recordCostThroughScreens } from "../e2e/helpers-cost";
 
 const PHASE = process.env.PHASE ?? "";
 const PROFILE = process.env.CHAIN_PROFILE ?? "";
@@ -66,10 +67,12 @@ const DATA_STORES = [
   "investigations",
   "investigationPhotos",
   "correctiveExperiments",
+  "costItems",
+  "costSheets",
 ] as const;
 
-/** IndexedDB version of the final build the restore phases run on (v0.3 CandleFix: schema 6). */
-const FINAL_IDB_VERSION = 60;
+/** IndexedDB version of the final build the restore phases run on (v0.3 TrueCandle Cost: schema 7). */
+const FINAL_IDB_VERSION = 70;
 
 type Dump = { version: number; stores: Record<string, unknown[]> };
 
@@ -572,6 +575,98 @@ test("candlefix: CandleFix build keeps the schema 5 profile and records an inves
   });
 });
 
+/**
+ * v0.3 TrueCandle Cost (`run-cost.sh`), phase 1 on the CandleFix build
+ * (ac75476, schema 6): WE-5, a supplier and lot, batch "C6-01" with the wax lot,
+ * a burn test with a generated photo, and an investigation with a generated
+ * photo, all with the screens; a format 6 backup for `restore06c`.
+ */
+test("fix6: CandleFix build makes a batch with a lot, a burn test with a photo and an investigation", async () => {
+  test.skip(PHASE !== "fix6");
+  await withProfile(PROFILE, async (page) => {
+    await buildWE5(page);
+    const start = await dump(page);
+    const v1 = idOf<{ id: string; number: number }>(start.stores.formulaVersions, (v) => v.number === 1);
+    await createSupplier(page, "Example Wax Co");
+    await createLot(page, { material: WE5.wax, supplier: "Example Wax Co", code: "LOT-C6-001" });
+    await page.goto(`/batches/new?version=${v1}`);
+    await waitForHeading(page, "Create batch");
+    await productionDate(page).fill(isoOffset(-10));
+    await batchLabel(page).fill("C6-01");
+    await submitCreate(page);
+    await waitForHeading(page, "C6-01");
+    const batchId = idOf<{ id: string; label?: string }>((await dump(page)).stores.batches, (b) => b.label === "C6-01");
+    await openBatch(page, batchId, "C6-01");
+    await setBatchLot(page, WE5.wax, "LOT-C6-001");
+    await saveBatchChanges(page);
+    await createSession(page, batchId, {
+      date: isoOffset(-3),
+      label: "C6 burn",
+      candles: [{ label: "A", wickText: "Generated wick 1", burns: [{ minutes: "240", before: "250.00", after: "238.50", soot: "None seen" }] }],
+    });
+    await addPhotos(page, 1);
+    await recordInvestigation(page, batchId, {
+      date: isoOffset(-1),
+      title: "Schema 6 issue",
+      issues: ["tunneling"],
+      notes: "Made-up observation for the upgrade check.",
+      checks: [{ itemId: "tunneling.first-burn-length", note: "Generated note" }],
+      hypotheses: [{ text: "Generated hypothesis" }],
+    });
+    await addInvestigationPhotos(page, 1);
+    const end = await dump(page);
+    expect(end.version).toBe(60);
+    expect((end.stores.batches[0] as { lots?: unknown[] }).lots).toHaveLength(1);
+    expect(end.stores.burnPhotos).toHaveLength(1);
+    expect(end.stores.investigations).toHaveLength(1);
+    expect(end.stores.investigationPhotos).toHaveLength(1);
+    expect(end.stores.costSheets, "schema 6 has no cost stores").toBeUndefined();
+    save("dump-fix6-end.json", end);
+    const { backup } = await exportTo(page, "fix6-backup.json");
+    expect(backup.formatVersion).toBe(6);
+    console.log("fix6 end", JSON.stringify(counts(end)));
+  });
+});
+
+/**
+ * v0.3 TrueCandle Cost, phase 2 on this build, same profile as `fix6`: the
+ * schema 7 upgrade keeps every schema 6 record (photo bytes by SHA-256); then
+ * a material price, a lot purchase, candle counts on C6-01 and a batch cost
+ * sheet are recorded with the screens, and a format 7 backup is exported for
+ * `restore07`.
+ */
+test("cost7: TrueCandle Cost build keeps the schema 6 profile and records prices, counts and a cost sheet", async () => {
+  test.skip(PHASE !== "cost7");
+  await withProfile(PROFILE, async (page) => {
+    await openApp(page);
+    const open = await dump(page);
+    save("dump-cost7-open.json", open);
+    const log: string[] = [];
+    expectPreserved(load("dump-fix6-end.json"), open, 70, log);
+    console.log("cost7 upgrade:\n  " + log.join("\n  "));
+    const batch = (open.stores.batches as { id: string; label?: string }[]).find((b) => b.label === "C6-01");
+    expect(batch, "the C6-01 batch").toBeDefined();
+
+    await recordCostThroughScreens(page, batch!.id);
+
+    const end = await dump(page);
+    expect(end.stores.costSheets).toHaveLength(1);
+    const sheet = end.stores.costSheets[0] as { batchId: string; candlesMade: number; sellable: number; materials: { price: { source: string } }[] };
+    expect(sheet).toMatchObject({ batchId: batch!.id, candlesMade: 6, sellable: 5 });
+    expect(sheet.materials[0]!.price.source).toBe("lot");
+    // The schema 6 records other than C6-01 (counts added), its lot (purchase added) and the wax (price added) are untouched.
+    for (const store of ["burnSessions", "burnPhotos", "suppliers", "investigations", "investigationPhotos", "formulaVersions"]) {
+      expect(end.stores[store], store).toEqual(open.stores[store]);
+    }
+    save("dump-cost7-end.json", end);
+    const { backup } = await exportTo(page, "cost7-backup.json");
+    expect(backup.formatVersion).toBe(7);
+    expect(backup.schemaVersion).toBe(7);
+    expect(backup.counts).toMatchObject({ costSheets: 1, investigations: 1, investigationPhotos: 1, burnPhotos: 1 });
+    console.log("cost7 end", JSON.stringify(counts(end)));
+  });
+});
+
 for (const [phase, file, expected] of [
   ["restore01", "v01-backup.json", { materials: 4, formulas: 1, formulaVersions: 2, measurements: 1 }],
   [
@@ -608,6 +703,18 @@ for (const [phase, file, expected] of [
     "candlefix-backup.json",
     { batches: 2, burnSessions: 2, burnPhotos: 1, investigations: 1, investigationPhotos: 2, correctiveExperiments: 1 },
   ],
+  // v0.3 TrueCandle Cost: the format 6 file the CandleFix build made in `fix6`,
+  // and the format 7 file this build made in `cost7`, with a cost sheet.
+  [
+    "restore06c",
+    "fix6-backup.json",
+    { batches: 1, burnSessions: 1, burnPhotos: 1, investigations: 1, investigationPhotos: 1, costItems: 0, costSheets: 0 },
+  ],
+  [
+    "restore07",
+    "cost7-backup.json",
+    { batches: 1, burnSessions: 1, burnPhotos: 1, investigations: 1, investigationPhotos: 1, costSheets: 1 },
+  ],
 ] as const) {
   test(`${phase}: the final build restores ${file} into a fresh profile`, async () => {
     test.skip(PHASE !== phase);
@@ -638,10 +745,18 @@ for (const [phase, file, expected] of [
         for (const store of ["investigations", "correctiveExperiments"]) {
           expect(after.stores[store], store).toEqual(source.data[store]);
         }
-        const investigation = after.stores.investigations[0] as { id: string };
-        await page.goto(`/investigations/${investigation.id}/compare`);
-        await waitForHeading(page, "Before and after");
-        await expect(page.getByTestId("before-after-column")).toHaveCount(2, { timeout: SLOW });
+        const investigation = after.stores.investigations[0] as { id: string; title?: string };
+        const experiments = (source.data.correctiveExperiments ?? []).length;
+        if (experiments > 0) {
+          await page.goto(`/investigations/${investigation.id}/compare`);
+          await waitForHeading(page, "Before and after");
+          // The original batch plus one column per corrective experiment in the file.
+          await expect(page.getByTestId("before-after-column")).toHaveCount(1 + experiments, { timeout: SLOW });
+        } else {
+          // No experiment to compare: the investigation page opens with its observations.
+          await page.goto(`/investigations/${investigation.id}`);
+          await expect(page.getByText(investigation.title ?? "").first()).toBeVisible({ timeout: SLOW });
+        }
       }
       if ((source.data.burnPhotos ?? []).length > 0) {
         const fileShas = (source.data.burnPhotos as unknown as { sha256: string }[]).map((p) => p.sha256).sort();
@@ -649,6 +764,17 @@ for (const [phase, file, expected] of [
           .map((p) => p.bytes.sha256)
           .sort();
         expect(deviceShas, "photo bytes match their SHA-256").toEqual(fileShas);
+      }
+      if (phase === "restore07" || phase === "restore06c") {
+        // Every record in the file is on the device exactly as written, prices, counts and sheets included.
+        for (const store of ["materials", "materialLots", "batches", "investigations", "costItems", "costSheets"]) {
+          expect(after.stores[store], store).toEqual(source.data[store] ?? []);
+        }
+      }
+      if (phase === "restore07") {
+        const sheet = after.stores.costSheets[0] as { id: string };
+        await page.goto(`/costs/${sheet.id}`);
+        await expect(page.getByTestId("cost-per-sellable")).toBeVisible({ timeout: SLOW });
       }
       if (phase === "restore05" || phase === "restore05fix") {
         // Every lot link in the file is on the device as written.

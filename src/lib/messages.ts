@@ -332,6 +332,12 @@ export function messageForCheckFailure(failure: CheckFailure): string {
           `${countOf(failure.correctiveExperiments, "corrective experiment")} ${failure.correctiveExperiments === 1 ? "refers" : "refer"} to a missing investigation, batch or burn test`,
         );
       }
+      // Cost sheet clause WRITTEN HERE (v0.3 TrueCandle Cost).
+      if (failure.costSheets > 0) {
+        parts.push(
+          `${countOf(failure.costSheets, "cost sheet")} ${failure.costSheets === 1 ? "refers" : "refer"} to a missing formula version or batch`,
+        );
+      }
       return `This backup is incomplete: ${parts.join(" and ")}.`;
     }
     default:
@@ -363,6 +369,9 @@ const SUMMARY_ORDER: readonly {
   { key: "investigations", singular: "investigation", plural: "investigations" },
   { key: "investigationPhotos", singular: "investigation photo", plural: "investigation photos" },
   { key: "correctiveExperiments", singular: "corrective experiment", plural: "corrective experiments" },
+  // WRITTEN HERE (v0.3 TrueCandle Cost).
+  { key: "costItems", singular: "packaging item", plural: "packaging items" },
+  { key: "costSheets", singular: "cost sheet", plural: "cost sheets" },
 ];
 
 function countsList(counts: BackupCounts): string[] {
@@ -391,6 +400,8 @@ const INTEGRITY_REASONS: Record<IntegrityReason, string> = {
   "follow-up-is-original": "its follow-up batch is the batch it investigates",
   "listed-session-missing": "a burn test it lists is missing",
   "session-of-other-batch": "a burn test it lists is of another batch than its follow-up batch",
+  // WRITTEN HERE (v0.3 TrueCandle Cost).
+  "line-of-other-material": "a cost line names a different material than that component of its version",
 };
 
 /** WRITTEN HERE (restore integrity). e.g. "batch 3f2a9c1d…: its formula version is missing". */
@@ -789,6 +800,9 @@ export const MESSAGES = {
       `This batch has ${countOf(n, "investigation")}. A batch cannot be deleted until its investigations are deleted. Open each investigation and delete it first.`,
     followUpDeleteBlocked: (n: number) =>
       `This batch is the follow-up batch of ${countOf(n, "corrective experiment")}. A batch cannot be deleted while an experiment names it. Open the experiment and delete it first.`,
+    // WRITTEN HERE (v0.3 TrueCandle Cost): a batch kept by its cost sheets.
+    costSheetsDeleteBlocked: (n: number) =>
+      `This batch has ${countOf(n, "cost sheet")}. A batch cannot be deleted while a cost sheet is costed from it. Open each cost sheet and delete it first.`,
 
     // WRITTEN HERE (v0.2 CurePilot): Create batch from a planned production entry.
     planNoticeTitle: "From planned production.",
@@ -818,6 +832,9 @@ export const MESSAGES = {
     formulaDeleteRefusedTitle: "This formula cannot be deleted",
     formulaDeleteRefused: (count: number) =>
       `This formula has ${countOf(count, "batch", "batches")}, so it can't be deleted. Batches keep a link to the version they were made from. Delete those batches first, or archive the formula.`,
+    // WRITTEN HERE (v0.3 TrueCandle Cost): a formula kept by cost sheets of its versions.
+    formulaDeleteRefusedCostSheets: (count: number) =>
+      `This formula has ${countOf(count, "cost sheet")}, so it can't be deleted. Cost sheets keep a link to the version they were costed from. Delete those cost sheets first, or archive the formula.`,
     formulaDeleteClose: "Close",
     // WRITTEN HERE (v0.2 CurePilot)
     formulaDeletePlans: (count: number) =>
@@ -852,6 +869,18 @@ export const MESSAGES = {
     lotArchivedBadge: "Archived",
     lotNotFound: "This lot is no longer on this device.",
     rowLots: (codes: string) => `Lots: ${codes}`,
+
+    // WRITTEN HERE (v0.3 TrueCandle Cost): candle counts on the batch.
+    candlesMadeLabel: "Candles made (optional)",
+    sellableLabel: "Sellable (optional)",
+    candlesHint: "Whole candles. Cost sheets use these to work out the cost per sellable candle.",
+    candlesMadeInvalid: "Enter a whole number from 1 to 100,000.",
+    sellableInvalid: "Enter a whole number from 0 up to the candles made.",
+    sellableAbove: "Sellable cannot be more than candles made.",
+    sellableNeedsMade: "Enter the candles made, or clear sellable.",
+    /** `sellable` is null when only the candles made were recorded. */
+    countsLine: (made: number, sellable: number | null): string =>
+      sellable === null ? `${made} made` : `${made} made, ${sellable} sellable`,
   },
 
   // WRITTEN HERE (v0.3 lots): search, filters and export on the Batches list.
@@ -1181,6 +1210,17 @@ export const MESSAGES = {
     decimalsPercent: "Use 2 decimal places at most.",
     decimalsGrams: "Use 3 decimal places at most.",
     allArchived: "All your materials are archived.",
+
+    // WRITTEN HERE (v0.3 TrueCandle Cost): default price on a material.
+    priceLabelKg: "Default price per kg in pesos (optional)",
+    priceLabelEach: "Default price each in pesos (optional)",
+    priceHint: "For example 1850.50. Leave it blank for no price.",
+    priceNote: "Changing the price never changes saved cost sheets.",
+    priceInvalid: "Enter an amount in pesos, for example 1850.50, using numbers and a period.",
+    priceDecimals: "Use 2 decimal places at most.",
+    priceRange: "Enter a price from ₱0.00 to ₱10,000,000.00.",
+    columnPrice: "Default price",
+    priceNone: "No price",
   },
 
   // WRITTEN HERE (v0.3 lots): supplier library screen, for owner review.
@@ -1319,6 +1359,89 @@ export const MESSAGES = {
     saveStorageFull:
       "This device is out of space for this site, so the lot was not saved. Your entries are still in the form. Making a backup and deleting old records frees space.",
     archiveFailed: "Could not change the archived state. Try again.",
+
+    // WRITTEN HERE (v0.3 TrueCandle Cost): what was paid for a lot and what was received.
+    amountPaidLabel: "Amount paid in pesos (optional)",
+    quantityReceivedLabel: "Quantity received (optional)",
+    quantityPiecesLabel: "Quantity received in pieces (optional)",
+    quantityUnitLabel: "Unit",
+    unitKg: "kg",
+    unitG: "g",
+    purchaseHint: "Fill in both to see the price per kg or each. Saved cost sheets keep their own copy.",
+    paidInvalid: "Enter an amount in pesos, for example 4350.50, using numbers and a period.",
+    paidDecimals: "Use 2 decimal places at most.",
+    paidRange: "Enter an amount from ₱0.00 to ₱10,000,000.00.",
+    paidMissing: "Enter the amount paid, or clear the quantity received.",
+    quantityMissing: "Enter the quantity received, or clear the amount paid.",
+    quantityInvalid: "Enter a weight above 0 using numbers and a period.",
+    quantityKgDecimals: "Use 6 decimal places at most for kg.",
+    quantityGDecimals: "Use 3 decimal places at most for g.",
+    quantityRange: "Enter a weight above 0 and up to 1,000 kg.",
+    quantityPiecesInvalid: "Enter a whole number of pieces from 1 to 1,000,000.",
+    /** `text` is the price as shown, e.g. "₱217.50 per kg". */
+    priceLine: (text: string) => `Price: ${text}`,
+  },
+
+  // WRITTEN HERE (v0.3 TrueCandle Cost): the Packaging and items screen.
+  costItems: {
+    title: "Packaging and items",
+    description: "Labels, boxes and other things you add to a cost sheet. Kept on this device only.",
+    materialsLink: "Materials",
+    addItem: "Add item",
+    addTitle: "Add item",
+    editTitle: "Edit item",
+    empty: {
+      title: "No items yet.",
+      description: "Add the labels, boxes and other things you buy for your candles.",
+      action: "Add item",
+    },
+    showArchived: "Show archived",
+    allArchived: "All your items are archived.",
+    archivedTag: "Archived",
+    nameLabel: "Name",
+    priceLabel: "Price each in pesos",
+    notesLabel: "Notes (optional)",
+    nameRequired: "Enter a name.",
+    nameTooLong: "Use 60 characters or fewer.",
+    nameDuplicate: "You already have an item with this name. Names are not case sensitive.",
+    priceRequired: "Enter the price of one.",
+    priceInvalid: "Enter an amount in pesos, for example 6.75, using numbers and a period.",
+    priceDecimals: "Use 2 decimal places at most.",
+    priceRange: "Enter an amount from ₱0.00 to ₱10,000,000.00.",
+    notesTooLong: "Use 2,000 characters or fewer.",
+    priceNote: "Changing the price never changes saved cost sheets.",
+    save: "Save",
+    cancel: "Cancel",
+    edit: "Edit",
+    archive: "Archive",
+    unarchive: "Unarchive",
+    delete: "Delete",
+    editLabel: (name: string) => `Edit item ${name}`,
+    archiveLabel: (name: string) => `Archive item ${name}`,
+    unarchiveLabel: (name: string) => `Unarchive item ${name}`,
+    deleteLabel: (name: string) => `Delete item ${name}`,
+    deleteTitle: "Delete this item?",
+    /** `sheets` is how many cost sheets have a line picked from the item. */
+    deleteBody: (name: string, sheets: number): string =>
+      sheets === 0
+        ? `${name} will be removed from your list. This cannot be undone.`
+        : `${name} will be removed from your list. ${countOf(sheets, "cost sheet")} will keep ${sheets === 1 ? "its" : "their"} own copy. This cannot be undone.`,
+    deleteConfirm: "Delete item",
+    deleteFailed: "Could not delete the item. Nothing was changed. Try again.",
+    addedDone: "Added.",
+    savedDone: "Saved.",
+    archivedDone: "Archived.",
+    unarchivedDone: "Unarchived.",
+    deletedDone: "Deleted.",
+    fixFirst: "Fix the highlighted fields, then save again.",
+    loading: "Loading items…",
+    loadFailedTitle: "Could not load your items.",
+    loadFailed: "Your data is still on this device. Try again.",
+    retry: "Try again",
+    saveFailedTitle: "Not saved.",
+    saveFailed: "Something went wrong and nothing was changed. Try again.",
+    saveGone: "The item could not be found, so nothing was saved.",
+    archiveFailed: "Could not change the archived state. Try again.",
   },
 
   /** Backup and restore (F6, F7). */
@@ -1368,8 +1491,9 @@ export const MESSAGES = {
     // WRITTEN HERE (v0.2 integration QA): names everything Replace removes.
     // Suppliers and lots added: WRITTEN HERE (v0.3 lots).
     // Investigations, their photos and corrective experiments added: WRITTEN HERE (v0.3 CandleFix).
+    // Packaging items and cost sheets added: WRITTEN HERE (v0.3 TrueCandle Cost).
     replaceWarning:
-      "This removes every formula, version, material, measurement, batch, cure plan, planned production entry, burn test, burn test photo, supplier, lot, investigation, investigation photo and corrective experiment on this device and writes the backup in their place. A safety backup of current data downloads first.",
+      "This removes every formula, version, material, measurement, batch, cure plan, planned production entry, burn test, burn test photo, supplier, lot, investigation, investigation photo, corrective experiment, packaging item and cost sheet on this device and writes the backup in their place. A safety backup of current data downloads first.",
     typeReplace: "Type REPLACE to confirm.",
     dontCloseTab: "Don't close this tab.",
     openSaved: "Open saved formulas",
@@ -2367,6 +2491,242 @@ export const MESSAGES = {
     photoCount: (n: number) => countOf(n, "photo"),
     experimentCount: (n: number) => countOf(n, "corrective experiment"),
     untitled: "Investigation",
+  },
+
+  /** TrueCandle Cost screens: cost sheets. */
+  cost: {
+    // ── WRITTEN HERE (v0.3 TrueCandle Cost) ──
+    // Sections on the batch and formula pages
+    sectionHeading: "Costs",
+    formulaSectionHeading: "Cost sheets",
+    sectionLoading: "Loading cost sheets…",
+    sectionLoadFailed: "The cost sheets could not be loaded. Your data is still on this device.",
+    sectionEmptyBatch:
+      "No cost sheets for this batch yet. A cost sheet adds up materials, packaging, labour and overhead into a cost per sellable candle.",
+    sectionEmptyFormula:
+      "No cost sheets for this formula yet. A cost sheet adds up materials, packaging, labour and overhead into a cost per sellable candle.",
+    newSheet: "New cost sheet",
+    newSheetFromVersion: (n: number) => `New cost sheet from version ${n}`,
+    allSheets: "All cost sheets",
+    tryAgain: "Try again",
+
+    // List page
+    listTitle: "Cost sheets",
+    listDescription: "The cost of a batch of candles, from a saved formula version or a recorded batch.",
+    listLoading: "Loading cost sheets…",
+    listLoadFailedTitle: "The cost sheets could not be loaded.",
+    listLoadFailedBody: "Your data is still on this device.",
+    listEmptyTitle: "No cost sheets yet",
+    listEmptyBody: "Start one from a formula version or a recorded batch.",
+    listEmptyFiltered: "No cost sheets match this filter.",
+    openFormulas: "Open formulas",
+    openBatches: "Open batches",
+    filterFormula: (name: string) => `Showing cost sheets for ${name}`,
+    filterBatch: (batch: string) => `Showing cost sheets for batch ${batch}`,
+    filterClear: "Show all cost sheets",
+    untitled: "Cost sheet",
+    basisBatch: (batch: string) => `From batch ${batch}`,
+    basisVersion: (n: number, formula: string) => `From version ${n} of ${formula}`,
+    rowCandles: (made: number, sellable: number) =>
+      `${made.toLocaleString("en-US")} made, ${sellable.toLocaleString("en-US")} sellable`,
+    rowPerSellable: (amount: string) => `${amount} per sellable candle`,
+    noSellable: "No sellable candles",
+    incompleteBadge: "Incomplete",
+    separator: " · ",
+
+    // New sheet
+    newTitle: "New cost sheet",
+    newDescriptionVersion: (n: number, formula: string) => `From version ${n} of ${formula}.`,
+    newDescriptionBatch: (batch: string) => `From batch ${batch}.`,
+    newLoading: "Loading…",
+    newLoadFailed: "The formula version or batch could not be loaded. Your data is still on this device.",
+    newMissingTitle: "Nothing to cost here",
+    newMissingBody: "The formula version or batch may have been deleted, or the link may be wrong.",
+    newNoBasisBody: "Start a cost sheet from a formula version or a batch.",
+    titleLabel: "Title (optional)",
+    titleHint: "A name to tell sheets apart, such as a price list or a size.",
+    candlesLabel: "Candles made",
+    candlesHint: "How many candles this cost covers, as a whole number.",
+    candlesHintVessels: (n: number) => `This version was sized for ${n} vessels.`,
+    sellableLabel: "Sellable",
+    sellableHint: "Candles you can sell. The cost of the non-sellable ones is carried by the sellable ones.",
+    createButton: "Create cost sheet",
+    cancel: "Cancel",
+    createFailed: "The cost sheet could not be saved. Your data is still on this device. Try again.",
+    createInvalid: "The cost sheet could not be created from these values. Check the fields and try again.",
+
+    // Field errors
+    errTitleLong: (max: number) => `Use ${max} characters or fewer.`,
+    errNotesLong: (max: number) => `Use ${max.toLocaleString("en-US")} characters or fewer.`,
+    errCandlesRequired: "Enter how many candles were made.",
+    errCandlesWhole: "Use a whole number, such as 12.",
+    errCandlesRange: (max: number) => `Use a number from 1 to ${max.toLocaleString("en-US")}.`,
+    errSellableRequired: "Enter how many candles are sellable, or 0.",
+    errSellableWhole: "Use a whole number, such as 10.",
+    errSellableOver: "Sellable cannot be more than candles made.",
+    errPiecesPerCandle: (max: number) => `Use a whole number from 0 to ${max}.`,
+    errPriceRequired: "Enter a price, or choose No price.",
+    errMoney: "Enter an amount in pesos, such as 1850 or 38.50, with at most 2 decimals.",
+    errMoneyRange: (max: string) => `Use an amount up to ${max}.`,
+    errPriceMin: "Enter at least ₱0.01.",
+    errItemName: (max: number) => `Enter a name of 1 to ${max} characters.`,
+    errItemQuantity: (max: number) => `Use a whole number from 1 to ${max.toLocaleString("en-US")}.`,
+    errHours: "Enter hours with at most 2 decimals, such as 3.5, or 0.",
+    errHoursRange: "Use up to 1,000 hours.",
+    errPercent: "Enter a percentage with at most 2 decimals, such as 12.5.",
+    errPercentRange: (max: string) => `Use a percentage up to ${max}.`,
+    errMarginRange: "Enter a target margin below 100%, such as 40.",
+
+    // Sheet page
+    pageLoading: "Loading the cost sheet…",
+    pageLoadingTitle: "Cost sheet",
+    pageLoadFailed: "The cost sheet could not be loaded. Your data is still on this device.",
+    notFoundTitle: "Cost sheet not found",
+    notFoundBody: "It may have been deleted, or the link may be wrong. Your formulas and batches are not affected.",
+    backToSheets: "Back to cost sheets",
+    backToSheet: "Back to the cost sheet",
+    basisBatchLink: (batch: string) => `Batch ${batch}`,
+    basisVersionLink: (n: number, formula: string) => `Version ${n} of ${formula}`,
+    formulaLink: (name: string) => `Formula ${name}`,
+    copiedFrom: "Copied from",
+    copiedFromDeleted: "Copied from a sheet that was deleted",
+    copiedNotice: "A new cost sheet was made from current data. The original is unchanged.",
+    edit: "Edit",
+    copyUpdate: "Copy and update",
+    copyUpdateHint: "Copy and update makes a new sheet with current prices and weights. This one stays as it is.",
+    copyFailed: "The sheet could not be copied. Your data is still on this device. Try again.",
+    deleteButton: "Delete",
+    candlesLine: (made: number, sellable: number) =>
+      `${made.toLocaleString("en-US")} candles made, ${sellable.toLocaleString("en-US")} sellable`,
+
+    // Lines and totals
+    materialsHeading: "Materials",
+    itemsHeading: "Packaging and other items",
+    itemsEmpty: "No packaging or other items.",
+    totalsHeading: "Totals",
+    quantityMeasured: (grams: string) => `${grams} measured`,
+    quantityPlanned: (grams: string) => `Planned (not measured): ${grams}`,
+    quantityPerCandle: (perCandle: number, pieces: number) =>
+      `${perCandle} per candle × ${pieces.toLocaleString("en-US")}`,
+    sourceLot: (code: string, paid: string, received: string) => `Lot ${code}: ${paid} for ${received}`,
+    sourceMaterial: (price: string) => `Material price ${price}`,
+    sourceSheet: (price: string) => `Typed on this sheet: ${price}`,
+    sourceNone: "No price",
+    receivedPieces: (n: number) => `${n.toLocaleString("en-US")} ${n === 1 ? "piece" : "pieces"}`,
+    itemQuantitySellable: (quantity: number, sellable: number) =>
+      `${quantity} per sellable candle × ${sellable.toLocaleString("en-US")}`,
+    itemQuantityBatch: (quantity: number) => `${quantity} per batch`,
+    itemUnit: (price: string) => `${price} each`,
+    labourLabel: "Labour",
+    labourDetail: (hours: string, rate: string) => `${hours} h × ${rate} per hour`,
+    overheadLabel: "Overhead",
+    overheadFixedDetail: "Fixed amount for the batch",
+    overheadPercentDetail: (percent: string) => `${percent} of materials and labour`,
+    materialsLabel: "Materials",
+    itemsPerBatchLabel: "Items for the whole batch",
+    productionLabel: "Production",
+    productionDetail: "Materials, whole-batch items, labour and overhead",
+    perCandleMadeLabel: "Cost per candle made",
+    nonSellableLabel: "Non-sellable candles",
+    nonSellableDetail: (count: number) => countOf(count, "candle"),
+    testingLabel: "Testing allowance",
+    packagingLabel: "Packaging for the sellable candles",
+    batchTotalLabel: "Batch total",
+    perSellableHeading: "Cost per sellable candle",
+    perSellableNone: "No sellable candles, so there is no cost per sellable candle.",
+    partsHeading: "Made up of",
+    partProduction: "Production",
+    partNonSellable: "Non-sellable share",
+    partTesting: "Testing",
+    partPackaging: "Packaging",
+    incompleteTitle: "Incomplete.",
+    incompleteBody: (n: number) =>
+      `${n} material ${n === 1 ? "line has" : "lines have"} no price and ${n === 1 ? "counts" : "count"} as ₱0.00, so this cost is lower than the real cost.`,
+    roundingNote: "Each figure is rounded to the centavo on its own; totals use the unrounded amounts.",
+
+    // Scenarios
+    scenariosHeading: "Pricing scenarios",
+    wholesale: "Wholesale",
+    retail: "Retail",
+    scenarioNotSet: "Not set",
+    rowPrice: "Price",
+    rowPriceVat: "Price (includes VAT)",
+    rowExVat: "Price without VAT",
+    rowVat: "VAT in the price",
+    rowProfit: "Profit per candle",
+    rowMargin: "Gross margin",
+    rowBatchProfit: "Profit for the batch",
+    scenarioSetByPrice: "Set by price",
+    scenarioSetByMargin: (margin: string) => `Set by target margin ${margin}`,
+    reasonNoSellable: "No sellable candles",
+    reasonMarginUnreachable: "A margin of 100% or more cannot be reached",
+    reasonZeroPrice: "The price must be at least ₱0.01",
+    notAvailable: "–",
+    vatOnNote: "Prices include 12% VAT. Margins are worked out on the price without VAT.",
+    vatOffNote: "Costs are recorded as paid. VAT is not added.",
+
+    // Delete
+    deleteTitle: "Delete this cost sheet?",
+    deleteBody: (title: string) =>
+      `${title} will be removed from this device. Your formulas, batches, materials and other cost sheets are not changed.`,
+    deleteKeep: "Keep it",
+    deleteConfirm: "Delete cost sheet",
+    deleteFailed: "The cost sheet could not be deleted. Your data is still on this device. Try again.",
+
+    // Editor
+    editTitle: "Edit cost sheet",
+    editorLoading: "Loading the cost sheet…",
+    editorLoadFailed: "The cost sheet could not be loaded. Your data is still on this device.",
+    save: "Save",
+    saved: "Saved",
+    saveFailed: "The cost sheet could not be saved. Your data is still on this device. Try again.",
+    saveInvalid: "These values could not be saved. Check the fields and try again.",
+    fixFields: "Some fields need attention. Fix them and save again.",
+    resultsHeading: "Results",
+    resultsStale: "Some fields need attention, so these figures are from the last valid values.",
+    countsHeading: "Candles",
+    linesHeading: "Materials and prices",
+    linesHint: "Weights come from the formula version or batch and cannot change here.",
+    linePriceLegend: (name: string) => `Price for ${name}`,
+    priceKeep: "Keep the price from when the sheet was made",
+    priceTyped: "Type a price for this sheet",
+    priceNone: "No price",
+    priceTypedLabelKg: (name: string) => `${name}: price per kg (pesos)`,
+    priceTypedLabelPiece: (name: string) => `${name}: price each (pesos)`,
+    piecesLabel: (name: string) => `${name}: pieces per candle`,
+    itemsEditHeading: "Packaging and other items",
+    itemsHint: "Add items from your packaging list or type a one-off. The price is copied onto this sheet.",
+    itemPickerLabel: "Add from the packaging list",
+    itemPickerPlaceholder: "Choose an item",
+    itemAddFromList: "Add from list",
+    itemAddOneOff: "Add a one-off item",
+    itemsAtMax: (max: number) => `A sheet holds at most ${max} items.`,
+    itemName: "Item name",
+    itemPrice: "Price each (pesos)",
+    itemPer: "Charged",
+    itemPerSellableOption: "Each sellable candle",
+    itemPerBatchOption: "Whole batch",
+    itemQuantity: "Quantity",
+    itemRemove: (name: string) => `Remove ${name || "item"}`,
+    labourHeading: "Labour",
+    labourHoursLabel: "Labour hours",
+    labourRateLabel: "Labour rate per hour (pesos)",
+    overheadHeading: "Overhead",
+    overheadModeLabel: "Overhead mode",
+    overheadFixed: "Fixed amount for the batch",
+    overheadPercent: "Percentage of materials and labour",
+    overheadFixedLabel: "Overhead for the batch (pesos)",
+    overheadPercentLabel: "Overhead percentage",
+    testingLabelField: "Testing allowance for the batch (pesos)",
+    vatSwitch: "Prices include 12% VAT",
+    vatNote: "Off: the app assumes you are not VAT-registered and records costs as paid.",
+    scenarioModeLabel: (name: string) => `${name} set by`,
+    scenarioModeNone: "Not set",
+    scenarioModePrice: "By price",
+    scenarioModeMargin: "By target margin",
+    scenarioPriceLabel: (name: string) => `${name} price per candle (pesos)`,
+    scenarioMarginLabel: (name: string) => `${name} target gross margin (%)`,
+    notesFieldLabel: "Notes (optional)",
   },
 
   /** Storage blocked (blueprint section 5, F7 storage row). */

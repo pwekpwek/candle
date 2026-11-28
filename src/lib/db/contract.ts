@@ -20,7 +20,7 @@
  *   - DATA-13: each committed write to materials, formulas, formulaVersions,
  *     measurements, batches, curePlans, productionPlans, burnSessions,
  *     burnPhotos, suppliers, materialLots, investigations,
- *     investigationPhotos or correctiveExperiments adds 1 to meta
+ *     investigationPhotos, correctiveExperiments, costItems or costSheets adds 1 to meta
  *     `changesSinceBackup`, inside the same
  *     transaction as the write (one bump per repository call).
  *   - Timestamps come from the injected clock (`createDataLayer(db, { now })`),
@@ -41,6 +41,12 @@ import type {
   BurnPhoto,
   BurnSession,
   CorrectiveExperiment,
+  CostItem,
+  CostItemPer,
+  CostOverhead,
+  CostPrice,
+  CostScenario,
+  CostSheet,
   CureMilestone,
   CureMilestoneKind,
   CurePlan,
@@ -53,6 +59,7 @@ import type {
   Material,
   MaterialLot,
   MaterialType,
+  LotPurchase,
   Measurement,
   MeasurementEntry,
   ProductionPlan,
@@ -98,9 +105,9 @@ export interface DataErrorLike extends Error {
 export type MetaRow = { key: string; value: unknown };
 
 /**
- * The Dexie database. Stores and indexes (schema version 6; batches added in
+ * The Dexie database. Stores and indexes (schema version 7; batches added in
  * 2, curePlans and productionPlans in 3, burnSessions and burnPhotos in 4,
- * suppliers and materialLots in 5, the CandleFix stores in 6):
+ * suppliers and materialLots in 5, the CandleFix stores in 6, the cost stores in 7):
  *   materials        id, type, archivedAt
  *   formulas         id, updatedAt, archivedAt
  *   formulaVersions  id, formulaId, &[formulaId+number]
@@ -115,6 +122,8 @@ export type MetaRow = { key: string; value: unknown };
  *   investigations         id, batchId, observedOn
  *   investigationPhotos    id, investigationId
  *   correctiveExperiments  id, investigationId, followUpBatchId, *burnSessionIds
+ *   costItems        id, name
+ *   costSheets       id, formulaId, versionId, batchId
  *   drafts           key
  *   meta             key
  */
@@ -133,6 +142,8 @@ export type CandleDatabase = Dexie & {
   investigations: EntityTable<Investigation, "id">;
   investigationPhotos: EntityTable<InvestigationPhoto, "id">;
   correctiveExperiments: EntityTable<CorrectiveExperiment, "id">;
+  costItems: EntityTable<CostItem, "id">;
+  costSheets: EntityTable<CostSheet, "id">;
   drafts: EntityTable<Draft, "key">;
   meta: EntityTable<MetaRow, "key">;
 };
@@ -153,6 +164,11 @@ export type MaterialInput = {
   wax?: WaxDetails;
   wick?: WickDetails;
   vessel?: VesselDetails;
+  /**
+   * v0.3 TrueCandle Cost: whole centavos per kg (wax, fragrance oil) or per
+   * piece (wick, vessel). Absent means no price.
+   */
+  defaultPriceCentavos?: number;
 };
 
 export type MaterialsRepo = {
@@ -191,14 +207,20 @@ export type FormulasRepo = {
    * `productionPlans` (CurePilot) are the planned production entries that go
    * with the formula.
    */
-  deletionImpact(
-    id: string,
-  ): Promise<{ versions: number; measurements: number; batches: number; productionPlans: number }>;
+  deletionImpact(id: string): Promise<{
+    versions: number;
+    measurements: number;
+    batches: number;
+    productionPlans: number;
+    /** TrueCandle Cost: sheets based on any of its versions. Above zero, deletion is refused. */
+    costSheets: number;
+  }>;
   /**
    * DATA-12: formula, versions, measurements, its planned production entries
    * (CurePilot) and its draft, in one transaction. From v0.2 it throws
    * DataError("in-use") and deletes nothing while any batch refers to the
    * formula, so a batch never loses the version it was made from.
+   * TrueCandle Cost: likewise while a cost sheet is based on any of its versions.
    */
   deletePermanently(id: string): Promise<void>;
 };
@@ -299,6 +321,16 @@ export type BatchInput = {
    * BatchLotInput and docs/v0.3-lots.md.
    */
   lots?: BatchLotInput[];
+  /**
+   * v0.3 TrueCandle Cost: candles made, 1–MAX_CANDLES. On `create` and
+   * `update`, absent keeps what is stored (nothing on create) and null clears it.
+   */
+  candlesMade?: number | null;
+  /**
+   * v0.3 TrueCandle Cost: candles fit to sell, 0–candlesMade. Absent keeps,
+   * null clears. "invalid" when it is above candles made or set without them.
+   */
+  sellable?: number | null;
 };
 
 /**
@@ -373,6 +405,8 @@ export type BatchesRepo = {
     burnSessions: number;
     investigations: number;
     followUpExperiments: number;
+    /** TrueCandle Cost: cost sheets based on the batch. Above zero, deletion is refused. */
+    costSheets: number;
   }>;
   /**
    * Removes one batch, after the maker confirmed. CurePilot: its cure plan is
@@ -381,6 +415,7 @@ export type BatchesRepo = {
    * "in-use" while the batch has burn sessions (they are observations).
    * CandleFix: also refused with "in-use" while the batch has an investigation
    * or is the follow-up batch of a corrective experiment.
+   * TrueCandle Cost: also refused with "in-use" while a cost sheet is based on it.
    */
   delete(id: string): Promise<void>;
 };
@@ -850,6 +885,13 @@ export type MaterialLotInput = {
   /** YYYY-MM-DD, or absent/blank for unknown. The screens refuse a future date. */
   receivedOn?: string;
   notes?: string;
+  /**
+   * v0.3 TrueCandle Cost: what was paid for the lot as received. Absent means
+   * none. `quantity` is milligrams (1–LIMITS.maxWeightMg) for wax and
+   * fragrance oil, pieces (1–MAX_LOT_PIECES) for wicks and vessels: "invalid"
+   * outside the range for the lot's material type.
+   */
+  purchase?: LotPurchase;
 };
 
 export type MaterialLotListItem = {
@@ -975,6 +1017,124 @@ export type ExampleRepo = {
   prepare(newRowId: () => string): Promise<EditorFields>;
 };
 
+// ─────────────────────────── TrueCandle Cost (v0.3) ───────────────────────────
+
+/** What the maker can set on a packaging or other item. */
+export type CostItemInput = {
+  /** Trimmed, 1–60; unique among items (case-insensitive, archived included). */
+  name: string;
+  unitCentavos: number;
+  notes?: string;
+};
+
+export type CostItemsRepo = {
+  /** By name, case-insensitive. Archived ones only when asked for. */
+  list(filter?: { includeArchived?: boolean }): Promise<CostItem[]>;
+  get(id: string): Promise<CostItem | undefined>;
+  /** "invalid" for a bad field or a duplicate name. */
+  create(input: CostItemInput): Promise<CostItem>;
+  /** Saved sheets keep their own copy; nothing else changes. */
+  update(id: string, input: CostItemInput): Promise<CostItem>;
+  setArchived(id: string, archived: boolean): Promise<CostItem>;
+  /** Sheets with a line picked from this item. */
+  usage(id: string): Promise<{ sheets: number }>;
+  /** Allowed while sheets use it: they keep their copy. "not-found" when it is gone. */
+  delete(id: string): Promise<void>;
+};
+
+/** What a sheet is made from. */
+export type CostSheetBasisRequest = { kind: "version"; versionId: string } | { kind: "batch"; batchId: string };
+
+export type CreateCostSheetRequest = {
+  /** Chosen by the caller before the first attempt and reused on retry (idempotent). */
+  sheetId: string;
+  basis: CostSheetBasisRequest;
+  title?: string;
+  /**
+   * Required for a version sheet. For a batch sheet, absent takes the batch's
+   * counts ("invalid" when the batch has none).
+   */
+  candlesMade?: number;
+  /** Absent: the batch's sellable count (batch sheet), else candles made. */
+  sellable?: number;
+};
+
+/** A material line as the editor sends it: only the pieces and the price may change. */
+export type CostMaterialLineInput = {
+  key: string;
+  /** Wick and vessel lines only: 0–50 pieces per candle made. */
+  perCandle?: number;
+  /** Unchanged, or a price typed on this sheet, or no price. Anything else is "invalid". */
+  price: CostPrice;
+};
+
+/** An item line as the editor sends it. */
+export type CostItemLineInput = {
+  /** A stored line's id to keep it; absent for a new line (a fresh id is made). */
+  id?: string;
+  /** A list item for a new line ("not-found" when missing), a stored line's item, or null for a one-off. */
+  itemId: string | null;
+  name: string;
+  unitCentavos: number;
+  per: CostItemPer;
+  quantity: number;
+};
+
+/** The editable fields of a saved sheet. */
+export type CostSheetInput = {
+  title?: string;
+  candlesMade: number;
+  sellable: number;
+  /** Exactly the stored line keys, each once (any order; stored order is kept). */
+  materials: CostMaterialLineInput[];
+  items: CostItemLineInput[];
+  labourHoursX100: number;
+  labourRateCentavos: number;
+  overhead: CostOverhead;
+  testingCentavos: number;
+  pricesIncludeVat: boolean;
+  wholesale: CostScenario | null;
+  retail: CostScenario | null;
+  notes?: string;
+};
+
+export type CostSheetListItem = {
+  sheet: CostSheet;
+  /** The formula as it is now. */
+  formula: Formula;
+  /** The sheet's version. */
+  version: FormulaVersion;
+  /** The batch of a batch sheet, as it is now; null for a version sheet. */
+  batch: Batch | null;
+};
+
+export type CostSheetDetail = CostSheetListItem & {
+  /** The sheet it was copied from, or null (never copied, or that sheet was deleted). */
+  copiedFrom: CostSheet | null;
+};
+
+export type CostSheetsRepo = {
+  /** Newest created first. Filtered by formula or batch when asked. */
+  list(filter?: { formulaId?: string; batchId?: string }): Promise<CostSheetListItem[]>;
+  get(id: string): Promise<CostSheetDetail | undefined>;
+  /**
+   * Builds the material lines from the version (and the batch's measured
+   * weights and lots) and the current prices, in one transaction
+   * (docs/v0.3-cost.md, "Building a sheet"). "not-found" for a missing
+   * version or batch; "invalid" for bad counts or title.
+   */
+  create(request: CreateCostSheetRequest): Promise<{ sheet: CostSheet; created: boolean }>;
+  /** Replaces the editable fields. Basis, links, line keys, materials and weights never change. */
+  update(id: string, input: CostSheetInput): Promise<CostSheet>;
+  /**
+   * Copy and update: a new sheet (`sheetId`, idempotent) from `fromId` with
+   * quantities, counts and prices refreshed from current data. Typed prices are kept.
+   */
+  copy(request: { sheetId: string; fromId: string }): Promise<{ sheet: CostSheet; created: boolean }>;
+  /** Deletes the sheet only. "not-found" when it is gone. */
+  delete(id: string): Promise<void>;
+};
+
 // ───────────────────────────── The layer ─────────────────────────────
 
 export type DataLayer = {
@@ -994,6 +1154,8 @@ export type DataLayer = {
   investigations: InvestigationsRepo;
   investigationPhotos: InvestigationPhotosRepo;
   correctiveExperiments: CorrectiveExperimentsRepo;
+  costItems: CostItemsRepo;
+  costSheets: CostSheetsRepo;
   drafts: DraftsRepo;
   meta: MetaRepo;
   example: ExampleRepo;

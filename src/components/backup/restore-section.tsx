@@ -106,6 +106,8 @@ function deviceCountsOf(device: DeviceData): BackupCounts {
     investigations: device.investigations.length,
     investigationPhotos: device.investigationPhotos.length,
     correctiveExperiments: device.correctiveExperiments.length,
+    costItems: device.costItems.length,
+    costSheets: device.costSheets.length,
   };
 }
 
@@ -125,6 +127,8 @@ function tallyCounts(plan: RestorePlan, field: "identical" | "conflict"): Backup
     investigationPhotos: plan.tally.investigationPhotos[field],
     correctiveExperiments: plan.tally.correctiveExperiments[field],
     materialLots: plan.tally.materialLots[field],
+    costItems: plan.tally.costItems[field],
+    costSheets: plan.tally.costSheets[field],
   };
 }
 
